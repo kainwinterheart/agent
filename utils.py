@@ -11,7 +11,7 @@ import asyncio
 import os
 import glob
 from typing import Optional
-from config import MAX_REPAIR_ATTEMPTS, DOCUMENT_STORES_DIR, RETENTION_POLICY
+from config import MAX_REPAIR_ATTEMPTS, DOCUMENT_STORES_DIR
 
 
 def log(step, msg):
@@ -115,7 +115,7 @@ def assert_not_empty(obj, step):
         raise RuntimeError(f"{step} produced empty output")
 
 
-def markdown_document_generator(content: dict, stage_name: str) -> None:
+def markdown_document_generator(content: dict, stage_name: str, subdir: str) -> None:
     """Generate Markdown document from JSON dict content and persist to file.
     
     Args:
@@ -134,33 +134,52 @@ def markdown_document_generator(content: dict, stage_name: str) -> None:
         - Logs generation event via log() utility
     """
     # Validate required fields based on stage type - consistent error handling across all stages
-    required_keys = {'product_manager_final': ['task_specification'], 'architecture_after_reviews': ['overview'], 'tech_plan_after_reviews': ['summary']}
+    required_keys = {
+        'product_manager_final': ['task_specification'],
+        'decomposition_final': ['summary', 'domains'],
+        'architecture_after_reviews': ['overview'],
+        'tech_plan_after_reviews': ['summary']
+    }
     
     if stage_name not in required_keys:
         raise ValueError(f"Unknown stage: {stage_name}")
     
-    missing_key = required_keys[stage_name][0]
-    
-    # Unwrap nested content based on stage type before validation
-    if stage_name == 'architecture_after_reviews':
-        if 'architecture' in content:
-            actual_content = content['architecture']
+    missing_key = None
+    for key in required_keys[stage_name]:
+        # Determine which nested structure to check based on stage type
+        if stage_name == 'decomposition_final':
+            actual_content = content.get('decomposition', {})
+            if isinstance(actual_content, dict):
+                for req_field in required_keys[stage_name]:
+                    if req_field not in actual_content:
+                        missing_key = req_field
+                        break
         else:
-            raise RuntimeError(f"Missing 'architecture' key for {stage_name} stage")
-    elif stage_name == 'tech_plan_after_reviews':
-        if 'plan' in content:
-            actual_content = content['plan']
-        else:
-            raise RuntimeError(f"Missing 'plan' key for {stage_name} stage")
-    else:
-        actual_content = content
-    
-    if missing_key not in actual_content:
-        raise RuntimeError(f"Missing required field '{missing_key}' for {stage_name} stage")
+            # For other stages, use existing validation logic
+            if stage_name == 'architecture_after_reviews':
+                if 'architecture' in content:
+                    actual_content = content['architecture']
+                else:
+                    raise RuntimeError(f"Missing 'architecture' key for {stage_name} stage")
+            elif stage_name == 'tech_plan_after_reviews':
+                if 'plan' in content:
+                    actual_content = content['plan']
+                else:
+                    raise RuntimeError(f"Missing 'plan' key for {stage_name} stage")
+            else:
+                actual_content = content
+            
+            for req_field in required_keys[stage_name]:
+                if req_field not in actual_content:
+                    missing_key = req_field
+                    break
+        
+        if missing_key:
+            raise RuntimeError(f"Missing required field '{missing_key}' for {stage_name} stage")
     
     try:
         # Create document_stores directory if needed using config value
-        os.makedirs(DOCUMENT_STORES_DIR, exist_ok=True)
+        os.makedirs(os.path.join(DOCUMENT_STORES_DIR, subdir), exist_ok=True)
     except OSError as e:
         log("MARKDOWN", f"Failed to create directory {DOCUMENT_STORES_DIR}: {e}")
         raise RuntimeError(f"Cannot create document storage directory: {e}")
@@ -168,14 +187,30 @@ def markdown_document_generator(content: dict, stage_name: str) -> None:
     # Generate timestamp for filename
     timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     filename = f"{stage_name}_{timestamp}.md"
-    filepath = os.path.join(DOCUMENT_STORES_DIR, filename)
+    filepath = os.path.join(DOCUMENT_STORES_DIR, subdir, filename)
     
     # Build markdown sections based on stage type
     markdown_content = ""
     
     if stage_name == 'product_manager_final':
+        actual_content = content
         markdown_content += f"# Task Specification\n\n{actual_content.get('task_specification', 'N/A')}\n\n"
+    elif stage_name == 'decomposition_final':
+        actual_content = content.get('decomposition', {})
+        markdown_content += "# Decomposition\n\n"
+        
+        if 'domains' in actual_content:
+            markdown_content += "## Domains\n\n"
+            domains = actual_content['domains']
+            if isinstance(domains, list):
+                for domain in domains:
+                    if isinstance(domain, dict):
+                        id_val = domain.get('id', '')
+                        if architect_input := domain.get('architect_input'):
+                            markdown_content += f"### Domain {id_val}\n\n"
+                            markdown_content += f"{architect_input}\n\n"
     elif stage_name == 'architecture_after_reviews':
+        actual_content = content.get('architecture', {})
         # Architecture stage uses overview
         markdown_content += "# Architecture\n\n"
         markdown_content += "## Overview\n\n"
@@ -217,6 +252,7 @@ def markdown_document_generator(content: dict, stage_name: str) -> None:
                 for constraint in constraints:
                     markdown_content += f"- {constraint}\n\n"
     elif stage_name == 'tech_plan_after_reviews':
+        actual_content = content.get('plan', {})
         # Plan stage uses summary instead of overview
         markdown_content += "# Implementation plan\n\n"
         markdown_content += "## Summary\n\n"
@@ -253,49 +289,3 @@ def markdown_document_generator(content: dict, stage_name: str) -> None:
     except (IOError, OSError) as e:
         log("MARKDOWN", f"Failed to write file {filepath}: {e}")
         raise RuntimeError(f"Cannot create Markdown document: {e}")
-
-
-def enforce_retention_policy(stage_name: str) -> None:
-    """Enforce retention policy by removing oldest files when count exceeds limit.
-    
-    Args:
-        stage_name (str): Name of the workflow stage to enforce retention for
-    
-    Returns:
-        None: Function has side effect of deleting old files from DOCUMENT_STORES_DIR
-    
-    Raises:
-        ValueError: If stage_name is not in RETENTION_POLICY configuration
-    
-    Side effects:
-        - Lists files matching pattern {stage_name}_*.md using glob.glob()
-        - Sorts by timestamp using os.path.getmtime() to identify oldest files
-        - Removes oldest when count exceeds RETENTION_POLICY[stage_name] using os.remove()
-        - Logs deletion operations via log() utility for each removed file
-    """
-    # Validate stage name exists in RETENTION_POLICY before accessing it
-    if stage_name not in RETENTION_POLICY:
-        raise ValueError(f"Stage '{stage_name}' not configured in RETENTION_POLICY")
-    
-    max_files = RETENTION_POLICY[stage_name]
-    
-    try:
-        # List files matching the stage pattern
-        file_pattern = f'{stage_name}_*.md'
-        files = glob.glob(f'{DOCUMENT_STORES_DIR}/{file_pattern}')
-        
-        if len(files) > max_files:
-            # Sort by timestamp (oldest first)
-            sorted_files = sorted(files, key=os.path.getmtime)
-            
-            # Remove oldest files when count exceeds limit
-            excess_count = len(sorted_files) - max_files
-            for i in range(excess_count):
-                file_to_remove = sorted_files[i]
-                try:
-                    os.remove(file_to_remove)
-                    log("RETENTION", f"Removed old document: {file_to_remove}")
-                except OSError as e:
-                    log("RETENTION", f"Failed to remove {file_to_remove}: {e}")
-    except Exception as e:
-        log("RETENTION", f"Retention policy enforcement failed for {stage_name}: {e}")
