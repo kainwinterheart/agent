@@ -27,3 +27,6 @@ class Agent:
             except:
                 logging.exception(f"Failed to run {self.name}, retrying...")
         return out
+
+    def reset(self) -> None:
+        self.session = None

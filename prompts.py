@@ -210,6 +210,8 @@ Review principles:
 Output MUST be valid JSON:
 {
   "approved": true/false,
+  "should_reset": true/false,
+  "reset_reason": "short explanation of why prior context is no longer trustworthy",
   "issues": [
     {
       "severity": "low/high",
@@ -223,6 +225,12 @@ Output MUST be valid JSON:
 Rules:
 * Be strict
 * Reject ungrounded designs
+
+Reset guidance:
+* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
+* Set should_reset=false when the work can be corrected incrementally.
+* Use reset_reason to briefly explain what invalidated prior context.
+* If should_reset=false, set reset_reason to an empty string.
 """
 
 PLAN_REVIEW_PROMPT = """
@@ -246,6 +254,8 @@ Review principles:
 Output MUST be valid JSON:
 {
   "approved": true/false,
+  "should_reset": true/false,
+  "reset_reason": "short explanation of why prior context is no longer trustworthy",
   "issues": [
     {
       "severity": "low/high",
@@ -260,6 +270,12 @@ Rules:
 * Be strict
 * Reject unrealistic plans
 * Avoid defensive programming suggestions
+
+Reset guidance:
+* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
+* Set should_reset=false when the work can be corrected incrementally.
+* Use reset_reason to briefly explain what invalidated prior context.
+* If should_reset=false, set reset_reason to an empty string.
 """
 
 CODE_REVIEW_PROMPT = """
@@ -296,6 +312,8 @@ Review principles:
 Output MUST be valid JSON:
 {
 "approved": true/false,
+"should_reset": true/false,
+"reset_reason": "short explanation of why prior context is no longer trustworthy",
 "issues": [
 {
 "severity": "low/high",
@@ -316,6 +334,12 @@ Rules:
 * Reject unaddressed reviewer feedback
 * Reject omitted required plan items
 * Reject summaries that do not match the actual implementation
+
+Reset guidance:
+* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
+* Set should_reset=false when the work can be corrected incrementally.
+* Use reset_reason to briefly explain what invalidated prior context.
+* If should_reset=false, set reset_reason to an empty string.
 """
 
 TECH_LEAD_FINAL_PROMPT = """
@@ -338,6 +362,8 @@ Review principles:
 Output MUST be valid JSON:
 {
   "approved": true/false,
+  "should_reset": true/false,
+  "reset_reason": "short explanation of why prior context is no longer trustworthy",
   "issues": [
     {
       "severity": "low/high",
@@ -350,6 +376,12 @@ Output MUST be valid JSON:
 
 Rules:
 * Be strict
+
+Reset guidance:
+* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
+* Set should_reset=false when the work can be corrected incrementally.
+* Use reset_reason to briefly explain what invalidated prior context.
+* If should_reset=false, set reset_reason to an empty string.
 """
 
 ARCH_FINAL_PROMPT = """
@@ -371,6 +403,8 @@ Review principles:
 Output MUST be valid JSON:
 {
   "approved": true/false,
+  "should_reset": true/false,
+  "reset_reason": "short explanation of why prior context is no longer trustworthy",
   "issues": [
     {
       "severity": "low/high",
@@ -383,6 +417,12 @@ Output MUST be valid JSON:
 
 Rules:
 * Be strict
+
+Reset guidance:
+* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
+* Set should_reset=false when the work can be corrected incrementally.
+* Use reset_reason to briefly explain what invalidated prior context.
+* If should_reset=false, set reset_reason to an empty string.
 """
 
 PRODUCT_MANAGER_PROMPT = """
@@ -563,6 +603,8 @@ Review principles:
 Output MUST be valid JSON only:
 {
 "approved": true/false,
+"should_reset": true/false,
+"reset_reason": "short explanation of why prior context is no longer trustworthy",
 "issues": [
 {
 "severity": "low/high",
@@ -586,4 +628,10 @@ Rules:
 * No markdown
 * No explanations outside JSON
 * No extra keys
+
+Reset guidance:
+* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
+* Set should_reset=false when the work can be corrected incrementally.
+* Use reset_reason to briefly explain what invalidated prior context.
+* If should_reset=false, set reset_reason to an empty string.
 """

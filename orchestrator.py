@@ -1,9 +1,9 @@
+
 # =========================
 # ORCHESTRATOR
 # =========================
 
 import json
-import re
 import time
 from agent import Agent
 from prompts import (
@@ -22,43 +22,75 @@ class Orchestrator:
     def __init__(self, task: str):
         self.task = task
         self.subdir = time.strftime('%Y-%m-%d_%H-%M-%S')
-        
-        # Initialize Product Manager agent as first step
-        self.product_manager = Agent("product_manager", PRODUCT_MANAGER_PROMPT, timeout='15m')
-        
-        # Initialize reviewers
-        self.arch_review = Agent("arch_review", ARCH_REVIEW_PROMPT, ephemeral=True, timeout='30m')
-        self.plan_review = Agent("plan_review", PLAN_REVIEW_PROMPT, ephemeral=True, timeout='30m')
-        self.code_review = Agent("code_review", CODE_REVIEW_PROMPT, ephemeral=True, timeout='60m')
-        
-        # Initialize final reviewers
-        self.tech_lead_final = Agent("tech_lead_final", TECH_LEAD_FINAL_PROMPT, ephemeral=True, timeout='60m')
-        self.arch_final = Agent("arch_final", ARCH_FINAL_PROMPT, ephemeral=True, timeout='60m')
-        
-        # Initialize decomposition agents
-        self.decomposition = Agent("decomposition", SYSTEM_DECOMPOSITION_PROMPT, timeout='40m')
-        self.decomposition_review = Agent("decomposition_review", SYSTEM_DECOMPOSITION_REVIEW_PROMPT, ephemeral=True, timeout='30m')
 
-    def reset(self) -> None:
-        # Initialize domain-specific agents
+        self.product_manager = Agent(
+            "product_manager",
+            PRODUCT_MANAGER_PROMPT,
+            timeout='15m'
+        )
+
         self.arch = Agent("arch", ARCH_PROMPT, timeout='40m')
         self.tech_lead = Agent("tech_lead", PLAN_PROMPT, timeout='60m')
         self.coder = Agent("coder", CODER_PROMPT)
 
+        self.arch_review = Agent(
+            "arch_review",
+            ARCH_REVIEW_PROMPT,
+            ephemeral=True,
+            timeout='30m'
+        )
+        self.plan_review = Agent(
+            "plan_review",
+            PLAN_REVIEW_PROMPT,
+            ephemeral=True,
+            timeout='30m'
+        )
+        self.code_review = Agent(
+            "code_review",
+            CODE_REVIEW_PROMPT,
+            ephemeral=True,
+            timeout='60m'
+        )
+
+        self.tech_lead_final = Agent(
+            "tech_lead_final",
+            TECH_LEAD_FINAL_PROMPT,
+            ephemeral=True,
+            timeout='60m'
+        )
+        self.arch_final = Agent(
+            "arch_final",
+            ARCH_FINAL_PROMPT,
+            ephemeral=True,
+            timeout='60m'
+        )
+
+        self.decomposition = Agent(
+            "decomposition",
+            SYSTEM_DECOMPOSITION_PROMPT,
+            timeout='40m'
+        )
+        self.decomposition_review = Agent(
+            "decomposition_review",
+            SYSTEM_DECOMPOSITION_REVIEW_PROMPT,
+            ephemeral=True,
+            timeout='30m'
+        )
+
     def review_ok(self, review: dict) -> bool:
-        """Check if review passed all checks."""
         approved = review.get("approved", False)
-        
-        # Log review status
+
         log("REVIEW STATUS", f"approved={approved}")
-        
-        # Check for high severity issues
+
         issues = review.get("issues", [])
         for issue in issues:
             if issue.get("severity") == "high":
                 return False
-        
+
         return approved
+
+    def should_reset(self, review: dict) -> bool:
+        return bool(review.get("should_reset", False))
 
     def pm_transformation_workflow(self):
         run_json_agent(
@@ -70,12 +102,12 @@ Refine this request into something engineering-ready.
 Preserve the user's core intent exactly.
 
 You should:
-- identify missing requirements
-- make reasonable assumptions
-- define expected behavior
-- tighten vague language
-- add acceptance-oriented details
-- avoid expanding scope beyond the likely intent
+* identify missing requirements
+* make reasonable assumptions
+* define expected behavior
+* tighten vague language
+* add acceptance-oriented details
+* avoid expanding scope beyond the likely intent
 
 Do not ask questions back. Make the best product decisions you can.
             """
@@ -87,12 +119,12 @@ Do not ask questions back. Make the best product decisions you can.
 Review your own task specification.
 
 Look for:
-- ambiguity
-- missing edge cases
-- undefined behavior
-- missing constraints
-- places where engineering could misinterpret the task
-- places where the scope may have drifted too far from the original user intent
+* ambiguity
+* missing edge cases
+* undefined behavior
+* missing constraints
+* places where engineering could misinterpret the task
+* places where the scope may have drifted too far from the original user intent
 
 Tighten the specification while preserving the original request.
             """,
@@ -121,198 +153,291 @@ Ensure the final specification is minimal, clear, and buildable.
             """,
         )
 
-        markdown_document_generator(rephrased_task, 'product_manager_final', [self.subdir])
+        markdown_document_generator(
+            rephrased_task,
+            'product_manager_final',
+            [self.subdir]
+        )
         return rephrased_task['task_specification']
 
     def run(self):
-        """Main workflow execution with comprehensive error handling."""
-        # Execute PM transformation first (synchronous blocking step)
         root_task = self.pm_transformation_workflow()
-        
-        # Execute decomposition workflow to get architect_inputs for each domain
         decomposition = self.decomposition_workflow(root_task)
         domains = decomposition.get('decomposition', {}).get('domains', [])
         final_feedback = None
-        
+
         for domain_index, domain in enumerate(domains):
-            self.reset()
+            self.arch.reset()
+            self.tech_lead.reset()
+            self.coder.reset()
+
             task = domain.get('architect_input')
             domain_id = domain.get('id', domain_index + 1)
+
             if not task:
                 continue
-            for iteration in range(MAX_TOP_ITERATIONS):  # MAX_TOP_ITERERS
-                log("ITERATION", f"Starting iteration {iteration + 1}/{MAX_TOP_ITERATIONS} for domain {domain_index + 1}/{len(domains)}")
-                
-                # Phase 1: Architecture design per-domain
-                arch = self.architecture_design_phase(final_feedback, task, domain_id)
-                
-                # Phase 2: Plan creation per-domain
-                plan = self.plan_creation_phase(arch, task, domain_id)
-                
-                # Phase 3: Code implementation per-domain
-                code_summary = self.code_implementation_phase(plan, task)
-                
-                # Phase 4: Tech lead review per-domain with domain-specific context
-                tech_lead_final_review = self.tech_lead_review_phase(code_summary, arch, plan, task)
-                
+
+            for iteration in range(MAX_TOP_ITERATIONS):
+                log(
+                    "ITERATION",
+                    f"Starting iteration {iteration + 1}/{MAX_TOP_ITERATIONS}"
+                    f" for domain {domain_index + 1}/{len(domains)}"
+                )
+
+                arch = self.architecture_design_phase(
+                    final_feedback,
+                    task,
+                    domain_id
+                )
+
+                plan = self.plan_creation_phase(
+                    arch,
+                    task,
+                    domain_id
+                )
+
+                code_summary = self.code_implementation_phase(
+                    plan,
+                    task
+                )
+
+                tech_lead_final_review = self.tech_lead_review_phase(
+                    code_summary,
+                    arch,
+                    plan,
+                    task
+                )
+
                 if not self.review_ok(tech_lead_final_review):
-                    log("SYSTEM", "Tech lead feedback received - revising implementation")
-                    code_summary += '\n\n' + self.revision_loops(tech_lead_final_review)
-                
-                # Final architect review per-domain with domain-specific context
+                    log(
+                        "SYSTEM",
+                        "Tech lead feedback received - revising implementation"
+                    )
+
+                    code_summary += '\n\n' + self.revision_loops(
+                        tech_lead_review=tech_lead_final_review,
+                        task=task,
+                        plan=plan,
+                        reset_coder=self.should_reset(tech_lead_final_review)
+                    )
+
                 final_feedback = run_json_agent(
                     self.arch_final,
-                    f"TASK:\n{task}\nARCHITECTURE:\n{json.dumps(arch)}\nPLAN:\n{json.dumps(plan)}\nCODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}"
+                    f"TASK:\n{task}\n"
+                    f"ARCHITECTURE:\n{json.dumps(arch)}\n"
+                    f"PLAN:\n{json.dumps(plan)}\n"
+                    f"CODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}"
                 )
-            
+
                 if self.review_ok(final_feedback):
                     break
 
-    def decomposition_workflow(self, task: str) -> list:
-        """Execute decomposition workflow between PM and Architect phases.
-        
-        Returns:
-            tuple: (valid_domains list, decomposition_content dict)
-        """
-        # Invoke Decomposition Agent with PM output as input
+    def decomposition_workflow(self, task: str) -> dict:
         decomposition_result = run_json_agent(
             self.decomposition,
             f"TASK:\n{task}"
         )
-        
+
         assert_not_empty(decomposition_result, "DECOMPOSITION")
-        
-        # Review iteration until acceptance criteria met
+
         for i in range(MAX_PLAN_ITERS):
             decomposition_review = run_json_agent(
                 self.decomposition_review,
-                f"TASK:\n{task}\nATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\nDECOMPOSITION TO REVIEW:\n{json.dumps(decomposition_result)}"
+                f"TASK:\n{task}\n"
+                f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
+                f"DECOMPOSITION TO REVIEW:\n{json.dumps(decomposition_result)}"
             )
-            
-            # Check acceptance criteria: successful review pass with no rejection and valid structure
+
             if self.review_ok(decomposition_review):
-                log("SYSTEM", "Decomposition approved by decomposition reviewer")
                 break
-            
-            # Re-invoke Decomposition Agent based on feedback
+
+            if self.should_reset(decomposition_review):
+                log(
+                    "SYSTEM",
+                    f"Resetting decomposition context: {decomposition_review.get('reset_reason', '')}"
+                )
+
+                self.decomposition.reset()
+
+                revision_prompt = (
+                    f"TASK:\n{task}\n"
+                    f"PREVIOUS DECOMPOSITION:\n{json.dumps(decomposition_result)}\n"
+                    f"REVIEW FEEDBACK:\n{json.dumps(decomposition_review)}\n\n"
+                    "Rebuild the decomposition from scratch using the original task and review feedback."
+                )
+            else:
+                revision_prompt = (
+                    f"REVISE DECOMPOSITION based on feedback:\n{json.dumps(decomposition_review)}"
+                )
+
             decomposition_result = run_json_agent(
                 self.decomposition,
-                f"REVISE DECOMPOSITION based on feedback:\n{json.dumps(decomposition_review)}"
+                revision_prompt
             )
-        
-        assert_not_empty(decomposition_result, "DECOMPOSITION_REVIEWED")
+
         decomposition_result.get('decomposition', {}).pop('reviewer_notes', None)
-        
-        markdown_document_generator(decomposition_result, 'decomposition_final', [self.subdir])
+        markdown_document_generator(
+            decomposition_result,
+            'decomposition_final',
+            [self.subdir]
+        )
+
         return decomposition_result
 
     def architecture_design_phase(self, final_feedback: dict, task: str, domain_id: int) -> dict:
-        """Phase 1: Architecture design with review per-domain.
-        
-        Parameters:
-            final_feedback (dict): Feedback from previous iteration for revision
-            architect_inputs (list): List of domain-specific architect_input strings to use as context
-        """
-        arch = run_json_agent(
-            self.arch,
-            f"TASK:\n{task}" if not final_feedback else f"REVISE ARCHITECTURE based on feedback post implementation:\n{json.dumps(final_feedback)}"
-        )
-        
-        for i in range(MAX_PLAN_ITERS):  # MAX_PLAN_ITERS
-            assert_not_empty(arch, "ARCHITECTURE")
+        if final_feedback:
+            initial_prompt = (
+                f"REVISE ARCHITECTURE based on feedback post implementation:\n{json.dumps(final_feedback)}"
+            )
+        else:
+            initial_prompt = f"TASK:\n{task}"
+
+        arch = run_json_agent(self.arch, initial_prompt)
+
+        for i in range(MAX_PLAN_ITERS):
             arch_review = run_json_agent(
                 self.arch_review,
-                f"TASK:\n{task}\nATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\nARCHITECTURE TO REVIEW:\n{json.dumps(arch)}"
+                f"TASK:\n{task}\n"
+                f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
+                f"ARCHITECTURE TO REVIEW:\n{json.dumps(arch)}"
             )
-            
+
             if self.review_ok(arch_review):
-                log("SYSTEM", "Architecture approved by architect")
                 break
-            
-            arch = run_json_agent(
-                self.arch,
-                f"REVISE ARCHITECTURE based on feedback:\n{json.dumps(arch_review)}"
-            )
-        
+
+            if self.should_reset(arch_review):
+                log(
+                    "SYSTEM",
+                    f"Resetting architect context: {arch_review.get('reset_reason', '')}"
+                )
+
+                self.arch.reset()
+
+                revision_prompt = (
+                    f"TASK:\n{task}\n"
+                    f"PREVIOUS ARCHITECTURE:\n{json.dumps(arch)}\n"
+                    f"REVIEW FEEDBACK:\n{json.dumps(arch_review)}\n\n"
+                    "Rebuild the architecture from scratch using the task and review feedback."
+                )
+            else:
+                revision_prompt = (
+                    f"REVISE ARCHITECTURE based on feedback:\n{json.dumps(arch_review)}"
+                )
+
+            arch = run_json_agent(self.arch, revision_prompt)
+
         arch.get('architecture', {}).pop('reviewer_notes', None)
-        markdown_document_generator(arch, 'architecture_after_reviews', [self.subdir, str(domain_id)])
+        markdown_document_generator(
+            arch,
+            'architecture_after_reviews',
+            [self.subdir, str(domain_id)]
+        )
+
         return arch
 
     def plan_creation_phase(self, arch: dict, task: str, domain_id: int) -> dict:
-        """Phase 2: Plan creation with review per-domain.
-        
-        Parameters:
-            arch (dict): Architecture design output from previous phase
-            architect_inputs (list): List of domain-specific architect_input strings to use as context
-        """
         plan = run_json_agent(
             self.tech_lead,
             f"TASK:\n{task}\nARCHITECTURE:\n{json.dumps(arch)}"
         )
-        
-        for i in range(MAX_PLAN_ITERS):  # MAX_PLAN_ITERS
-            assert_not_empty(plan, "PLAN")
+
+        for i in range(MAX_PLAN_ITERS):
             plan_review = run_json_agent(
                 self.plan_review,
-                f"TASK:\n{task}\nATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\nARCHITECTURE:\n{json.dumps(arch)}\nPLAN TO REVIEW:\n{json.dumps(plan)}"
+                f"TASK:\n{task}\n"
+                f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
+                f"ARCHITECTURE:\n{json.dumps(arch)}\n"
+                f"PLAN TO REVIEW:\n{json.dumps(plan)}"
             )
-            
+
             if self.review_ok(plan_review):
-                log("SYSTEM", "Plan approved by tech lead")
                 break
-            
-            plan = run_json_agent(
-                self.tech_lead,
-                f"REVISE PLAN based on feedback:\n{json.dumps(plan_review)}"
-            )
-        
+
+            if self.should_reset(plan_review):
+                log(
+                    "SYSTEM",
+                    f"Resetting tech lead context: {plan_review.get('reset_reason', '')}"
+                )
+
+                self.tech_lead.reset()
+
+                revision_prompt = (
+                    f"TASK:\n{task}\n"
+                    f"ARCHITECTURE:\n{json.dumps(arch)}\n"
+                    f"PREVIOUS PLAN:\n{json.dumps(plan)}\n"
+                    f"REVIEW FEEDBACK:\n{json.dumps(plan_review)}\n\n"
+                    "Rebuild the plan from scratch using the task, architecture, and review feedback."
+                )
+            else:
+                revision_prompt = (
+                    f"REVISE PLAN based on feedback:\n{json.dumps(plan_review)}"
+                )
+
+            plan = run_json_agent(self.tech_lead, revision_prompt)
+
         plan.get('plan', {}).pop('reviewer_notes', None)
-        markdown_document_generator(plan, 'tech_plan_after_reviews', [self.subdir, str(domain_id)])
+        markdown_document_generator(
+            plan,
+            'tech_plan_after_reviews',
+            [self.subdir, str(domain_id)]
+        )
+
         return plan
-        
+
     def code_implementation_phase(self, plan: dict, task: str) -> str:
-        """Phase 3: Code implementation with review per-domain.
-        
-        Parameters:
-            plan (dict): Implementation plan from previous phase
-            architect_inputs (list): List of domain-specific architect_input strings to use as context
-        """
-        # Create configuration for unified execution with domain-specific context
         config = Configuration(
             initial_prompt_context=f"TASK:\n{task}\nPLAN:\n{json.dumps(plan)}",
             coder_agent_ref=self.coder,
             review_agent_ref=self.code_review,
             max_iterations=MAX_CODE_ITERS,
+            task=task,
+            plan=plan,
         )
-        
-        # Execute unified framework
+
         return CodeExecutionFramework().execute(config)
 
     def tech_lead_review_phase(self, code_summary: str, arch: dict, plan: dict, task: str) -> dict:
-        """Phase 4: Tech lead final review with domain-specific context.
-        
-        Parameters:
-            code_summary (str): Summary of code implementation for review
-            arch (dict): Architecture design - used in prompt construction with json.dumps(arch)
-            plan (dict): Implementation plan - used in prompt construction with json.dumps(plan)
-            architect_inputs (list): List of domain-specific architect_input strings for context (optional, defaults to rephrased_task)
-        """
-        tech_lead_final_review = run_json_agent(
+        return run_json_agent(
             self.tech_lead_final,
-            f"TASK:\n{task}\nARCHITECTURE:\n{json.dumps(arch)}\nPLAN:\n{json.dumps(plan)}\nCODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}"
+            f"TASK:\n{task}\n"
+            f"ARCHITECTURE:\n{json.dumps(arch)}\n"
+            f"PLAN:\n{json.dumps(plan)}\n"
+            f"CODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}"
         )
-        
-        assert_not_empty(tech_lead_final_review, "TECH_LEAD_FINAL")
-        return tech_lead_final_review
 
-    def revision_loops(self, tech_lead_review: dict) -> str:
-        # Create configuration for unified execution with additional constraints
+    def revision_loops(
+        self,
+        tech_lead_review: dict,
+        task: str,
+        plan: dict,
+        reset_coder: bool = False
+    ) -> str:
+        if reset_coder:
+            log(
+                "SYSTEM",
+                f"Resetting coder context: {tech_lead_review.get('reset_reason', '')}"
+            )
+
+            self.coder.reset()
+
+            initial_prompt_context = (
+                f"TASK:\n{task}\n"
+                f"PLAN:\n{json.dumps(plan)}\n"
+                f"TECH LEAD FEEDBACK:\n{json.dumps(tech_lead_review)}\n\n"
+                "Re-implement from a clean context using the task, plan, and tech lead feedback."
+            )
+        else:
+            initial_prompt_context = (
+                f"TECH LEAD FEEDBACK TO ADDRESS:\n{json.dumps(tech_lead_review)}"
+            )
+
         config = Configuration(
-            initial_prompt_context=f'TECH LEAD FEEDBACK TO ADDRESS:\n{json.dumps(tech_lead_review)}',
+            initial_prompt_context=initial_prompt_context,
             coder_agent_ref=self.coder,
             review_agent_ref=self.code_review,
             max_iterations=MAX_CODE_ITERS,
+            task=task,
+            plan=plan,
         )
-        
-        # Execute unified framework
+
         return CodeExecutionFramework().execute(config)
