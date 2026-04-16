@@ -115,7 +115,7 @@ def assert_not_empty(obj, step):
         raise RuntimeError(f"{step} produced empty output")
 
 
-def markdown_document_generator(content: dict, stage_name: str, subdir: str) -> None:
+def markdown_document_generator(content: dict, stage_name: str, subdir: list[str]) -> None:
     """Generate Markdown document from JSON dict content and persist to file.
     
     Args:
@@ -179,7 +179,7 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: str) -> 
     
     try:
         # Create document_stores directory if needed using config value
-        os.makedirs(os.path.join(DOCUMENT_STORES_DIR, subdir), exist_ok=True)
+        os.makedirs(os.path.join(DOCUMENT_STORES_DIR, *subdir), exist_ok=True)
     except OSError as e:
         log("MARKDOWN", f"Failed to create directory {DOCUMENT_STORES_DIR}: {e}")
         raise RuntimeError(f"Cannot create document storage directory: {e}")
@@ -187,7 +187,7 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: str) -> 
     # Generate timestamp for filename
     timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     filename = f"{stage_name}_{timestamp}.md"
-    filepath = os.path.join(DOCUMENT_STORES_DIR, subdir, filename)
+    filepath = os.path.join(DOCUMENT_STORES_DIR, *subdir, filename)
     
     # Build markdown sections based on stage type
     markdown_content = ""
@@ -203,9 +203,9 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: str) -> 
             markdown_content += "## Domains\n\n"
             domains = actual_content['domains']
             if isinstance(domains, list):
-                for domain in domains:
+                for domain_index, domain in enumerate(domains):
                     if isinstance(domain, dict):
-                        id_val = domain.get('id', '')
+                        id_val = domain.get('id', domain_index + 1)
                         if architect_input := domain.get('architect_input'):
                             markdown_content += f"### Domain {id_val}\n\n"
                             markdown_content += f"{architect_input}\n\n"

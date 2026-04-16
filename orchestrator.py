@@ -121,7 +121,7 @@ Ensure the final specification is minimal, clear, and buildable.
             """,
         )
 
-        markdown_document_generator(rephrased_task, 'product_manager_final', self.subdir)
+        markdown_document_generator(rephrased_task, 'product_manager_final', [self.subdir])
         return rephrased_task['task_specification']
 
     def run(self):
@@ -137,16 +137,17 @@ Ensure the final specification is minimal, clear, and buildable.
         for domain_index, domain in enumerate(domains):
             self.reset()
             task = domain.get('architect_input')
+            domain_id = domain.get('id', domain_index + 1)
             if not task:
                 continue
             for iteration in range(MAX_TOP_ITERATIONS):  # MAX_TOP_ITERERS
                 log("ITERATION", f"Starting iteration {iteration + 1}/{MAX_TOP_ITERATIONS} for domain {domain_index + 1}/{len(domains)}")
                 
                 # Phase 1: Architecture design per-domain
-                arch = self.architecture_design_phase(final_feedback, task)
+                arch = self.architecture_design_phase(final_feedback, task, domain_id)
                 
                 # Phase 2: Plan creation per-domain
-                plan = self.plan_creation_phase(arch, task)
+                plan = self.plan_creation_phase(arch, task, domain_id)
                 
                 # Phase 3: Code implementation per-domain
                 code_summary = self.code_implementation_phase(plan, task)
@@ -201,10 +202,10 @@ Ensure the final specification is minimal, clear, and buildable.
         
         assert_not_empty(decomposition_result, "DECOMPOSITION_REVIEWED")
         
-        markdown_document_generator(decomposition_result, 'decomposition_final', self.subdir)
+        markdown_document_generator(decomposition_result, 'decomposition_final', [self.subdir])
         return decomposition_result
 
-    def architecture_design_phase(self, final_feedback: dict, task: str) -> dict:
+    def architecture_design_phase(self, final_feedback: dict, task: str, domain_id: int) -> dict:
         """Phase 1: Architecture design with review per-domain.
         
         Parameters:
@@ -232,10 +233,10 @@ Ensure the final specification is minimal, clear, and buildable.
                 f"REVISE ARCHITECTURE based on feedback:\n{json.dumps(arch_review)}"
             )
         
-        markdown_document_generator(arch, 'architecture_after_reviews', self.subdir)
+        markdown_document_generator(arch, 'architecture_after_reviews', [self.subdir, str(domain_id)])
         return arch
 
-    def plan_creation_phase(self, arch: dict, task: str) -> dict:
+    def plan_creation_phase(self, arch: dict, task: str, domain_id: int) -> dict:
         """Phase 2: Plan creation with review per-domain.
         
         Parameters:
@@ -263,7 +264,7 @@ Ensure the final specification is minimal, clear, and buildable.
                 f"REVISE PLAN based on feedback:\n{json.dumps(plan_review)}"
             )
         
-        markdown_document_generator(plan, 'tech_plan_after_reviews', self.subdir)
+        markdown_document_generator(plan, 'tech_plan_after_reviews', [self.subdir, str(domain_id)])
         return plan
         
     def code_implementation_phase(self, plan: dict, task: str) -> str:
