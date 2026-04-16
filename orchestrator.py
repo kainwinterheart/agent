@@ -201,6 +201,7 @@ Ensure the final specification is minimal, clear, and buildable.
             )
         
         assert_not_empty(decomposition_result, "DECOMPOSITION_REVIEWED")
+        decomposition_result.get('decomposition', {}).pop('reviewer_notes', None)
         
         markdown_document_generator(decomposition_result, 'decomposition_final', [self.subdir])
         return decomposition_result
@@ -233,6 +234,7 @@ Ensure the final specification is minimal, clear, and buildable.
                 f"REVISE ARCHITECTURE based on feedback:\n{json.dumps(arch_review)}"
             )
         
+        arch.get('architecture', {}).pop('reviewer_notes', None)
         markdown_document_generator(arch, 'architecture_after_reviews', [self.subdir, str(domain_id)])
         return arch
 
@@ -264,6 +266,7 @@ Ensure the final specification is minimal, clear, and buildable.
                 f"REVISE PLAN based on feedback:\n{json.dumps(plan_review)}"
             )
         
+        plan.get('plan', {}).pop('reviewer_notes', None)
         markdown_document_generator(plan, 'tech_plan_after_reviews', [self.subdir, str(domain_id)])
         return plan
         
