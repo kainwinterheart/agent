@@ -212,14 +212,17 @@ Ensure the final specification is minimal, clear, and buildable.
                     task
                 )
 
-                tech_lead_final_review = self.tech_lead_review_phase(
-                    code_summary,
-                    arch,
-                    plan,
-                    task
-                )
+                for iteration in range(MAX_TOP_ITERATIONS):
+                    tech_lead_final_review = self.tech_lead_review_phase(
+                        code_summary,
+                        arch,
+                        plan,
+                        task
+                    )
 
-                if not self.review_ok(tech_lead_final_review):
+                    if self.review_ok(tech_lead_final_review):
+                        break
+
                     log(
                         "SYSTEM",
                         "Tech lead feedback received - revising implementation"
