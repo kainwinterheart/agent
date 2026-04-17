@@ -18,14 +18,28 @@ class Agent:
         prompt = f"{input_text}\n\nReturn ONLY valid JSON."
         if not self.session:
             prompt = self.role_prompt + '\n\n' + prompt
+        last_error = ""
         while True:
             try:
-                out, self.session = run_codex(self.session, prompt, self.ephemeral, self.timeout)
+                out, self.session = run_codex(
+                    self.session,
+                    prompt + last_error,
+                    self.ephemeral,
+                    self.timeout,
+                )
                 break
             except KeyboardInterrupt:
                 raise
-            except:
+            except Exception as e:
                 logging.exception(f"Failed to run {self.name}, retrying...")
+                last_error = f"""\n\n
+**Previous attempt to read your response for the current task failed**:
+```
+{e}
+```
+
+Fix it.
+"""
         return out
 
     def reset(self) -> None:
