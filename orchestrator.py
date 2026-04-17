@@ -175,12 +175,12 @@ Ensure the final specification is minimal, clear, and buildable.
         root_task = self.pm_transformation_workflow()
         decomposition = self.decomposition_workflow(root_task)
         domains = decomposition.get('decomposition', {}).get('domains', [])
-        final_feedback = None
 
         for domain_index, domain in enumerate(domains):
             self.arch.reset()
             self.tech_lead.reset()
             self.coder.reset()
+            final_feedback = None
 
             task = domain.get('architect_input')
             domain_id = domain.get('id', domain_index + 1)

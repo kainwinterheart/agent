@@ -207,6 +207,11 @@ Review principles:
   - reuse would introduce tight coupling or unclear ownership
 * Reject ONLY if justification is missing, weak, or incorrect.
 
+Special architecture review guidance:
+* An architecture may introduce new components because the current system is missing required functionality.
+* Missing implementation in the current system is not evidence that the architecture is wrong.
+* Reject only if the architecture introduces unjustified abstractions, duplicates existing responsibilities, violates boundaries, or omits required components.
+
 Output MUST be valid JSON:
 {
   "approved": true/false,
@@ -227,10 +232,29 @@ Rules:
 * Reject ungrounded designs
 
 Reset guidance:
-* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
-* Set should_reset=false when the work can be corrected incrementally.
-* Use reset_reason to briefly explain what invalidated prior context.
+* Set should_reset=true only when the reviewed artifact is fundamentally flawed and its current structure is likely to poison future revisions.
+* Examples that may justify should_reset=true:
+  - incorrect core assumptions
+  - invalid decomposition boundaries
+  - major missing responsibilities in the artifact itself
+  - unrealistic sequencing
+  - overlapping ownership
+  - architecture built around the wrong component boundaries
+  - implementation plan built around the wrong file structure
+  - code review feedback that invalidates most prior implementation work
+* Do NOT set should_reset=true simply because the target system has major missing functionality, incomplete implementation, failing tests, architectural gaps, or missing modules.
+* If the artifact correctly identifies those problems, then the artifact is working correctly.
+* Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+Critical distinction:
+* You are reviewing the quality of the proposed work product itself, not the underlying system being described.
+* Missing features, incomplete implementations, architectural gaps, or broken code in the target system are NOT automatically problems with the reviewed artifact.
+* If the reviewed artifact correctly identifies those gaps, scopes them appropriately, and proposes reasonable next actions, that is a strength, not a defect.
+* Reject only when the reviewed artifact is structurally flawed, unrealistic, incomplete, inconsistent, poorly scoped, or misaligned with the existing system.
+* Do not reject an artifact merely because it describes severe issues in the codebase.
+* Do not request reset simply because the underlying system has major gaps.
+* Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
 PLAN_REVIEW_PROMPT = """
@@ -250,6 +274,11 @@ Review principles:
 * Do NOT reject creation of new files/modules if they are required by the architecture.
 * Ensure new files are justified and not duplicating existing logic.
 * Ensure steps correspond to real code changes.
+
+Special plan review guidance:
+* A plan may propose new files, new directories, or major modifications because the current system is incomplete.
+* Missing implementation in the codebase is not evidence that the plan is wrong.
+* Reject only if the plan is unrealistic, disconnected from the architecture, missing important file changes, or built around invalid assumptions about the codebase.
 
 Output MUST be valid JSON:
 {
@@ -272,10 +301,29 @@ Rules:
 * Avoid defensive programming suggestions
 
 Reset guidance:
-* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
-* Set should_reset=false when the work can be corrected incrementally.
-* Use reset_reason to briefly explain what invalidated prior context.
+* Set should_reset=true only when the reviewed artifact is fundamentally flawed and its current structure is likely to poison future revisions.
+* Examples that may justify should_reset=true:
+  - incorrect core assumptions
+  - invalid decomposition boundaries
+  - major missing responsibilities in the artifact itself
+  - unrealistic sequencing
+  - overlapping ownership
+  - architecture built around the wrong component boundaries
+  - implementation plan built around the wrong file structure
+  - code review feedback that invalidates most prior implementation work
+* Do NOT set should_reset=true simply because the target system has major missing functionality, incomplete implementation, failing tests, architectural gaps, or missing modules.
+* If the artifact correctly identifies those problems, then the artifact is working correctly.
+* Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+Critical distinction:
+* You are reviewing the quality of the proposed work product itself, not the underlying system being described.
+* Missing features, incomplete implementations, architectural gaps, or broken code in the target system are NOT automatically problems with the reviewed artifact.
+* If the reviewed artifact correctly identifies those gaps, scopes them appropriately, and proposes reasonable next actions, that is a strength, not a defect.
+* Reject only when the reviewed artifact is structurally flawed, unrealistic, incomplete, inconsistent, poorly scoped, or misaligned with the existing system.
+* Do not reject an artifact merely because it describes severe issues in the codebase.
+* Do not request reset simply because the underlying system has major gaps.
+* Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
 CODE_REVIEW_PROMPT = """
@@ -309,6 +357,10 @@ Review principles:
 * Flag missing imports, registrations, configuration updates, or broken references when relevant.
 * Ensure all required files are present and consistent with the claimed implementation scope.
 
+Special code review guidance:
+* Missing features in the target system are not automatically code review failures if the implementation correctly identifies blocked work or incomplete areas.
+* Reject only if the implementation claims work that was not done, omits required work, introduces inconsistencies, or fails to address required review feedback.
+
 Output MUST be valid JSON:
 {
 "approved": true/false,
@@ -336,10 +388,29 @@ Rules:
 * Reject summaries that do not match the actual implementation
 
 Reset guidance:
-* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
-* Set should_reset=false when the work can be corrected incrementally.
-* Use reset_reason to briefly explain what invalidated prior context.
+* Set should_reset=true only when the reviewed artifact is fundamentally flawed and its current structure is likely to poison future revisions.
+* Examples that may justify should_reset=true:
+  - incorrect core assumptions
+  - invalid decomposition boundaries
+  - major missing responsibilities in the artifact itself
+  - unrealistic sequencing
+  - overlapping ownership
+  - architecture built around the wrong component boundaries
+  - implementation plan built around the wrong file structure
+  - code review feedback that invalidates most prior implementation work
+* Do NOT set should_reset=true simply because the target system has major missing functionality, incomplete implementation, failing tests, architectural gaps, or missing modules.
+* If the artifact correctly identifies those problems, then the artifact is working correctly.
+* Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+Critical distinction:
+* You are reviewing the quality of the proposed work product itself, not the underlying system being described.
+* Missing features, incomplete implementations, architectural gaps, or broken code in the target system are NOT automatically problems with the reviewed artifact.
+* If the reviewed artifact correctly identifies those gaps, scopes them appropriately, and proposes reasonable next actions, that is a strength, not a defect.
+* Reject only when the reviewed artifact is structurally flawed, unrealistic, incomplete, inconsistent, poorly scoped, or misaligned with the existing system.
+* Do not reject an artifact merely because it describes severe issues in the codebase.
+* Do not request reset simply because the underlying system has major gaps.
+* Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
 TECH_LEAD_FINAL_PROMPT = """
@@ -358,6 +429,10 @@ Focus:
 Review principles:
 * Reject systems that break existing flows.
 * Ensure changes are cohesive with the system.
+
+Special final review guidance:
+* Major missing functionality in the target system is acceptable if it was correctly identified as incomplete work during earlier phases.
+* Reject only if the final implementation summary incorrectly claims completion, hides missing work, or introduces integration risks.
 
 Output MUST be valid JSON:
 {
@@ -378,10 +453,29 @@ Rules:
 * Be strict
 
 Reset guidance:
-* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
-* Set should_reset=false when the work can be corrected incrementally.
-* Use reset_reason to briefly explain what invalidated prior context.
+* Set should_reset=true only when the reviewed artifact is fundamentally flawed and its current structure is likely to poison future revisions.
+* Examples that may justify should_reset=true:
+  - incorrect core assumptions
+  - invalid decomposition boundaries
+  - major missing responsibilities in the artifact itself
+  - unrealistic sequencing
+  - overlapping ownership
+  - architecture built around the wrong component boundaries
+  - implementation plan built around the wrong file structure
+  - code review feedback that invalidates most prior implementation work
+* Do NOT set should_reset=true simply because the target system has major missing functionality, incomplete implementation, failing tests, architectural gaps, or missing modules.
+* If the artifact correctly identifies those problems, then the artifact is working correctly.
+* Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+Critical distinction:
+* You are reviewing the quality of the proposed work product itself, not the underlying system being described.
+* Missing features, incomplete implementations, architectural gaps, or broken code in the target system are NOT automatically problems with the reviewed artifact.
+* If the reviewed artifact correctly identifies those gaps, scopes them appropriately, and proposes reasonable next actions, that is a strength, not a defect.
+* Reject only when the reviewed artifact is structurally flawed, unrealistic, incomplete, inconsistent, poorly scoped, or misaligned with the existing system.
+* Do not reject an artifact merely because it describes severe issues in the codebase.
+* Do not request reset simply because the underlying system has major gaps.
+* Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
 ARCH_FINAL_PROMPT = """
@@ -399,6 +493,10 @@ Review principles:
 * Reject architectural drift.
 * Reject boundary violations.
 * Ensure responsibilities remain clear.
+
+Special architectural validation guidance:
+* Missing implementation domains are not architectural failures if the architecture correctly identified them and preserved clear boundaries.
+* Reject only if the final implementation drifted away from the architecture or violated ownership boundaries.
 
 Output MUST be valid JSON:
 {
@@ -419,10 +517,29 @@ Rules:
 * Be strict
 
 Reset guidance:
-* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
-* Set should_reset=false when the work can be corrected incrementally.
-* Use reset_reason to briefly explain what invalidated prior context.
+* Set should_reset=true only when the reviewed artifact is fundamentally flawed and its current structure is likely to poison future revisions.
+* Examples that may justify should_reset=true:
+  - incorrect core assumptions
+  - invalid decomposition boundaries
+  - major missing responsibilities in the artifact itself
+  - unrealistic sequencing
+  - overlapping ownership
+  - architecture built around the wrong component boundaries
+  - implementation plan built around the wrong file structure
+  - code review feedback that invalidates most prior implementation work
+* Do NOT set should_reset=true simply because the target system has major missing functionality, incomplete implementation, failing tests, architectural gaps, or missing modules.
+* If the artifact correctly identifies those problems, then the artifact is working correctly.
+* Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+Critical distinction:
+* You are reviewing the quality of the proposed work product itself, not the underlying system being described.
+* Missing features, incomplete implementations, architectural gaps, or broken code in the target system are NOT automatically problems with the reviewed artifact.
+* If the reviewed artifact correctly identifies those gaps, scopes them appropriately, and proposes reasonable next actions, that is a strength, not a defect.
+* Reject only when the reviewed artifact is structurally flawed, unrealistic, incomplete, inconsistent, poorly scoped, or misaligned with the existing system.
+* Do not reject an artifact merely because it describes severe issues in the codebase.
+* Do not request reset simply because the underlying system has major gaps.
+* Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
 PRODUCT_MANAGER_PROMPT = """
@@ -606,6 +723,27 @@ Review principles:
 * Ensure each domain could realistically be passed to a single software architect as a focused architecture task.
 * Ensure cross-domain integration concerns are acknowledged somewhere in the decomposition.
 
+Special decomposition review guidance:
+* Review the decomposition artifact itself, not the current implementation status of the product.
+* Domains may intentionally describe missing, incomplete, or unimplemented areas of the current system.
+* Architect_input fields are instructions to a future architect, not claims that the implementation already exists.
+* Do not reject a domain because the codebase currently lacks the systems described in architect_input.
+* A domain is valid if it correctly identifies missing work, scopes it clearly, assigns proper ownership, and places it in the correct dependency order.
+* Reject only if:
+  - the domain scope is unclear
+  - ownership overlaps with another domain
+  - important responsibilities are missing from the domain itself
+  - dependencies are incorrect
+  - sequencing is unrealistic
+  - architect_input is vague, contradictory, or not actionable
+* Never treat architect_input as an implementation claim.
+* Never inspect the codebase to verify whether architect_input has already been implemented.
+* Instead, verify whether architect_input is sufficiently scoped and appropriate for a future architect.
+
+Example of correct reviewer reasoning:
+* Good: "Persistence Layer domain correctly identifies missing persistence functionality and scopes it into a dedicated domain with proper dependencies on Graph Infrastructure and Evaluator Registry."
+* Bad: "Persistence Layer implementation is missing from the codebase, therefore the decomposition is wrong."
+
 Output MUST be valid JSON only:
 {
 "approved": true/false,
@@ -636,8 +774,27 @@ Rules:
 * No extra keys
 
 Reset guidance:
-* Set should_reset=true when the current direction is fundamentally wrong and iterative revision is likely to reinforce bad assumptions.
-* Set should_reset=false when the work can be corrected incrementally.
-* Use reset_reason to briefly explain what invalidated prior context.
+* Set should_reset=true only when the reviewed artifact is fundamentally flawed and its current structure is likely to poison future revisions.
+* Examples that may justify should_reset=true:
+  - incorrect core assumptions
+  - invalid decomposition boundaries
+  - major missing responsibilities in the artifact itself
+  - unrealistic sequencing
+  - overlapping ownership
+  - architecture built around the wrong component boundaries
+  - implementation plan built around the wrong file structure
+  - code review feedback that invalidates most prior implementation work
+* Do NOT set should_reset=true simply because the target system has major missing functionality, incomplete implementation, failing tests, architectural gaps, or missing modules.
+* If the artifact correctly identifies those problems, then the artifact is working correctly.
+* Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+Critical distinction:
+* You are reviewing the quality of the proposed work product itself, not the underlying system being described.
+* Missing features, incomplete implementations, architectural gaps, or broken code in the target system are NOT automatically problems with the reviewed artifact.
+* If the reviewed artifact correctly identifies those gaps, scopes them appropriately, and proposes reasonable next actions, that is a strength, not a defect.
+* Reject only when the reviewed artifact is structurally flawed, unrealistic, incomplete, inconsistent, poorly scoped, or misaligned with the existing system.
+* Do not reject an artifact merely because it describes severe issues in the codebase.
+* Do not request reset simply because the underlying system has major gaps.
+* Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
