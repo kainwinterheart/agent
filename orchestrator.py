@@ -158,7 +158,18 @@ Ensure the final specification is minimal, clear, and buildable.
             'product_manager_final',
             [self.subdir]
         )
-        return rephrased_task['task_specification']
+        out = rephrased_task['task_specification']
+        files = rephrased_task.get('files')
+        if isinstance(files, list):
+            out += "\n\nMentioned files:\n"
+            for file in files:
+                out += f"- {file}"
+        proper_nouns = rephrased_task.get('proper_nouns')
+        if isinstance(proper_nouns, list):
+            out += "\n\nMentioned proper nouns:\n"
+            for file in proper_nouns:
+                out += f"- {file}"
+        return out
 
     def run(self):
         root_task = self.pm_transformation_workflow()

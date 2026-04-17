@@ -468,6 +468,12 @@ Output MUST be valid JSON only:
   "original_input_preserved": true/false,
   "clarifications_made": [
     "explicit assumptions, refinements, missing requirements filled in, and interpretation decisions"
+  ],
+  "files": [
+    "if user request refers to any files - extract file names/pathes, and put them here as is"
+  ],
+  "proper_nouns": [
+    "if user request refers to any proper nouns - extract them, and put them here as is"
   ]
 }
 
