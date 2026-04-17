@@ -235,7 +235,6 @@ Ensure the final specification is minimal, clear, and buildable.
     def decomposition_workflow(self, task: str) -> dict:
         decomposition_result = run_json_agent(
             self.decomposition,
-            f"USER REQUEST:\n{self.task}\n\n"
             f"TASK:\n{task}"
         )
 
@@ -244,7 +243,6 @@ Ensure the final specification is minimal, clear, and buildable.
         for i in range(MAX_PLAN_ITERS):
             decomposition_review = run_json_agent(
                 self.decomposition_review,
-                f"USER REQUEST:\n{self.task}\n\n"
                 f"TASK:\n{task}\n"
                 f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
                 f"DECOMPOSITION TO REVIEW:\n{json.dumps(decomposition_result)}"
@@ -262,7 +260,6 @@ Ensure the final specification is minimal, clear, and buildable.
                 self.decomposition.reset()
 
                 revision_prompt = (
-                    f"USER REQUEST:\n{self.task}\n\n"
                     f"TASK:\n{task}\n"
                     f"PREVIOUS DECOMPOSITION:\n{json.dumps(decomposition_result)}\n"
                     f"REVIEW FEEDBACK:\n{json.dumps(decomposition_review)}\n\n"
