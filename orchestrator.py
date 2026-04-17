@@ -5,6 +5,7 @@
 
 import json
 import time
+from typing import Optional
 from agent import Agent
 from prompts import (
     ARCH_PROMPT, PLAN_PROMPT, CODER_PROMPT,
@@ -238,13 +239,16 @@ Revise the synthesized specification to address the review feedback while preser
                     plan,
                     task
                 )
+                code_summaries = [code_summary]
+                tech_lead_final_review = None
 
                 for iteration in range(MAX_TOP_ITERATIONS):
                     tech_lead_final_review = self.tech_lead_review_phase(
                         code_summary,
                         arch,
                         plan,
-                        task
+                        task,
+                        tech_lead_final_review,
                     )
 
                     if self.review_ok(tech_lead_final_review):
@@ -255,19 +259,21 @@ Revise the synthesized specification to address the review feedback while preser
                         "Tech lead feedback received - revising implementation"
                     )
 
-                    code_summary += '\n\n' + self.revision_loops(
+                    code_summary = self.revision_loops(
                         tech_lead_review=tech_lead_final_review,
                         task=task,
                         plan=plan,
                         reset_coder=self.should_reset(tech_lead_final_review)
                     )
+                    code_summaries.append(code_summary)
 
                 final_feedback = run_json_agent(
                     self.arch_final,
                     f"TASK:\n{task}\n"
                     f"ARCHITECTURE:\n{json.dumps(arch)}\n"
                     f"PLAN:\n{json.dumps(plan)}\n"
-                    f"CODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}"
+                    f"CODE IMPLEMENTATION SUMMARY from each iteration:\n"
+                    f"{'\n\n'.join(code_summaries)}"
                 )
 
                 if self.review_ok(final_feedback):
@@ -437,12 +443,16 @@ Revise the synthesized specification to address the review feedback while preser
 
         return CodeExecutionFramework().execute(config)
 
-    def tech_lead_review_phase(self, code_summary: str, arch: dict, plan: dict, task: str) -> dict:
+    def tech_lead_review_phase(self, code_summary: str, arch: dict, plan: dict, task: str, tech_lead_final_review: Optional[dict]) -> dict:
+        extra_prompt = ""
+        if tech_lead_final_review:
+            extra_prompt = "PREVIOUS FEEDBACK:\n{json.dumps(tech_lead_final_review)}\n"
         return run_json_agent(
             self.tech_lead_final,
             f"TASK:\n{task}\n"
             f"ARCHITECTURE:\n{json.dumps(arch)}\n"
             f"PLAN:\n{json.dumps(plan)}\n"
+            f"{extra_prompt}"
             f"CODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}"
         )
 
