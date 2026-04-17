@@ -11,7 +11,7 @@ import asyncio
 import os
 import glob
 from typing import Optional
-from config import MAX_REPAIR_ATTEMPTS, DOCUMENT_STORES_DIR
+from config import DOCUMENT_STORES_DIR
 
 
 def log(step, msg):
@@ -89,7 +89,7 @@ def extract_json(text: str):
 
 def run_json_agent(agent, input_text):
     raw = agent.run(input_text)
-    for _ in range(MAX_REPAIR_ATTEMPTS):
+    while True:
         try:
             return json.loads(extract_json(raw))
         except KeyboardInterrupt:
@@ -101,11 +101,12 @@ Your previous output was invalid JSON; it failed to parse with the following err
 {e}
 ```
 
+TASK:
 Fix it. ONLY return valid JSON.
 
 Previous output:
 {raw}
-""")
+""" + ("\nPrevious task:\n{input_text}" if agent.ephemeral else ""))
     
     raise ValueError("Agent failed to respond with JSON")
 
