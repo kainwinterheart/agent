@@ -163,12 +163,12 @@ Ensure the final specification is minimal, clear, and buildable.
         if isinstance(files, list):
             out += "\n\nMentioned files:\n"
             for file in files:
-                out += f"- {file}"
+                out += f"* {file}\n"
         proper_nouns = rephrased_task.get('proper_nouns')
         if isinstance(proper_nouns, list):
             out += "\n\nMentioned proper nouns:\n"
-            for file in proper_nouns:
-                out += f"- {file}"
+            for proper_noun in proper_nouns:
+                out += f"* {proper_noun}\n"
         return out
 
     def run(self):

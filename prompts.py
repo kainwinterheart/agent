@@ -473,7 +473,7 @@ Output MUST be valid JSON only:
     "if user request refers to any files - extract file names/pathes, and put them here as is"
   ],
   "proper_nouns": [
-    "if user request refers to any proper nouns - extract them, and put them here as is"
+    "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"
   ]
 }
 
