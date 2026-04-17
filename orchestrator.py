@@ -11,7 +11,9 @@ from prompts import (
     ARCH_REVIEW_PROMPT, PLAN_REVIEW_PROMPT, CODE_REVIEW_PROMPT,
     TECH_LEAD_FINAL_PROMPT, ARCH_FINAL_PROMPT,
     PRODUCT_MANAGER_PROMPT,
-    SYSTEM_DECOMPOSITION_PROMPT, SYSTEM_DECOMPOSITION_REVIEW_PROMPT
+    SYSTEM_DECOMPOSITION_PROMPT, SYSTEM_DECOMPOSITION_REVIEW_PROMPT,
+    PM_SYNTHESIZER_PROMPT,
+    PM_REVIEW_PROMPT,
 )
 from utils import run_json_agent, log, assert_not_empty, markdown_document_generator
 from config import MAX_PLAN_ITERS, MAX_CODE_ITERS, MAX_TOP_ITERATIONS
@@ -26,7 +28,19 @@ class Orchestrator:
         self.product_manager = Agent(
             "product_manager",
             PRODUCT_MANAGER_PROMPT,
-            timeout='15m'
+            ephemeral=True,
+            timeout='30m'
+        )
+        self.pm_synth = Agent(
+            "pm_synth",
+            PM_SYNTHESIZER_PROMPT,
+            timeout='30m'
+        )
+        self.pm_review = Agent(
+            "pm_review",
+            PM_REVIEW_PROMPT,
+            ephemeral=True,
+            timeout='30m'
         )
 
         self.arch = Agent("arch", ARCH_PROMPT, timeout='40m')
@@ -93,65 +107,78 @@ class Orchestrator:
         return bool(review.get("should_reset", False))
 
     def pm_transformation_workflow(self):
-        run_json_agent(
-            self.product_manager,
-            f"USER REQUEST:\n{self.task}\n\n"
-            """TASK:\n
-Refine this request into something engineering-ready.
+        candidates = []
+        for prompt in [
+            "Bias toward minimal scope and preserving the literal user request.",
+            "Bias toward UX completeness, validation rules, and expected user behavior.",
+            "Bias toward implementation simplicity and minimal engineering risk.",
+            "Bias toward edge cases, state transitions, and failure scenarios.",
+            "Bias toward preserving existing system behavior and minimizing changes to current workflows.",
+            "Bias toward permissions, roles, ownership boundaries, and access control behavior.",
+            "Bias toward data model implications, persistence behavior, lifecycle management, and state consistency.",
+            "Bias toward API behavior, input/output contracts, validation, and error handling.",
+            "Bias toward reporting, auditability, notifications, logging, and observability requirements.",
+            "Bias toward backward compatibility, migration concerns, rollout safety, and minimizing disruption to existing users.",
+            "Bias toward operational concerns such as performance, scalability, concurrency, and long-term maintainability.",
+            "Bias toward identifying the smallest possible implementation that still fully satisfies the request.",
+            "Bias toward identifying where the request may be overcomplicated, unnecessary, or better solved through a smaller existing workflow change instead of a new feature.",
+            "Bias toward preserving only what is explicitly stated by the user. Avoid assumptions unless absolutely necessary.",
+            "Bias toward identifying the user's likely business goal and ensuring the specification solves that goal with the smallest possible feature set.",
+        ]:
+            candidate = run_json_agent(
+                self.product_manager,
+                f"USER REQUEST:\n{self.task}\n\n"
+                f"TASK:\nProduce a focused engineering-ready specification.\n{prompt}"
+            )
+            candidates.append(candidate)
 
-Preserve the user's core intent exactly.
-
-You should:
-* identify missing requirements
-* make reasonable assumptions
-* define expected behavior
-* tighten vague language
-* add acceptance-oriented details
-* avoid expanding scope beyond the likely intent
-
-Do not ask questions back. Make the best product decisions you can.
-            """
-        )
-
-        run_json_agent(
-            self.product_manager,
-            """
-Review your own task specification.
-
-Look for:
-* ambiguity
-* missing edge cases
-* undefined behavior
-* missing constraints
-* places where engineering could misinterpret the task
-* places where the scope may have drifted too far from the original user intent
-
-Tighten the specification while preserving the original request.
-            """,
-        )
-
+        choices = "\n".join([f"CANDIDATE {i + 1}:\n{json.dumps(v)}\n" for i, v in enumerate(candidates)])
         rephrased_task = run_json_agent(
-            self.product_manager,
+            self.pm_synth,
+            f"ORIGINAL USER REQUEST:\n{self.task}\n\n{choices}"
+            """TASK:
+Select the single best interpretation of the original user request.
+Preserve only the minimum assumptions necessary.
+Reject speculative scope expansion.
             """
-Review the task specification one final time.
-
-Your goal is to ensure the specification is still tightly aligned with the original user request.
-
-Remove:
-* unnecessary scope expansion
-* speculative features
-* optional enhancements not clearly implied by the request
-* implementation-level details
-* defensive behavior not explicitly required
-
-Keep:
-* only requirements that are necessary to satisfy the user's intent
-* only assumptions that are required to make the task implementable
-* only edge cases that are realistic and important
-
-Ensure the final specification is minimal, clear, and buildable.
-            """,
         )
+        for iteration in range(MAX_PLAN_ITERS):
+            review = run_json_agent(
+                self.pm_review,
+                f"ORIGINAL USER REQUEST:\n{self.task}\n\n"
+                f"SYNTHESIZED SPECIFICATION:\n{json.dumps(rephrased_task)}\n\n"
+                f"ATTEMPT: {iteration + 1}/{MAX_PLAN_ITERS}\n\n"
+                """TASK:
+Review whether the synthesized specification correctly preserves the original user intent.
+Reject only if the specification is ambiguous, speculative, internally inconsistent, or over-expanded.
+                """
+            )
+
+            if self.review_ok(review):
+                break
+
+            if self.should_reset(review):
+                log(
+                    "SYSTEM",
+                    f"Resetting PM Synthesizer context: {review.get('reset_reason', '')}"
+                )
+
+                self.pm_synth.reset()
+
+                revision_prompt = (
+                    f"ORIGINAL USER REQUEST:\n{self.task}\n\n{choices}"
+                    f"PREVIOUS SYNTHESIZED SPECIFICATION:\n{json.dumps(rephrased_task)}\n"
+                    f"REVIEW FEEDBACK:\n{json.dumps(review)}\n"
+                    """TASK:
+Revise the synthesized specification to address the review feedback while preserving the original user intent and keeping the scope minimal.
+                    """
+                )
+            else:
+                revision_prompt = (
+                    f"REVISE SYNTHESIZED SPECIFICATION based on feedback:\n{json.dumps(review)}"
+                )
+
+            rephrased_task = run_json_agent(self.pm_synth, revision_prompt)
 
         markdown_document_generator(
             rephrased_task,
