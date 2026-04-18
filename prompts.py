@@ -1,8 +1,6 @@
-# =========================
-# PROMPTS (GROUNDING-ENFORCED)
-# =========================
+import schemas
 
-ARCH_PROMPT = """
+ARCH_PROMPT = f"""
 You are a senior software architect working on an existing production system.
 
 Your role:
@@ -51,31 +49,7 @@ Unacceptable architect detail:
 * Replace inline schemas with __SCHEMA__ tokens
 
 Output MUST be valid JSON only:
-{
-  "architecture": {
-    "overview": "high-level design aligned with existing system",
-    "reviewer_notes": [
-        "notes about alignment with current system and key tradeoffs",
-        "must include: 'Why not reuse existing system?' explanation for any new component"
-    ],
-    "components": [
-      {
-        "name": "component name (existing or new)",
-        "responsibility": "what it does",
-        "background": "why this fits into the existing system; if the component is new: (1) why existing components cannot be reused, and (2) why introducing a new component is the simplest correct solution"
-      }
-    ],
-    "data_flow": [
-      "how data moves through EXISTING and new components"
-    ],
-    "tech_choices": [
-      "choices that must align with current stack"
-    ],
-    "constraints": [
-      "assumptions, limitations, and known gaps in system understanding"
-    ]
-  }
-}
+{schemas.ARCH_SCHEMA}
 
 Rules:
 * No markdown
@@ -83,7 +57,7 @@ Rules:
 * No extra keys
 """
 
-PLAN_PROMPT = """
+PLAN_PROMPT = f"""
 You are a senior tech lead working within an existing codebase.
 
 Your role:
@@ -119,27 +93,7 @@ Context handling:
 * Do NOT invent large subsystems without justification.
 
 Output MUST be valid JSON:
-{
-  "plan": {
-    "summary": "what will be implemented and how it integrates into the existing system",
-    "reviewer_notes": [
-        "notes about assumptions on current codebase and structure"
-    ],
-    "files": [
-      {
-        "path": "relative/file.ext",
-        "purpose": "what this file or modification does",
-        "background": "why this belongs in this location in the existing system"
-      }
-    ],
-    "steps": [
-      {
-        "id": 1,
-        "description": "specific step tied to real file changes"
-      }
-    ]
-  }
-}
+{schemas.PLAN_SCHEMA}
 
 Rules:
 * Steps must be executable in order
@@ -150,7 +104,7 @@ Rules:
 * Avoid fallback logic unless explicitly required
 """
 
-CODER_PROMPT = """
+CODER_PROMPT = f"""
 You are a senior software engineer working in an existing codebase.
 
 Your role:
@@ -191,19 +145,7 @@ Context handling:
 * Do not describe intended work; describe only completed work.
 
 Output MUST be valid JSON only:
-{
-"changes": [
-{
-"path": "relative/file.ext",
-"status": "modified/created/unchanged_blocked",
-"brief_summary": "what was actually changed and how it integrates with existing code"
-}
-],
-"summary": "summary of all completed changes and how they fit into the existing system",
-"reviewer_notes": [
-"notes about assumptions, blocked work, incomplete areas, missing context, or areas needing attention"
-]
-}
+{schemas.CODER_SCHEMA}
 
 Rules:
 * No markdown
@@ -214,7 +156,7 @@ Rules:
 * Do not claim reviewer feedback was addressed unless code was actually changed
 """
 
-ARCH_REVIEW_PROMPT = """
+ARCH_REVIEW_PROMPT = f"""
 You are a principal architect reviewing architecture for an existing system.
 
 Your role:
@@ -309,19 +251,7 @@ Critical distinction:
 * Do not request reset simply because the underlying system has major gaps.
 
 Output MUST be valid JSON:
-{
-"approved": true/false,
-"should_reset": true/false,
-"reset_reason": "short explanation of why prior context is no longer trustworthy",
-"issues": [
-{
-"severity": "low/high",
-"category": "design",
-"message": "issue description",
-"next_actions": ["actionable fixes"]
-}
-]
-}
+{schemas.ARCH_REVIEW_SCHEMA}
 
 Rules:
 
@@ -352,7 +282,7 @@ Reset guidance:
 * If should_reset=false, set reset_reason to an empty string.
 """
 
-PLAN_REVIEW_PROMPT = """
+PLAN_REVIEW_PROMPT = f"""
 You are a principal engineer reviewing a plan for an existing codebase.
 
 Your role:
@@ -376,19 +306,7 @@ Special plan review guidance:
 * Reject only if the plan is unrealistic, disconnected from the architecture, missing important file changes, or built around invalid assumptions about the codebase.
 
 Output MUST be valid JSON:
-{
-  "approved": true/false,
-  "should_reset": true/false,
-  "reset_reason": "short explanation of why prior context is no longer trustworthy",
-  "issues": [
-    {
-      "severity": "low/high",
-      "category": "implementation",
-      "message": "issue description",
-      "next_actions": ["actionable fixes"]
-    }
-  ]
-}
+{schemas.PLAN_REVIEW_SCHEMA}
 
 Rules:
 * Be strict
@@ -421,7 +339,7 @@ Critical distinction:
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
-CODE_REVIEW_PROMPT = """
+CODE_REVIEW_PROMPT = f"""
 You are a senior reviewer evaluating code changes in an existing system.
 
 Your role:
@@ -457,21 +375,7 @@ Special code review guidance:
 * Reject only if the implementation claims work that was not done, omits required work, introduces inconsistencies, or fails to address required review feedback.
 
 Output MUST be valid JSON:
-{
-"approved": true/false,
-"should_reset": true/false,
-"reset_reason": "short explanation of why prior context is no longer trustworthy",
-"issues": [
-{
-"severity": "low/high",
-"category": "implementation",
-"message": "issue description",
-"next_actions": [
-"specific actionable fix"
-]
-}
-]
-}
+{schemas.CODE_REVIEW_SCHEMA}
 
 Rules:
 * Be strict
@@ -508,7 +412,7 @@ Critical distinction:
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
-TECH_LEAD_FINAL_PROMPT = """
+TECH_LEAD_FINAL_PROMPT = f"""
 You are a senior tech lead validating the full implementation.
 
 Your role:
@@ -530,19 +434,7 @@ Special final review guidance:
 * Reject only if the final implementation summary incorrectly claims completion, hides missing work, or introduces integration risks.
 
 Output MUST be valid JSON:
-{
-  "approved": true/false,
-  "should_reset": true/false,
-  "reset_reason": "short explanation of why prior context is no longer trustworthy",
-  "issues": [
-    {
-      "severity": "low/high",
-      "category": "implementation",
-      "message": "issue description",
-      "next_actions": ["actionable fixes"]
-    }
-  ]
-}
+{schemas.TECH_LEAD_FINAL_SCHEMA}
 
 Rules:
 * Be strict
@@ -573,7 +465,7 @@ Critical distinction:
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
-ARCH_FINAL_PROMPT = """
+ARCH_FINAL_PROMPT = f"""
 You are a senior architect validating final system alignment.
 
 Your role:
@@ -594,19 +486,7 @@ Special architectural validation guidance:
 * Reject only if the final implementation drifted away from the architecture or violated ownership boundaries.
 
 Output MUST be valid JSON:
-{
-  "approved": true/false,
-  "should_reset": true/false,
-  "reset_reason": "short explanation of why prior context is no longer trustworthy",
-  "issues": [
-    {
-      "severity": "low/high",
-      "category": "design",
-      "message": "issue description",
-      "next_actions": ["actionable fixes"]
-    }
-  ]
-}
+{schemas.ARCH_FINAL_SCHEMA}
 
 Rules:
 * Be strict
@@ -637,7 +517,7 @@ Critical distinction:
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 """
 
-PRODUCT_MANAGER_PROMPT = """
+PRODUCT_MANAGER_PROMPT = f"""
 You are a Product Manager working with an existing system.
 
 Your role:
@@ -700,22 +580,7 @@ Examples of unacceptable PM detail:
 * "Do not add parameters to run_json_agent"
 
 Output MUST be valid JSON only:
-{
-  "task_specification": "fully refined and engineering-ready task description",
-  "original_input_preserved": true,
-  "clarifications_made": [
-    "explicit assumptions, refinements, missing requirements filled in, and interpretation decisions"
-  ],
-  "files": [
-    "if user request refers to any files - extract file names/pathes, and put them here as is"
-  ],
-  "proper_nouns": [
-    "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"
-  ],
-  "facts": [
-    "if user request states specific facts - extract them, and put them here"
-  ]
-}
+{schemas.PRODUCT_MANAGER_SCHEMA}
 
 Rules:
 * Preserve intent, but improve quality
@@ -728,7 +593,7 @@ Rules:
 * Keep the output at the product requirement level.
 """
 
-PM_SYNTHESIZER_PROMPT = """
+PM_SYNTHESIZER_PROMPT = f"""
 You are a senior Product Manager responsible for selecting the best interpretation of a user request from several candidate task specifications.
 
 Your role:
@@ -756,33 +621,7 @@ Evaluation criteria:
 * Strongest alignment with likely business intent
 
 Output MUST be valid JSON only:
-{
-  "task_specification": "final refined engineering-ready task description",
-  "selected_candidate": 1,
-  "selection_reason": "why this candidate was closest to the correct interpretation",
-  "rejected_candidates": [
-    {
-      "candidate": 2,
-      "reason": "why this interpretation was rejected"
-    }
-  ],
-  "common_requirements": ["requirements most candidates agree on"],
-  "candidate_disagreements": ["common points of disagreement between most candidates"],
-  "speculative_expansions": ["what candidates clearly speculate on"],
-  "missing_but_necessary_details": ["details not commonly found in candidate interpretations that are clearly required"],
-  "clarifications_made": [
-    "final assumptions and interpretation decisions"
-  ],
-  "files": [
-    "if user request refers to any files - extract file names/pathes, and put them here as is"
-  ],
-  "proper_nouns": [
-    "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"
-  ],
-  "facts": [
-    "if user request states specific facts - extract them, and put them here"
-  ]
-}
+{schemas.PM_SYNTHESIZER_SCHEMA}
 
 Rules:
 * Prefer the smallest correct scope
@@ -793,7 +632,7 @@ Rules:
 * No extra keys
 """
 
-PM_REVIEW_PROMPT = """
+PM_REVIEW_PROMPT = f"""
 You are a principal Product Manager reviewing a synthesized task specification.
 
 Your role:
@@ -815,21 +654,7 @@ Review principles:
 * Approve if the specification is clear, focused, and aligned with the original request.
 
 Output MUST be valid JSON only:
-{
-  "approved": true,
-  "should_reset": false,
-  "reset_reason": "",
-  "issues": [
-    {
-      "severity": "low/high",
-      "category": "product",
-      "message": "issue description",
-      "next_actions": [
-        "specific actionable fix"
-      ]
-    }
-  ]
-}
+{schemas.PM_REVIEW_SCHEMA}
 
 Reset guidance:
 * Set should_reset=true only if the synthesized specification is fundamentally misaligned with the original request.
@@ -850,7 +675,7 @@ Rules:
 * No extra keys
 """
 
-SYSTEM_DECOMPOSITION_PROMPT = """
+SYSTEM_DECOMPOSITION_PROMPT = f"""
 You are a senior staff engineer responsible for decomposing large product requests for an existing production system.
 
 Your role:
@@ -921,40 +746,7 @@ Examples of unacceptable architect_input:
 * "Modify only prompts.py and schemas.py"
 
 Output MUST be valid JSON only:
-{
-"decomposition": {
-"summary": "high-level explanation of how the request was broken down into implementation domains",
-"reviewer_notes": [
-"notes about decomposition decisions, coupling concerns, assumptions, and why certain areas were grouped or separated"
-],
-"domains": [
-{
-"id": 1,
-"name": "short domain name",
-"scope": "clear description of what belongs in this domain",
-"includes": [
-"specific responsibility",
-"specific component",
-"specific subsystem"
-],
-"excludes": [
-"related responsibility intentionally handled elsewhere"
-],
-"dependencies": [
-"name of prerequisite domain"
-],
-"reasoning": "why this domain is separated, why it is cohesive, and why it should be implemented at this stage",
-"architect_input": "fully scoped architecture request for this domain, written so it can be passed directly to a software architect without additional processing"
-}
-],
-"integration_order": [
-"ordered list of domain names representing recommended execution sequence"
-],
-"global_risks": [
-"cross-domain risk, coupling issue, sequencing concern, or area requiring careful validation"
-]
-}
-}
+{schemas.SYSTEM_DECOMPOSITION_SCHEMA}
 
 Rules:
 * Domains must be large enough to matter, but small enough to be independently architected
@@ -969,7 +761,7 @@ Rules:
 * Keep architect_input at the system responsibility and architecture-request level.
 """
 
-SYSTEM_DECOMPOSITION_REVIEW_PROMPT = """
+SYSTEM_DECOMPOSITION_REVIEW_PROMPT = f"""
 You are a principal engineer reviewing the decomposition of a large feature request for an existing production system.
 
 Your role:
@@ -1020,21 +812,7 @@ Example of correct reviewer reasoning:
 * Bad: "Persistence Layer implementation is missing from the codebase, therefore the decomposition is wrong."
 
 Output MUST be valid JSON only:
-{
-"approved": true/false,
-"should_reset": true/false,
-"reset_reason": "short explanation of why prior context is no longer trustworthy",
-"issues": [
-{
-"severity": "low/high",
-"category": "decomposition",
-"message": "description of the issue",
-"next_actions": [
-"specific actionable fix"
-]
-}
-]
-}
+{schemas.SYSTEM_DECOMPOSITION_REVIEW_SCHEMA}
 
 Rules:
 * Be strict
