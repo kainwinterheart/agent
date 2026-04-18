@@ -368,7 +368,8 @@ Revise the synthesized specification to address the review feedback while preser
         else:
             initial_prompt = f"TASK:\n{task}"
 
-        arch = run_json_agent(self.arch, initial_prompt)
+        extra_prompt = "\nKeep architecture focused on component boundaries, ownership, and interactions. Avoid naming concrete functions, methods, language constructs, or exact code statements unless they are architecturally significant."
+        arch = run_json_agent(self.arch, initial_prompt + extra_prompt)
 
         for i in range(MAX_PLAN_ITERS):
             arch_review = run_json_agent(
@@ -400,7 +401,7 @@ Revise the synthesized specification to address the review feedback while preser
                     f"REVISE ARCHITECTURE based on feedback:\n{json.dumps(arch_review)}"
                 )
 
-            arch = run_json_agent(self.arch, revision_prompt)
+            arch = run_json_agent(self.arch, revision_prompt + extra_prompt)
 
         arch.get('architecture', {}).pop('reviewer_notes', None)
         markdown_document_generator(
@@ -412,9 +413,10 @@ Revise the synthesized specification to address the review feedback while preser
         return arch
 
     def plan_creation_phase(self, arch: dict, task: str, domain_id: int) -> dict:
+        extra_prompt = "\nPrefer concrete file-level changes, but avoid embedding exact code snippets unless the task is trivial and the code itself is the clearest representation of the change."
         plan = run_json_agent(
             self.tech_lead,
-            f"TASK:\n{task}\nARCHITECTURE:\n{json.dumps(arch)}"
+            f"TASK:\n{task}\nARCHITECTURE:\n{json.dumps(arch)}" + extra_prompt
         )
 
         for i in range(MAX_PLAN_ITERS):
@@ -449,7 +451,7 @@ Revise the synthesized specification to address the review feedback while preser
                     f"REVISE PLAN based on feedback:\n{json.dumps(plan_review)}"
                 )
 
-            plan = run_json_agent(self.tech_lead, revision_prompt)
+            plan = run_json_agent(self.tech_lead, revision_prompt + extra_prompt)
 
         plan.get('plan', {}).pop('reviewer_notes', None)
         markdown_document_generator(
