@@ -10,62 +10,55 @@ import re
 import asyncio
 import os
 import glob
+import jsonschema
+from contextlib import ExitStack
 from typing import Optional
 from config import DOCUMENT_STORES_DIR
+from tempfile import NamedTemporaryFile, TemporaryFile
 
 
 def log(step, msg):
     sys.stderr.write(f">> [{time.strftime('%Y-%m-%d %H:%M:%S')}] [{step}] {msg}\n")
 
 
-async def run_codex_async(sess_id: Optional[str], prompt: str, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
+async def run_codex_async(sess_id: Optional[str], prompt: str, schema: str, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
     cmd_args = []
     if timeout:
         cmd_args.extend(["timeout", timeout])
     if sess_id:
-        cmd_args.extend(["codex", "exec", "resume", sess_id, prompt])
+        cmd_args.extend(["codex", "exec", "resume", sess_id])
     else:
-        cmd_args.extend(["codex", "exec", prompt])
+        cmd_args.extend(["codex", "exec"])
     if ephemeral:
         cmd_args.append("--ephemeral")
     
-    process = await asyncio.create_subprocess_exec(
-        *cmd_args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL
-    )
-    
-    async def read_stderr_stream_task(process):
-        out = ''
-        while True:
-            chunk = await process.stderr.read(1024)
-            if not chunk:
-                break
-            decoded = chunk.decode('utf-8')
-            sys.stderr.write(decoded)
-            out += decoded
-        return out
-    
-    async def read_stdout_buffer_task(process):
-        out = ''
-        while True:
-            chunk = await process.stdout.read(1024)
-            if not chunk:
-                break
-            out += chunk.decode('utf-8')
-        return out
-    
-    task_a = asyncio.create_task(read_stderr_stream_task(process))
-    task_b = asyncio.create_task(read_stdout_buffer_task(process))
-    
-    try:
-        stderr, stdout = await asyncio.gather(task_a, task_b)
-    finally:
-        if process.returncode is None:
-            process.kill()
-            await process.wait()
-    
+    with ExitStack() as stack:
+        if not sess_id:
+            schema_file = stack.enter_context(NamedTemporaryFile(delete_on_close=False))
+            schema_file.write(schema.encode('utf-8'))
+            schema_file.close()
+            cmd_args.append("--output-schema")
+            cmd_args.append(schema_file.name)
+        prompt_file = stack.enter_context(TemporaryFile(buffering=0))
+        prompt_file.write(prompt.encode('utf-8'))
+        prompt_file.seek(0)
+        process = await asyncio.create_subprocess_exec(
+            *cmd_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=prompt_file,
+        )
+        
+        task_a = asyncio.create_task(read_stderr_stream_task(process))
+        task_b = asyncio.create_task(read_stdout_buffer_task(process))
+        
+        try:
+            stderr, stdout = await asyncio.gather(task_a, task_b)
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+        
     if not sess_id and not ephemeral and (match := re.search(r"session id:\s*(\S*)", stderr)):
         sess_id = match.group(1)
     
@@ -74,9 +67,9 @@ async def run_codex_async(sess_id: Optional[str], prompt: str, ephemeral: bool, 
     return stdout, sess_id
 
 
-def run_codex(session: Optional[str], prompt: str, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
+def run_codex(session: Optional[str], prompt: str, schema: str, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
     """Sync wrapper for async run_codex_async - maintains backward compatibility."""
-    return asyncio.run(run_codex_async(session, prompt, ephemeral, timeout))
+    return asyncio.run(run_codex_async(session, prompt, schema, ephemeral, timeout))
 
 
 def extract_json(text: str):
@@ -91,7 +84,9 @@ def run_json_agent(agent, input_text):
     raw = agent.run(input_text)
     while True:
         try:
-            return json.loads(extract_json(raw))
+            out = json.loads(extract_json(raw))
+            jsonschema.validate(out, agent.schema)
+            return out
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -110,8 +105,6 @@ Previous output:
 {raw}
 """)
     
-    raise ValueError("Agent failed to respond with JSON")
-
 
 def assert_not_empty(obj, step):
     if not obj:
@@ -136,50 +129,6 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: list[str
         - Writes Markdown content to <stage_name>_<timestamp>.md file
         - Logs generation event via log() utility
     """
-    # Validate required fields based on stage type - consistent error handling across all stages
-    required_keys = {
-        'product_manager_final': ['task_specification'],
-        'decomposition_final': ['summary', 'domains'],
-        'architecture_after_reviews': ['overview'],
-        'tech_plan_after_reviews': ['summary']
-    }
-    
-    if stage_name not in required_keys:
-        raise ValueError(f"Unknown stage: {stage_name}")
-    
-    missing_key = None
-    for key in required_keys[stage_name]:
-        # Determine which nested structure to check based on stage type
-        if stage_name == 'decomposition_final':
-            actual_content = content.get('decomposition', {})
-            if isinstance(actual_content, dict):
-                for req_field in required_keys[stage_name]:
-                    if req_field not in actual_content:
-                        missing_key = req_field
-                        break
-        else:
-            # For other stages, use existing validation logic
-            if stage_name == 'architecture_after_reviews':
-                if 'architecture' in content:
-                    actual_content = content['architecture']
-                else:
-                    raise RuntimeError(f"Missing 'architecture' key for {stage_name} stage")
-            elif stage_name == 'tech_plan_after_reviews':
-                if 'plan' in content:
-                    actual_content = content['plan']
-                else:
-                    raise RuntimeError(f"Missing 'plan' key for {stage_name} stage")
-            else:
-                actual_content = content
-            
-            for req_field in required_keys[stage_name]:
-                if req_field not in actual_content:
-                    missing_key = req_field
-                    break
-        
-        if missing_key:
-            raise RuntimeError(f"Missing required field '{missing_key}' for {stage_name} stage")
-    
     try:
         # Create document_stores directory if needed using config value
         os.makedirs(os.path.join(DOCUMENT_STORES_DIR, *subdir), exist_ok=True)
@@ -292,3 +241,25 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: list[str
     except (IOError, OSError) as e:
         log("MARKDOWN", f"Failed to write file {filepath}: {e}")
         raise RuntimeError(f"Cannot create Markdown document: {e}")
+
+
+async def read_stderr_stream_task(process):
+    out = ''
+    while True:
+        chunk = await process.stderr.read(1024)
+        if not chunk:
+            break
+        decoded = chunk.decode('utf-8')
+        sys.stderr.write(decoded)
+        out += decoded
+    return out
+
+
+async def read_stdout_buffer_task(process):
+    out = ''
+    while True:
+        chunk = await process.stdout.read(1024)
+        if not chunk:
+            break
+        out += chunk.decode('utf-8')
+    return out

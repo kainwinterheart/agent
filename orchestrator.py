@@ -7,16 +7,10 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
+
+import prompts
+import schemas
 from agent import Agent
-from prompts import (
-    ARCH_PROMPT, PLAN_PROMPT, CODER_PROMPT,
-    ARCH_REVIEW_PROMPT, PLAN_REVIEW_PROMPT, CODE_REVIEW_PROMPT,
-    TECH_LEAD_FINAL_PROMPT, ARCH_FINAL_PROMPT,
-    PRODUCT_MANAGER_PROMPT,
-    SYSTEM_DECOMPOSITION_PROMPT, SYSTEM_DECOMPOSITION_REVIEW_PROMPT,
-    PM_SYNTHESIZER_PROMPT,
-    PM_REVIEW_PROMPT,
-)
 from utils import run_json_agent, log, assert_not_empty, markdown_document_generator
 from config import MAX_PLAN_ITERS, MAX_CODE_ITERS, MAX_TOP_ITERATIONS
 from execution_framework import CodeExecutionFramework, Configuration
@@ -29,66 +23,90 @@ class Orchestrator:
 
         self.product_manager = Agent(
             "product_manager",
-            PRODUCT_MANAGER_PROMPT,
+            prompts.PRODUCT_MANAGER_PROMPT,
+            schemas.PRODUCT_MANAGER_SCHEMA,
             ephemeral=True,
             timeout='30m'
         )
         self.pm_synth = Agent(
             "pm_synth",
-            PM_SYNTHESIZER_PROMPT,
+            prompts.PM_SYNTHESIZER_PROMPT,
+            schemas.PM_SYNTHESIZER_SCHEMA,
             timeout='30m'
         )
         self.pm_review = Agent(
             "pm_review",
-            PM_REVIEW_PROMPT,
+            prompts.PM_REVIEW_PROMPT,
+            schemas.PM_REVIEW_SCHEMA,
             ephemeral=True,
             timeout='30m'
         )
 
-        self.arch = Agent("arch", ARCH_PROMPT, timeout='40m')
-        self.tech_lead = Agent("tech_lead", PLAN_PROMPT, timeout='60m')
-        self.coder = Agent("coder", CODER_PROMPT)
+        self.arch = Agent(
+            "arch",
+            prompts.ARCH_PROMPT,
+            schemas.ARCH_SCHEMA,
+            timeout='40m'
+        )
+        self.tech_lead = Agent(
+            "tech_lead",
+            prompts.PLAN_PROMPT,
+            schemas.PLAN_SCHEMA,
+            timeout='60m'
+        )
+        self.coder = Agent(
+            "coder",
+            prompts.CODER_PROMPT,
+            schemas.CODER_SCHEMA
+        )
 
         self.arch_review = Agent(
             "arch_review",
-            ARCH_REVIEW_PROMPT,
+            prompts.ARCH_REVIEW_PROMPT,
+            schemas.ARCH_REVIEW_SCHEMA,
             ephemeral=True,
             timeout='30m'
         )
         self.plan_review = Agent(
             "plan_review",
-            PLAN_REVIEW_PROMPT,
+            prompts.PLAN_REVIEW_PROMPT,
+            schemas.PLAN_REVIEW_SCHEMA,
             ephemeral=True,
             timeout='30m'
         )
         self.code_review = Agent(
             "code_review",
-            CODE_REVIEW_PROMPT,
+            prompts.CODE_REVIEW_PROMPT,
+            schemas.CODE_REVIEW_SCHEMA,
             ephemeral=True,
             timeout='60m'
         )
 
         self.tech_lead_final = Agent(
             "tech_lead_final",
-            TECH_LEAD_FINAL_PROMPT,
+            prompts.TECH_LEAD_FINAL_PROMPT,
+            schemas.TECH_LEAD_FINAL_SCHEMA,
             ephemeral=True,
             timeout='60m'
         )
         self.arch_final = Agent(
             "arch_final",
-            ARCH_FINAL_PROMPT,
+            prompts.ARCH_FINAL_PROMPT,
+            schemas.ARCH_FINAL_SCHEMA,
             ephemeral=True,
             timeout='60m'
         )
 
         self.decomposition = Agent(
             "decomposition",
-            SYSTEM_DECOMPOSITION_PROMPT,
+            prompts.SYSTEM_DECOMPOSITION_PROMPT,
+            schemas.SYSTEM_DECOMPOSITION_SCHEMA,
             timeout='40m'
         )
         self.decomposition_review = Agent(
             "decomposition_review",
-            SYSTEM_DECOMPOSITION_REVIEW_PROMPT,
+            prompts.SYSTEM_DECOMPOSITION_REVIEW_PROMPT,
+            schemas.SYSTEM_DECOMPOSITION_REVIEW_SCHEMA,
             ephemeral=True,
             timeout='30m'
         )
