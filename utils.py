@@ -91,7 +91,7 @@ def run_json_agent(agent, input_text):
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            msg = str(e)
+            msg = ""
             example = "."
             if isinstance(e, jsonschema.exceptions.ValidationError):
                 path = ".".join(e.path)
@@ -100,6 +100,8 @@ def run_json_agent(agent, input_text):
                 msg += e.message
                 example = ":\n"
                 example += schema_to_example(e.schema)
+            else:
+                msg += str(e)
             raw = agent.run(f"""
 Your previous output was invalid JSON; it failed to parse with the following error:
 ```
@@ -109,10 +111,14 @@ Your previous output was invalid JSON; it failed to parse with the following err
 Fix it. ONLY return valid JSON{example}
 
 Previous output:
+```
 {raw}
+```
 
 Previous task:
+```
 {input_text}
+```
 """)
     
 

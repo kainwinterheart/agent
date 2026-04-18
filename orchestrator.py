@@ -5,7 +5,6 @@
 
 import json
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 import prompts
@@ -128,34 +127,29 @@ class Orchestrator:
 
     def pm_transformation_workflow(self):
         candidates = []
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            futures = []
-            for prompt in [
-                "Bias toward minimal scope and preserving the literal user request.",
-                "Bias toward UX completeness, validation rules, and expected user behavior.",
-                "Bias toward implementation simplicity and minimal engineering risk.",
-                "Bias toward edge cases, state transitions, and failure scenarios.",
-                "Bias toward preserving existing system behavior and minimizing changes to current workflows.",
-                "Bias toward permissions, roles, ownership boundaries, and access control behavior.",
-                "Bias toward data model implications, persistence behavior, lifecycle management, and state consistency.",
-                "Bias toward API behavior, input/output contracts, validation, and error handling.",
-                "Bias toward reporting, auditability, notifications, logging, and observability requirements.",
-                "Bias toward backward compatibility, migration concerns, rollout safety, and minimizing disruption to existing users.",
-                "Bias toward operational concerns such as performance, scalability, concurrency, and long-term maintainability.",
-                "Bias toward identifying the smallest possible implementation that still fully satisfies the request.",
-                "Bias toward identifying where the request may be overcomplicated, unnecessary, or better solved through a smaller existing workflow change instead of a new feature.",
-                "Bias toward preserving only what is explicitly stated by the user. Avoid assumptions unless absolutely necessary.",
-                "Bias toward identifying the user's likely business goal and ensuring the specification solves that goal with the smallest possible feature set.",
-            ]:
-                future = pool.submit(
-                    run_json_agent,
-                    self.product_manager,
-                    f"USER REQUEST:\n{self.task}\n\n"
-                    f"TASK:\nProduce a focused engineering-ready specification.\n{prompt}"
-                )
-                futures.append(future)
-            for future in as_completed(futures):
-                candidates.append(future.result())
+        for prompt in [
+            "Bias toward minimal scope and preserving the literal user request.",
+            "Bias toward UX completeness, validation rules, and expected user behavior.",
+            "Bias toward implementation simplicity and minimal engineering risk.",
+            "Bias toward edge cases, state transitions, and failure scenarios.",
+            "Bias toward preserving existing system behavior and minimizing changes to current workflows.",
+            "Bias toward permissions, roles, ownership boundaries, and access control behavior.",
+            "Bias toward data model implications, persistence behavior, lifecycle management, and state consistency.",
+            "Bias toward API behavior, input/output contracts, validation, and error handling.",
+            "Bias toward reporting, auditability, notifications, logging, and observability requirements.",
+            "Bias toward backward compatibility, migration concerns, rollout safety, and minimizing disruption to existing users.",
+            "Bias toward operational concerns such as performance, scalability, concurrency, and long-term maintainability.",
+            "Bias toward identifying the smallest possible implementation that still fully satisfies the request.",
+            "Bias toward identifying where the request may be overcomplicated, unnecessary, or better solved through a smaller existing workflow change instead of a new feature.",
+            "Bias toward preserving only what is explicitly stated by the user. Avoid assumptions unless absolutely necessary.",
+            "Bias toward identifying the user's likely business goal and ensuring the specification solves that goal with the smallest possible feature set.",
+        ]:
+            candidate = run_json_agent(
+                self.product_manager,
+                f"USER REQUEST:\n{self.task}\n\n"
+                f"TASK:\nProduce a focused engineering-ready specification.\n{prompt}"
+            )
+            candidates.append(candidate)
 
         choices = "\n".join([f"CANDIDATE {i + 1}:\n{json.dumps(v)}\n" for i, v in enumerate(candidates)])
         rephrased_task = run_json_agent(
