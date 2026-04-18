@@ -86,10 +86,7 @@ def run_json_agent(agent, input_text):
     while True:
         try:
             out = json.loads(extract_json(raw))
-            try:
-                jsonschema.validate(out, agent.schema)
-            except jsonschema.exceptions.ValidationError as e:
-                raise Exception(e.message)
+            jsonschema.validate(out, agent.schema)
             return out
         except KeyboardInterrupt:
             raise
@@ -259,7 +256,7 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: list[str
 async def read_stderr_stream_task(process):
     out = ''
     while True:
-        chunk = await process.stderr.read(1024)
+        chunk = await process.stderr.read(65535)
         if not chunk:
             break
         decoded = chunk.decode('utf-8')
@@ -271,7 +268,7 @@ async def read_stderr_stream_task(process):
 async def read_stdout_buffer_task(process):
     out = ''
     while True:
-        chunk = await process.stdout.read(1024)
+        chunk = await process.stdout.read(65535)
         if not chunk:
             break
         out += chunk.decode('utf-8')
