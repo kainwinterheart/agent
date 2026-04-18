@@ -101,12 +101,14 @@ Your previous output was invalid JSON; it failed to parse with the following err
 {e}
 ```
 
-TASK:
 Fix it. ONLY return valid JSON.
+
+Previous task:
+{input_text}
 
 Previous output:
 {raw}
-""" + ("\nPrevious task:\n{input_text}" if agent.ephemeral else ""))
+""")
     
     raise ValueError("Agent failed to respond with JSON")
 

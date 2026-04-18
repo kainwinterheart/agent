@@ -197,6 +197,11 @@ Revise the synthesized specification to address the review feedback while preser
             out += "\n\nMentioned proper nouns:\n"
             for proper_noun in proper_nouns:
                 out += f"* {proper_noun}\n"
+        facts = rephrased_task.get('facts')
+        if isinstance(facts, list) and facts:
+            out += "\n\nStated facts:\n"
+            for fact in facts:
+                out += f"* {fact}\n"
         return out
 
     def run(self):
