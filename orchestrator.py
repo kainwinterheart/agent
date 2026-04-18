@@ -446,7 +446,7 @@ Revise the synthesized specification to address the review feedback while preser
     def tech_lead_review_phase(self, code_summary: str, arch: dict, plan: dict, task: str, tech_lead_final_review: Optional[dict]) -> dict:
         extra_prompt = ""
         if tech_lead_final_review:
-            extra_prompt = "PREVIOUS FEEDBACK:\n{json.dumps(tech_lead_final_review)}\n"
+            extra_prompt = f"PREVIOUS FEEDBACK:\n{json.dumps(tech_lead_final_review)}\n"
         return run_json_agent(
             self.tech_lead_final,
             f"TASK:\n{task}\n"
