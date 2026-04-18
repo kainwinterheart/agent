@@ -60,6 +60,8 @@ class CodeExecutionFramework:
             )
 
             *past_changes, recent_changes = [v.get("changes", []) for v in all_outputs]
+            if not recent_changes:
+                recent_changes = all_outputs[-1]
             review_prompt = (
                 f"TASK:\n{config.initial_prompt_context}\n"
                 f"ATTEMPT: {iteration_count + 1}/{config.max_iterations}\n\n"
