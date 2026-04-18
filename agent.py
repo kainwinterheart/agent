@@ -3,7 +3,6 @@
 # =========================
 
 from utils import run_codex
-import json
 import logging
 
 
@@ -12,7 +11,7 @@ class Agent:
         self.name = name
         self.session = None
         self.role_prompt = role_prompt
-        self.schema = json.loads(schema)
+        self.schema = schema
         self.ephemeral = ephemeral
         self.timeout = timeout
 
@@ -26,7 +25,7 @@ class Agent:
                 out, self.session = run_codex(
                     self.session,
                     prompt + last_error,
-                    json.dumps(self.schema),
+                    self.schema,
                     self.ephemeral,
                     self.timeout,
                 )

@@ -15,13 +15,14 @@ from contextlib import ExitStack
 from typing import Optional
 from config import DOCUMENT_STORES_DIR
 from tempfile import NamedTemporaryFile, TemporaryFile
+from schema_utils import schema_to_example
 
 
 def log(step, msg):
     sys.stderr.write(f">> [{time.strftime('%Y-%m-%d %H:%M:%S')}] [{step}] {msg}\n")
 
 
-async def run_codex_async(sess_id: Optional[str], prompt: str, schema: str, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
+async def run_codex_async(sess_id: Optional[str], prompt: str, schema: dict, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
     cmd_args = []
     if timeout:
         cmd_args.extend(["timeout", timeout])
@@ -35,7 +36,7 @@ async def run_codex_async(sess_id: Optional[str], prompt: str, schema: str, ephe
     with ExitStack() as stack:
         if not sess_id:
             schema_file = stack.enter_context(NamedTemporaryFile(delete_on_close=False))
-            schema_file.write(schema.encode('utf-8'))
+            schema_file.write(json.dumps(schema, indent=2).encode('utf-8'))
             schema_file.close()
             cmd_args.append("--output-schema")
             cmd_args.append(schema_file.name)
@@ -67,7 +68,7 @@ async def run_codex_async(sess_id: Optional[str], prompt: str, schema: str, ephe
     return stdout, sess_id
 
 
-def run_codex(session: Optional[str], prompt: str, schema: str, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
+def run_codex(session: Optional[str], prompt: str, schema: dict, ephemeral: bool, timeout: Optional[str] = None) -> tuple[str, Optional[str]]:
     """Sync wrapper for async run_codex_async - maintains backward compatibility."""
     return asyncio.run(run_codex_async(session, prompt, schema, ephemeral, timeout))
 
@@ -85,24 +86,36 @@ def run_json_agent(agent, input_text):
     while True:
         try:
             out = json.loads(extract_json(raw))
-            jsonschema.validate(out, agent.schema)
+            try:
+                jsonschema.validate(out, agent.schema)
+            except jsonschema.exceptions.ValidationError as e:
+                raise Exception(e.message)
             return out
         except KeyboardInterrupt:
             raise
         except Exception as e:
+            msg = str(e)
+            example = "."
+            if isinstance(e, jsonschema.exceptions.ValidationError):
+                path = ".".join(e.path)
+                if path:
+                    msg += f"Error within {path}: "
+                msg += e.message
+                example = ":\n"
+                example += schema_to_example(e.schema)
             raw = agent.run(f"""
 Your previous output was invalid JSON; it failed to parse with the following error:
 ```
-{e}
+{msg}
 ```
 
-Fix it. ONLY return valid JSON.
-
-Previous task:
-{input_text}
+Fix it. ONLY return valid JSON{example}
 
 Previous output:
 {raw}
+
+Previous task:
+{input_text}
 """)
     
 

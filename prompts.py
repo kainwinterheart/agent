@@ -1,4 +1,5 @@
 import schemas
+from schema_utils import schema_to_example
 
 ARCH_PROMPT = f"""
 You are a senior software architect working on an existing production system.
@@ -49,7 +50,7 @@ Unacceptable architect detail:
 * Replace inline schemas with __SCHEMA__ tokens
 
 Output MUST be valid JSON only:
-{schemas.ARCH_SCHEMA}
+{schema_to_example(schemas.ARCH_SCHEMA)}
 
 Rules:
 * No markdown
@@ -93,7 +94,7 @@ Context handling:
 * Do NOT invent large subsystems without justification.
 
 Output MUST be valid JSON:
-{schemas.PLAN_SCHEMA}
+{schema_to_example(schemas.PLAN_SCHEMA)}
 
 Rules:
 * Steps must be executable in order
@@ -145,7 +146,7 @@ Context handling:
 * Do not describe intended work; describe only completed work.
 
 Output MUST be valid JSON only:
-{schemas.CODER_SCHEMA}
+{schema_to_example(schemas.CODER_SCHEMA)}
 
 Rules:
 * No markdown
@@ -251,7 +252,7 @@ Critical distinction:
 * Do not request reset simply because the underlying system has major gaps.
 
 Output MUST be valid JSON:
-{schemas.ARCH_REVIEW_SCHEMA}
+{schema_to_example(schemas.ARCH_REVIEW_SCHEMA)}
 
 Rules:
 
@@ -306,7 +307,7 @@ Special plan review guidance:
 * Reject only if the plan is unrealistic, disconnected from the architecture, missing important file changes, or built around invalid assumptions about the codebase.
 
 Output MUST be valid JSON:
-{schemas.PLAN_REVIEW_SCHEMA}
+{schema_to_example(schemas.PLAN_REVIEW_SCHEMA)}
 
 Rules:
 * Be strict
@@ -375,7 +376,7 @@ Special code review guidance:
 * Reject only if the implementation claims work that was not done, omits required work, introduces inconsistencies, or fails to address required review feedback.
 
 Output MUST be valid JSON:
-{schemas.CODE_REVIEW_SCHEMA}
+{schema_to_example(schemas.CODE_REVIEW_SCHEMA)}
 
 Rules:
 * Be strict
@@ -434,7 +435,7 @@ Special final review guidance:
 * Reject only if the final implementation summary incorrectly claims completion, hides missing work, or introduces integration risks.
 
 Output MUST be valid JSON:
-{schemas.TECH_LEAD_FINAL_SCHEMA}
+{schema_to_example(schemas.TECH_LEAD_FINAL_SCHEMA)}
 
 Rules:
 * Be strict
@@ -486,7 +487,7 @@ Special architectural validation guidance:
 * Reject only if the final implementation drifted away from the architecture or violated ownership boundaries.
 
 Output MUST be valid JSON:
-{schemas.ARCH_FINAL_SCHEMA}
+{schema_to_example(schemas.ARCH_FINAL_SCHEMA)}
 
 Rules:
 * Be strict
@@ -580,7 +581,7 @@ Examples of unacceptable PM detail:
 * "Do not add parameters to run_json_agent"
 
 Output MUST be valid JSON only:
-{schemas.PRODUCT_MANAGER_SCHEMA}
+{schema_to_example(schemas.PRODUCT_MANAGER_SCHEMA)}
 
 Rules:
 * Preserve intent, but improve quality
@@ -621,7 +622,7 @@ Evaluation criteria:
 * Strongest alignment with likely business intent
 
 Output MUST be valid JSON only:
-{schemas.PM_SYNTHESIZER_SCHEMA}
+{schema_to_example(schemas.PM_SYNTHESIZER_SCHEMA)}
 
 Rules:
 * Prefer the smallest correct scope
@@ -654,7 +655,7 @@ Review principles:
 * Approve if the specification is clear, focused, and aligned with the original request.
 
 Output MUST be valid JSON only:
-{schemas.PM_REVIEW_SCHEMA}
+{schema_to_example(schemas.PM_REVIEW_SCHEMA)}
 
 Reset guidance:
 * Set should_reset=true only if the synthesized specification is fundamentally misaligned with the original request.
@@ -746,7 +747,7 @@ Examples of unacceptable architect_input:
 * "Modify only prompts.py and schemas.py"
 
 Output MUST be valid JSON only:
-{schemas.SYSTEM_DECOMPOSITION_SCHEMA}
+{schema_to_example(schemas.SYSTEM_DECOMPOSITION_SCHEMA)}
 
 Rules:
 * Domains must be large enough to matter, but small enough to be independently architected
@@ -812,7 +813,7 @@ Example of correct reviewer reasoning:
 * Bad: "Persistence Layer implementation is missing from the codebase, therefore the decomposition is wrong."
 
 Output MUST be valid JSON only:
-{schemas.SYSTEM_DECOMPOSITION_REVIEW_SCHEMA}
+{schema_to_example(schemas.SYSTEM_DECOMPOSITION_REVIEW_SCHEMA)}
 
 Rules:
 * Be strict

@@ -1,5 +1,4 @@
-ARCH_SCHEMA = """
-{
+ARCH_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -16,7 +15,6 @@ ARCH_SCHEMA = """
             "type": "string",
             "description": "notes about alignment with current system and key tradeoffs; must include: 'Why not reuse existing system?' explanation for any new component"
           },
-          "description": "notes about alignment with current system and key tradeoffs, must include: 'Why not reuse existing system?' explanation for any new component"
         },
         "components": {
           "type": "array",
@@ -36,41 +34,51 @@ ARCH_SCHEMA = """
                 "description": "why this fits into the existing system; if the component is new: (1) why existing components cannot be reused, and (2) why introducing a new component is the simplest correct solution"
               }
             },
-            "required": ["name", "responsibility", "background"]
+            "required": [
+              "name",
+              "responsibility",
+              "background"
+            ]
           },
-          "description": "list of components"
         },
         "data_flow": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "description": "how data moves through EXISTING and new components"
+            "type": "string",
+            "description": "how data moves through EXISTING and new components"
+          }
         },
         "tech_choices": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "description": "choices that must align with current stack"
+            "type": "string",
+            "description": "choices that must align with current stack"
+          }
         },
         "constraints": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "description": "assumptions, limitations, and known gaps in system understanding"
+            "type": "string",
+            "description": "assumptions, limitations, and known gaps in system understanding"
+          }
         }
       },
-      "required": ["overview", "reviewer_notes", "components", "data_flow", "tech_choices", "constraints"]
+      "required": [
+        "overview",
+        "reviewer_notes",
+        "components",
+        "data_flow",
+        "tech_choices",
+        "constraints"
+      ]
     }
   },
-  "required": ["architecture"]
+  "required": [
+    "architecture"
+  ]
 }
-"""
 
-PLAN_SCHEMA = """
-{
+PLAN_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -87,7 +95,6 @@ PLAN_SCHEMA = """
             "type": "string",
             "description": "notes about assumptions on current codebase and structure"
           },
-          "description": "notes about assumptions on current codebase and structure"
         },
         "files": {
           "type": "array",
@@ -107,9 +114,12 @@ PLAN_SCHEMA = """
                 "description": "why this belongs in this location in the existing system"
               }
             },
-            "required": ["path", "purpose", "background"]
+            "required": [
+              "path",
+              "purpose",
+              "background"
+            ]
           },
-          "description": "list of files involved"
         },
         "steps": {
           "type": "array",
@@ -125,20 +135,27 @@ PLAN_SCHEMA = """
                 "description": "specific step tied to real file changes"
               }
             },
-            "required": ["id", "description"]
+            "required": [
+              "id",
+              "description"
+            ]
           },
-          "description": "list of implementation steps"
         }
       },
-      "required": ["summary", "reviewer_notes", "files", "steps"]
+      "required": [
+        "summary",
+        "reviewer_notes",
+        "files",
+        "steps"
+      ]
     }
   },
-  "required": ["plan"]
+  "required": [
+    "plan"
+  ]
 }
-"""
 
-CODER_SCHEMA = """
-{
+CODER_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -153,17 +170,23 @@ CODER_SCHEMA = """
           },
           "status": {
             "type": "string",
-            "enum": ["modified", "created", "unchanged_blocked"],
-            "description": "modified/created/unchanged_blocked"
+            "enum": [
+              "modified",
+              "created",
+              "unchanged_blocked"
+            ],
           },
           "brief_summary": {
             "type": "string",
             "description": "what was actually changed and how it integrates with existing code"
           }
         },
-        "required": ["path", "status", "brief_summary"]
+        "required": [
+          "path",
+          "status",
+          "brief_summary"
+        ]
       },
-      "description": "list of file changes"
     },
     "summary": {
       "type": "string",
@@ -175,25 +198,24 @@ CODER_SCHEMA = """
         "type": "string",
         "description": "notes about assumptions, blocked work, incomplete areas, missing context, or areas needing attention"
       },
-      "description": "notes about assumptions, blocked work, incomplete areas, missing context, or areas needing attention"
     }
   },
-  "required": ["changes", "summary", "reviewer_notes"]
+  "required": [
+    "changes",
+    "summary",
+    "reviewer_notes"
+  ]
 }
-"""
 
-ARCH_REVIEW_SCHEMA = """
-{
+ARCH_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
     "approved": {
       "type": "boolean",
-      "description": "true/false"
     },
     "should_reset": {
       "type": "boolean",
-      "description": "true/false"
     },
     "reset_reason": {
       "type": "string",
@@ -206,8 +228,10 @@ ARCH_REVIEW_SCHEMA = """
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["low", "high"],
-            "description": "low/high"
+            "enum": [
+              "low",
+              "high"
+            ],
           },
           "category": {
             "type": "string",
@@ -223,30 +247,34 @@ ARCH_REVIEW_SCHEMA = """
               "type": "string",
               "description": "actionable fixes"
             },
-            "description": "actionable fixes"
           }
         },
-        "required": ["severity", "category", "message", "next_actions"]
+        "required": [
+          "severity",
+          "category",
+          "message",
+          "next_actions"
+        ]
       },
-      "description": "list of issues found"
     }
   },
-  "required": ["approved", "should_reset", "reset_reason", "issues"]
+  "required": [
+    "approved",
+    "should_reset",
+    "reset_reason",
+    "issues"
+  ]
 }
-"""
 
-PLAN_REVIEW_SCHEMA = """
-{
+PLAN_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
     "approved": {
       "type": "boolean",
-      "description": "true/false"
     },
     "should_reset": {
       "type": "boolean",
-      "description": "true/false"
     },
     "reset_reason": {
       "type": "string",
@@ -259,8 +287,10 @@ PLAN_REVIEW_SCHEMA = """
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["low", "high"],
-            "description": "low/high"
+            "enum": [
+              "low",
+              "high"
+            ],
           },
           "category": {
             "type": "string",
@@ -276,30 +306,34 @@ PLAN_REVIEW_SCHEMA = """
               "type": "string",
               "description": "actionable fixes"
             },
-            "description": "actionable fixes"
           }
         },
-        "required": ["severity", "category", "message", "next_actions"]
+        "required": [
+          "severity",
+          "category",
+          "message",
+          "next_actions"
+        ]
       },
-      "description": "list of issues found"
     }
   },
-  "required": ["approved", "should_reset", "reset_reason", "issues"]
+  "required": [
+    "approved",
+    "should_reset",
+    "reset_reason",
+    "issues"
+  ]
 }
-"""
 
-CODE_REVIEW_SCHEMA = """
-{
+CODE_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
     "approved": {
       "type": "boolean",
-      "description": "true/false"
     },
     "should_reset": {
       "type": "boolean",
-      "description": "true/false"
     },
     "reset_reason": {
       "type": "string",
@@ -312,8 +346,10 @@ CODE_REVIEW_SCHEMA = """
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["low", "high"],
-            "description": "low/high"
+            "enum": [
+              "low",
+              "high"
+            ],
           },
           "category": {
             "type": "string",
@@ -329,30 +365,34 @@ CODE_REVIEW_SCHEMA = """
               "type": "string",
               "description": "specific actionable fix"
             },
-            "description": "specific actionable fix"
           }
         },
-        "required": ["severity", "category", "message", "next_actions"]
+        "required": [
+          "severity",
+          "category",
+          "message",
+          "next_actions"
+        ]
       },
-      "description": "list of issues found"
     }
   },
-  "required": ["approved", "should_reset", "reset_reason", "issues"]
+  "required": [
+    "approved",
+    "should_reset",
+    "reset_reason",
+    "issues"
+  ]
 }
-"""
 
-TECH_LEAD_FINAL_SCHEMA = """
-{
+TECH_LEAD_FINAL_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
     "approved": {
       "type": "boolean",
-      "description": "true/false"
     },
     "should_reset": {
       "type": "boolean",
-      "description": "true/false"
     },
     "reset_reason": {
       "type": "string",
@@ -365,8 +405,10 @@ TECH_LEAD_FINAL_SCHEMA = """
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["low", "high"],
-            "description": "low/high"
+            "enum": [
+              "low",
+              "high"
+            ],
           },
           "category": {
             "type": "string",
@@ -382,30 +424,34 @@ TECH_LEAD_FINAL_SCHEMA = """
               "type": "string",
               "description": "actionable fixes"
             },
-            "description": "actionable fixes"
           }
         },
-        "required": ["severity", "category", "message", "next_actions"]
+        "required": [
+          "severity",
+          "category",
+          "message",
+          "next_actions"
+        ]
       },
-      "description": "list of issues found"
     }
   },
-  "required": ["approved", "should_reset", "reset_reason", "issues"]
+  "required": [
+    "approved",
+    "should_reset",
+    "reset_reason",
+    "issues"
+  ]
 }
-"""
 
-ARCH_FINAL_SCHEMA = """
-{
+ARCH_FINAL_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
     "approved": {
       "type": "boolean",
-      "description": "true/false"
     },
     "should_reset": {
       "type": "boolean",
-      "description": "true/false"
     },
     "reset_reason": {
       "type": "string",
@@ -418,8 +464,10 @@ ARCH_FINAL_SCHEMA = """
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["low", "high"],
-            "description": "low/high"
+            "enum": [
+              "low",
+              "high"
+            ],
           },
           "category": {
             "type": "string",
@@ -435,20 +483,26 @@ ARCH_FINAL_SCHEMA = """
               "type": "string",
               "description": "actionable fixes"
             },
-            "description": "actionable fixes"
           }
         },
-        "required": ["severity", "category", "message", "next_actions"]
+        "required": [
+          "severity",
+          "category",
+          "message",
+          "next_actions"
+        ]
       },
-      "description": "list of issues found"
     }
   },
-  "required": ["approved", "should_reset", "reset_reason", "issues"]
+  "required": [
+    "approved",
+    "should_reset",
+    "reset_reason",
+    "issues"
+  ]
 }
-"""
 
-PRODUCT_MANAGER_SCHEMA = """
-{
+PRODUCT_MANAGER_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -466,7 +520,6 @@ PRODUCT_MANAGER_SCHEMA = """
         "type": "string",
         "description": "explicit assumptions, refinements, missing requirements filled in, and interpretation decisions"
       },
-      "description": "explicit assumptions, refinements, missing requirements filled in, and interpretation decisions"
     },
     "files": {
       "type": "array",
@@ -474,7 +527,6 @@ PRODUCT_MANAGER_SCHEMA = """
         "type": "string",
         "description": "if user request refers to any files - extract file names/pathes, and put them here as is"
       },
-      "description": "if user request refers to any files - extract file names/pathes, and put them here as is"
     },
     "proper_nouns": {
       "type": "array",
@@ -482,7 +534,6 @@ PRODUCT_MANAGER_SCHEMA = """
         "type": "string",
         "description": "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"
       },
-      "description": "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"
     },
     "facts": {
       "type": "array",
@@ -490,15 +541,19 @@ PRODUCT_MANAGER_SCHEMA = """
         "type": "string",
         "description": "if user request states specific facts - extract them, and put them here"
       },
-      "description": "if user request states specific facts - extract them, and put them here"
     }
   },
-  "required": ["task_specification", "original_input_preserved", "clarifications_made", "files", "proper_nouns", "facts"]
+  "required": [
+    "task_specification",
+    "original_input_preserved",
+    "clarifications_made",
+    "files",
+    "proper_nouns",
+    "facts"
+  ]
 }
-"""
 
-PM_SYNTHESIZER_SCHEMA = """
-{
+PM_SYNTHESIZER_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -528,9 +583,11 @@ PM_SYNTHESIZER_SCHEMA = """
             "description": "why this interpretation was rejected"
           }
         },
-        "required": ["candidate", "reason"]
+        "required": [
+          "candidate",
+          "reason"
+        ]
       },
-      "description": "list of rejected candidates"
     },
     "common_requirements": {
       "type": "array",
@@ -538,7 +595,6 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "requirements most candidates agree on"
       },
-      "description": "requirements most candidates agree on"
     },
     "candidate_disagreements": {
       "type": "array",
@@ -546,7 +602,6 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "common points of disagreement between most candidates"
       },
-      "description": "common points of disagreement between most candidates"
     },
     "speculative_expansions": {
       "type": "array",
@@ -554,7 +609,6 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "what candidates clearly speculate on"
       },
-      "description": "what candidates clearly speculate on"
     },
     "missing_but_necessary_details": {
       "type": "array",
@@ -562,7 +616,6 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "details not commonly found in candidate interpretations that are clearly required"
       },
-      "description": "details not commonly found in candidate interpretations that are clearly required"
     },
     "clarifications_made": {
       "type": "array",
@@ -570,7 +623,6 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "final assumptions and interpretation decisions"
       },
-      "description": "final assumptions and interpretation decisions"
     },
     "files": {
       "type": "array",
@@ -578,7 +630,6 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "if user request refers to any files - extract file names/pathes, and put them here as is"
       },
-      "description": "if user request refers to any files - extract file names/pathes, and put them here as is"
     },
     "proper_nouns": {
       "type": "array",
@@ -586,7 +637,6 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"
       },
-      "description": "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"
     },
     "facts": {
       "type": "array",
@@ -594,15 +644,25 @@ PM_SYNTHESIZER_SCHEMA = """
         "type": "string",
         "description": "if user request states specific facts - extract them, and put them here"
       },
-      "description": "if user request states specific facts - extract them, and put them here"
     }
   },
-  "required": ["task_specification", "selected_candidate", "selection_reason", "rejected_candidates", "common_requirements", "candidate_disagreements", "speculative_expansions", "missing_but_necessary_details", "clarifications_made", "files", "proper_nouns", "facts"]
+  "required": [
+    "task_specification",
+    "selected_candidate",
+    "selection_reason",
+    "rejected_candidates",
+    "common_requirements",
+    "candidate_disagreements",
+    "speculative_expansions",
+    "missing_but_necessary_details",
+    "clarifications_made",
+    "files",
+    "proper_nouns",
+    "facts"
+  ]
 }
-"""
 
-PM_REVIEW_SCHEMA = """
-{
+PM_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -625,8 +685,10 @@ PM_REVIEW_SCHEMA = """
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["low", "high"],
-            "description": "low/high"
+            "enum": [
+              "low",
+              "high"
+            ],
           },
           "category": {
             "type": "string",
@@ -642,20 +704,26 @@ PM_REVIEW_SCHEMA = """
               "type": "string",
               "description": "specific actionable fix"
             },
-            "description": "specific actionable fix"
           }
         },
-        "required": ["severity", "category", "message", "next_actions"]
+        "required": [
+          "severity",
+          "category",
+          "message",
+          "next_actions"
+        ]
       },
-      "description": "list of issues found"
     }
   },
-  "required": ["approved", "should_reset", "reset_reason", "issues"]
+  "required": [
+    "approved",
+    "should_reset",
+    "reset_reason",
+    "issues"
+  ]
 }
-"""
 
-SYSTEM_DECOMPOSITION_SCHEMA = """
-{
+SYSTEM_DECOMPOSITION_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -672,7 +740,6 @@ SYSTEM_DECOMPOSITION_SCHEMA = """
             "type": "string",
             "description": "notes about decomposition decisions, coupling concerns, assumptions, and why certain areas were grouped or separated"
           },
-          "description": "notes about decomposition decisions, coupling concerns, assumptions, and why certain areas were grouped or separated"
         },
         "domains": {
           "type": "array",
@@ -697,7 +764,6 @@ SYSTEM_DECOMPOSITION_SCHEMA = """
                   "type": "string",
                   "description": "specific responsibility, specific component, specific subsystem"
                 },
-                "description": "specific responsibility, specific component, specific subsystem"
               },
               "excludes": {
                 "type": "array",
@@ -705,7 +771,6 @@ SYSTEM_DECOMPOSITION_SCHEMA = """
                   "type": "string",
                   "description": "related responsibility intentionally handled elsewhere"
                 },
-                "description": "related responsibility intentionally handled elsewhere"
               },
               "dependencies": {
                 "type": "array",
@@ -713,7 +778,6 @@ SYSTEM_DECOMPOSITION_SCHEMA = """
                   "type": "string",
                   "description": "name of prerequisite domain"
                 },
-                "description": "name of prerequisite domain"
               },
               "reasoning": {
                 "type": "string",
@@ -724,7 +788,16 @@ SYSTEM_DECOMPOSITION_SCHEMA = """
                 "description": "fully scoped architecture request for this domain, written so it can be passed directly to a software architect without additional processing"
               }
             },
-            "required": ["id", "name", "scope", "includes", "excludes", "dependencies", "reasoning", "architect_input"]
+            "required": [
+              "id",
+              "name",
+              "scope",
+              "includes",
+              "excludes",
+              "dependencies",
+              "reasoning",
+              "architect_input"
+            ]
           },
           "description": "list of decomposition domains"
         },
@@ -734,7 +807,6 @@ SYSTEM_DECOMPOSITION_SCHEMA = """
             "type": "string",
             "description": "ordered list of domain names representing recommended execution sequence"
           },
-          "description": "ordered list of domain names representing recommended execution sequence"
         },
         "global_risks": {
           "type": "array",
@@ -742,28 +814,31 @@ SYSTEM_DECOMPOSITION_SCHEMA = """
             "type": "string",
             "description": "cross-domain risk, coupling issue, sequencing concern, or area requiring careful validation"
           },
-          "description": "cross-domain risk, coupling issue, sequencing concern, or area requiring careful validation"
         }
       },
-      "required": ["summary", "reviewer_notes", "domains", "integration_order", "global_risks"]
+      "required": [
+        "summary",
+        "reviewer_notes",
+        "domains",
+        "integration_order",
+        "global_risks"
+      ]
     }
   },
-  "required": ["decomposition"]
+  "required": [
+    "decomposition"
+  ]
 }
-"""
 
-SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = """
-{
+SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
     "approved": {
       "type": "boolean",
-      "description": "true/false"
     },
     "should_reset": {
       "type": "boolean",
-      "description": "true/false"
     },
     "reset_reason": {
       "type": "string",
@@ -776,8 +851,10 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = """
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["low", "high"],
-            "description": "low/high"
+            "enum": [
+              "low",
+              "high"
+            ],
           },
           "category": {
             "type": "string",
@@ -793,14 +870,22 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = """
               "type": "string",
               "description": "specific actionable fix"
             },
-            "description": "specific actionable fix"
           }
         },
-        "required": ["severity", "category", "message", "next_actions"]
+        "required": [
+          "severity",
+          "category",
+          "message",
+          "next_actions"
+        ]
       },
       "description": "list of issues found"
     }
   },
-  "required": ["approved", "should_reset", "reset_reason", "issues"]
+  "required": [
+    "approved",
+    "should_reset",
+    "reset_reason",
+    "issues"
+  ]
 }
-"""
