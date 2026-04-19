@@ -230,6 +230,7 @@ ARCH_REVIEW_SCHEMA = {
             "type": "string",
             "enum": [
               "low",
+              "medium",
               "high"
             ],
           },
@@ -289,6 +290,7 @@ PLAN_REVIEW_SCHEMA = {
             "type": "string",
             "enum": [
               "low",
+              "medium",
               "high"
             ],
           },
@@ -348,6 +350,7 @@ CODE_REVIEW_SCHEMA = {
             "type": "string",
             "enum": [
               "low",
+              "medium",
               "high"
             ],
           },
@@ -407,6 +410,7 @@ TECH_LEAD_FINAL_SCHEMA = {
             "type": "string",
             "enum": [
               "low",
+              "medium",
               "high"
             ],
           },
@@ -466,6 +470,7 @@ ARCH_FINAL_SCHEMA = {
             "type": "string",
             "enum": [
               "low",
+              "medium",
               "high"
             ],
           },
@@ -705,6 +710,7 @@ PM_REVIEW_SCHEMA = {
             "type": "string",
             "enum": [
               "low",
+              "medium",
               "high"
             ],
           },
@@ -871,6 +877,7 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
             "type": "string",
             "enum": [
               "low",
+              "medium",
               "high"
             ],
           },
