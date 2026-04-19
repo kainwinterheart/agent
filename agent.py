@@ -3,6 +3,7 @@
 # =========================
 
 from utils import run_codex
+from schema_utils import schema_to_example
 import logging
 
 
@@ -40,7 +41,8 @@ class Agent:
 {e}
 ```
 
-Fix it.
+Fix it. ONLY return valid JSON:
+{schema_to_example(self.schema)}
 """
         return out
 
