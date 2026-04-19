@@ -163,6 +163,21 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: list[str
     if stage_name == 'product_manager_final':
         actual_content = content
         markdown_content += f"# Task Specification\n\n{actual_content.get('task_specification', 'N/A')}\n\n"
+        files = actual_content.get('files')
+        if isinstance(files, list) and files:
+            markdown_content += "## Mentioned files\n\n"
+            for file in files:
+                markdown_content += f"- {file}\n\n"
+        proper_nouns = actual_content.get('proper_nouns')
+        if isinstance(proper_nouns, list) and proper_nouns:
+            markdown_content += "## Mentioned proper nouns\n\n"
+            for proper_noun in proper_nouns:
+                markdown_content += f"- {proper_noun}\n\n"
+        facts = actual_content.get('facts')
+        if isinstance(facts, list) and facts:
+            markdown_content += "## Stated facts\n\n"
+            for fact in facts:
+                markdown_content += f"- {fact}\n\n"
     elif stage_name == 'decomposition_final':
         actual_content = content.get('decomposition', {})
         markdown_content += "# Decomposition\n\n"
