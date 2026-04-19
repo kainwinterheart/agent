@@ -662,6 +662,24 @@ PM_SYNTHESIZER_SCHEMA = {
   ]
 }
 
+PM_SPECULATIVE_EXPANSION_SCHEMA = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "identical to an item you were provided, but without references to candidate numbers"
+      },
+    },
+    
+  },
+  "required": [
+    "lines"
+  ]
+}
+
 PM_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",

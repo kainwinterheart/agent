@@ -633,6 +633,63 @@ Rules:
 * No extra keys
 """
 
+PM_SPECULATIVE_EXPANSION_PROMPT = f"""
+You are given a JSON object that may contain references to candidates anywhere inside string values.
+
+Your task is to remove only those candidate references while preserving everything else exactly as written, including:
+* punctuation
+* capitalization
+* spacing
+* array structure
+* ordering
+* all other text
+
+Candidate references may appear:
+* at the beginning, middle, or end of a string
+* inside or outside parentheses
+* in singular or plural form
+* with or without a `#`
+* with one or more numbers
+
+Examples of references to remove:
+* `Candidate 6`
+* `Candidates 4, 9, 11`
+* `(Candidate 6)`
+* `(Candidates 9, 10, 14)`
+* `according to candidate #1`
+* `per candidates 2 and 5`
+* `candidate 3 says`
+* `from Candidate #7:`
+
+Rules:
+* Remove only the candidate reference phrase itself.
+* Preserve the surrounding sentence as naturally as possible.
+* Remove leftover empty parentheses, dangling commas, repeated spaces, leading/trailing punctuation fragments, and extra whitespace created by the removal.
+* Do not rewrite, summarize, or otherwise alter the remaining text beyond minimal cleanup needed after removing the reference.
+* Return valid JSON only.
+* Preserve the original formatting as much as possible.
+
+Example input:
+{
+  "lines": [
+    "Node pinning for important items (Candidates 9, 10, 14)",
+    "According to candidate #1, node pinning is useful",
+    "Mini inspectors, per candidates 2 and 5, improve editing speed",
+    "Candidate 3 says paper texture overlay could help"
+  ]
+}
+
+Example output:
+{
+  "lines": [
+    "Node pinning for important items",
+    "Node pinning is useful",
+    "Mini inspectors improve editing speed",
+    "Paper texture overlay could help"
+  ]
+}
+"""
+
 PM_REVIEW_PROMPT = f"""
 You are a principal Product Manager reviewing a synthesized task specification.
 

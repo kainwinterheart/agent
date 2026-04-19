@@ -33,6 +33,13 @@ class Orchestrator:
             schemas.PM_SYNTHESIZER_SCHEMA,
             timeout='30m'
         )
+        self.pm_speculative_expansion = Agent(
+            "pm_speculative_expansion",
+            prompts.PM_SPECULATIVE_EXPANSION_PROMPT,
+            schemas.PM_SPECULATIVE_EXPANSION_SCHEMA,
+            ephemeral=True,
+            timeout='10m'
+        )
         self.pm_review = Agent(
             "pm_review",
             prompts.PM_REVIEW_PROMPT,
@@ -199,6 +206,17 @@ Revise the synthesized specification to address the review feedback while preser
 
             rephrased_task = run_json_agent(self.pm_synth, revision_prompt)
 
+        speculative_expansions = rephrased_task.get('speculative_expansions')
+        if isinstance(speculative_expansions, list) and speculative_expansions:
+            while True:
+                clean_speculative_expansions = run_json_agent(
+                    self.pm_speculative_expansion,
+                    "INPUT JSON:\n" + json.dumps({"lines": speculative_expansions}),
+                ).get("lines", [])
+                if len(clean_speculative_expansions) == len(speculative_expansions):
+                    break
+            rephrased_task['speculative_expansions'] = clean_speculative_expansions
+
         markdown_document_generator(
             rephrased_task,
             'product_manager_final',
@@ -225,6 +243,11 @@ Revise the synthesized specification to address the review feedback while preser
             out += "\n\nAdditional considerations:\n"
             for missing_but_necessary_detail in missing_but_necessary_details:
                 out += f"* {missing_but_necessary_detail}\n"
+        speculative_expansions = rephrased_task.get('speculative_expansions')
+        if isinstance(speculative_expansions, list) and speculative_expansions:
+            out += "\n\nOut of scope:\n"
+            for speculative_expansion in speculative_expansions:
+                out += f"* {speculative_expansion}\n"
         return out
 
     def run(self):

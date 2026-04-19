@@ -181,6 +181,11 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: list[str
             markdown_content += "## Additional considerations\n\n"
             for missing_but_necessary_detail in missing_but_necessary_details:
                 markdown_content += f"- {missing_but_necessary_detail}\n\n"
+        speculative_expansions = actual_content.get('speculative_expansions')
+        if isinstance(speculative_expansions, list) and speculative_expansions:
+            markdown_content += "## Out of scope\n\n"
+            for speculative_expansion in speculative_expansions:
+                markdown_content += f"- {speculative_expansion}\n\n"
     elif stage_name == 'decomposition_final':
         actual_content = content.get('decomposition', {})
         markdown_content += "# Decomposition\n\n"
