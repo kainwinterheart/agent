@@ -769,13 +769,14 @@ Decomposition principles:
 * Highlight areas where assumptions are required because the current system structure is unknown.
 
 Architect input principles:
-* Architect_input should be written as a request to a future architect.
+* architect_input should be written as a request to a future architect.
 * Focus on what the architect must design, not how they should design it.
 * Describe required capabilities, ownership boundaries, dependencies, important constraints, and expected integration points.
 * Avoid specifying exact implementation details unless they are explicitly required by the user request.
 * Avoid step-by-step instructions.
 * Avoid prescribing exact file paths, helper names, parsing logic, or code-level structure.
 * Leave technical design choices to the architect.
+* In case a domain has been confirmed fully complete - set respective architect_input to empty string.
 
 When decomposing, think about:
 * Core infrastructure

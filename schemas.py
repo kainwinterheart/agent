@@ -128,7 +128,7 @@ PLAN_SCHEMA = {
             "properties": {
               "id": {
                 "type": "integer",
-                "description": "step identifier"
+                "description": "numeric step identifier"
               },
               "description": {
                 "type": "string",
@@ -802,7 +802,7 @@ SYSTEM_DECOMPOSITION_SCHEMA = {
             "properties": {
               "id": {
                 "type": "integer",
-                "description": "domain identifier"
+                "description": "numeric domain identifier"
               },
               "name": {
                 "type": "string",
@@ -839,7 +839,7 @@ SYSTEM_DECOMPOSITION_SCHEMA = {
               },
               "architect_input": {
                 "type": "string",
-                "description": "fully scoped architecture request for this domain, written so it can be passed directly to a software architect without additional processing"
+                "description": "fully scoped architecture request for this domain, written so it can be passed directly to a software architect without additional processing; in case this domain has been confirmed fully complete - set this field to empty string."
               }
             },
             "required": [
