@@ -670,24 +670,24 @@ Rules:
 * Preserve the original formatting as much as possible.
 
 Example input:
-{
+{{
   "lines": [
     "Node pinning for important items (Candidates 9, 10, 14)",
     "According to candidate #1, node pinning is useful",
     "Mini inspectors, per candidates 2 and 5, improve editing speed",
     "Candidate 3 says paper texture overlay could help"
   ]
-}
+}}
 
 Example output:
-{
+{{
   "lines": [
     "Node pinning for important items",
     "Node pinning is useful",
     "Mini inspectors improve editing speed",
     "Paper texture overlay could help"
   ]
-}
+}}
 """
 
 PM_REVIEW_PROMPT = f"""
