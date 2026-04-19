@@ -318,13 +318,14 @@ Revise the synthesized specification to address the review feedback while preser
                     )
                     code_summaries.append(code_summary)
 
+                merged_code_summaries = '\n\n'.join(code_summaries)
                 final_feedback = run_json_agent(
                     self.arch_final,
                     f"TASK:\n{task}\n"
                     f"ARCHITECTURE:\n{json.dumps(arch)}\n"
                     f"PLAN:\n{json.dumps(plan)}\n"
                     f"CODE IMPLEMENTATION SUMMARY from each iteration:\n"
-                    f"{'\n\n'.join(code_summaries)}"
+                    f"{merged_code_summaries}"
                 )
 
                 if self.review_ok(final_feedback):
