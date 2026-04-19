@@ -1,9 +1,11 @@
 ARCH_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "architecture": {
       "type": "object",
+      "additionalProperties": False,
       "properties": {
         "overview": {
           "type": "string",
@@ -20,6 +22,7 @@ ARCH_SCHEMA = {
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
               "name": {
                 "type": "string",
@@ -81,9 +84,11 @@ ARCH_SCHEMA = {
 PLAN_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "plan": {
       "type": "object",
+      "additionalProperties": False,
       "properties": {
         "summary": {
           "type": "string",
@@ -100,6 +105,7 @@ PLAN_SCHEMA = {
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
               "path": {
                 "type": "string",
@@ -125,6 +131,7 @@ PLAN_SCHEMA = {
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
               "id": {
                 "type": "integer",
@@ -158,11 +165,13 @@ PLAN_SCHEMA = {
 CODER_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "changes": {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "path": {
             "type": "string",
@@ -210,6 +219,7 @@ CODER_SCHEMA = {
 ARCH_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "approved": {
       "type": "boolean",
@@ -225,6 +235,7 @@ ARCH_REVIEW_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "severity": {
             "type": "string",
@@ -275,6 +286,7 @@ ARCH_REVIEW_SCHEMA = {
 PLAN_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "approved": {
       "type": "boolean",
@@ -290,6 +302,7 @@ PLAN_REVIEW_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "severity": {
             "type": "string",
@@ -340,6 +353,7 @@ PLAN_REVIEW_SCHEMA = {
 CODE_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "approved": {
       "type": "boolean",
@@ -355,6 +369,7 @@ CODE_REVIEW_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "severity": {
             "type": "string",
@@ -405,6 +420,7 @@ CODE_REVIEW_SCHEMA = {
 TECH_LEAD_FINAL_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "approved": {
       "type": "boolean",
@@ -420,6 +436,7 @@ TECH_LEAD_FINAL_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "severity": {
             "type": "string",
@@ -470,6 +487,7 @@ TECH_LEAD_FINAL_SCHEMA = {
 ARCH_FINAL_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "approved": {
       "type": "boolean",
@@ -485,6 +503,7 @@ ARCH_FINAL_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "severity": {
             "type": "string",
@@ -535,6 +554,7 @@ ARCH_FINAL_SCHEMA = {
 PRODUCT_MANAGER_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "task_specification": {
       "type": "string",
@@ -586,6 +606,7 @@ PRODUCT_MANAGER_SCHEMA = {
 PM_SYNTHESIZER_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "task_specification": {
       "type": "string",
@@ -603,6 +624,7 @@ PM_SYNTHESIZER_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "candidate": {
             "type": "integer",
@@ -695,6 +717,7 @@ PM_SYNTHESIZER_SCHEMA = {
 PM_SPECULATIVE_EXPANSION_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "lines": {
       "type": "array",
@@ -713,6 +736,7 @@ PM_SPECULATIVE_EXPANSION_SCHEMA = {
 PM_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "approved": {
       "type": "boolean",
@@ -720,7 +744,7 @@ PM_REVIEW_SCHEMA = {
     },
     "should_reset": {
       "type": "boolean",
-      "description": "false"
+      "description": "False"
     },
     "reset_reason": {
       "type": "string",
@@ -730,6 +754,7 @@ PM_REVIEW_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "severity": {
             "type": "string",
@@ -780,9 +805,11 @@ PM_REVIEW_SCHEMA = {
 SYSTEM_DECOMPOSITION_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "decomposition": {
       "type": "object",
+      "additionalProperties": False,
       "properties": {
         "summary": {
           "type": "string",
@@ -799,6 +826,7 @@ SYSTEM_DECOMPOSITION_SCHEMA = {
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
               "id": {
                 "type": "integer",
@@ -887,6 +915,7 @@ SYSTEM_DECOMPOSITION_SCHEMA = {
 SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": False,
   "properties": {
     "approved": {
       "type": "boolean",
@@ -902,6 +931,7 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
           "severity": {
             "type": "string",
