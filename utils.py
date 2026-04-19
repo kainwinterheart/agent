@@ -92,14 +92,11 @@ def run_json_agent(agent, input_text):
             raise
         except Exception as e:
             msg = ""
-            example = "."
             if isinstance(e, jsonschema.exceptions.ValidationError):
                 path = ".".join(map(str, e.path))
                 if path:
                     msg += f"Error within {path}: "
                 msg += e.message
-                example = ":\n"
-                example += schema_to_example(e.schema)
             else:
                 msg += str(e)
             raw = agent.run(f"""
@@ -108,7 +105,8 @@ Your previous output was invalid JSON; it failed to parse with the following err
 {msg}
 ```
 
-Fix it. ONLY return valid JSON{example}
+Fix it. ONLY return valid JSON:
+{schema_to_example(agent.schema)}
 
 Previous output:
 ```
