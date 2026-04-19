@@ -94,7 +94,7 @@ def run_json_agent(agent, input_text):
             msg = ""
             example = "."
             if isinstance(e, jsonschema.exceptions.ValidationError):
-                path = ".".join(e.path)
+                path = ".".join(map(str, e.path))
                 if path:
                     msg += f"Error within {path}: "
                 msg += e.message
