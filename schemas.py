@@ -234,6 +234,10 @@ ARCH_REVIEW_SCHEMA = {
               "high"
             ],
           },
+          "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen"
+          },
           "category": {
             "type": "string",
             "description": "design"
@@ -252,6 +256,7 @@ ARCH_REVIEW_SCHEMA = {
         },
         "required": [
           "severity",
+          "severity_reason",
           "category",
           "message",
           "next_actions"
@@ -294,6 +299,10 @@ PLAN_REVIEW_SCHEMA = {
               "high"
             ],
           },
+          "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen"
+          },
           "category": {
             "type": "string",
             "description": "implementation"
@@ -312,6 +321,7 @@ PLAN_REVIEW_SCHEMA = {
         },
         "required": [
           "severity",
+          "severity_reason",
           "category",
           "message",
           "next_actions"
@@ -354,6 +364,10 @@ CODE_REVIEW_SCHEMA = {
               "high"
             ],
           },
+          "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen"
+          },
           "category": {
             "type": "string",
             "description": "implementation"
@@ -372,6 +386,7 @@ CODE_REVIEW_SCHEMA = {
         },
         "required": [
           "severity",
+          "severity_reason",
           "category",
           "message",
           "next_actions"
@@ -414,6 +429,10 @@ TECH_LEAD_FINAL_SCHEMA = {
               "high"
             ],
           },
+          "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen"
+          },
           "category": {
             "type": "string",
             "description": "implementation"
@@ -432,6 +451,7 @@ TECH_LEAD_FINAL_SCHEMA = {
         },
         "required": [
           "severity",
+          "severity_reason",
           "category",
           "message",
           "next_actions"
@@ -474,6 +494,10 @@ ARCH_FINAL_SCHEMA = {
               "high"
             ],
           },
+          "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen"
+          },
           "category": {
             "type": "string",
             "description": "design"
@@ -492,6 +516,7 @@ ARCH_FINAL_SCHEMA = {
         },
         "required": [
           "severity",
+          "severity_reason",
           "category",
           "message",
           "next_actions"
@@ -714,6 +739,10 @@ PM_REVIEW_SCHEMA = {
               "high"
             ],
           },
+          "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen"
+          },
           "category": {
             "type": "string",
             "description": "product"
@@ -732,6 +761,7 @@ PM_REVIEW_SCHEMA = {
         },
         "required": [
           "severity",
+          "severity_reason",
           "category",
           "message",
           "next_actions"
@@ -881,6 +911,10 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
               "high"
             ],
           },
+          "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen"
+          },
           "category": {
             "type": "string",
             "description": "decomposition"
@@ -899,6 +933,7 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
         },
         "required": [
           "severity",
+          "severity_reason",
           "category",
           "message",
           "next_actions"
