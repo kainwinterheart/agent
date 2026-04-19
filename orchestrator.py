@@ -220,6 +220,11 @@ Revise the synthesized specification to address the review feedback while preser
             out += "\n\nStated facts:\n"
             for fact in facts:
                 out += f"* {fact}\n"
+        missing_but_necessary_details = rephrased_task.get('missing_but_necessary_details')
+        if isinstance(missing_but_necessary_details, list) and missing_but_necessary_details:
+            out += "\n\nAdditional considerations:\n"
+            for missing_but_necessary_detail in missing_but_necessary_details:
+                out += f"* {missing_but_necessary_detail}\n"
         return out
 
     def run(self):

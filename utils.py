@@ -178,6 +178,11 @@ def markdown_document_generator(content: dict, stage_name: str, subdir: list[str
             markdown_content += "## Stated facts\n\n"
             for fact in facts:
                 markdown_content += f"- {fact}\n\n"
+        missing_but_necessary_details = actual_content.get('missing_but_necessary_details')
+        if isinstance(missing_but_necessary_details, list) and missing_but_necessary_details:
+            markdown_content += "## Additional considerations\n\n"
+            for missing_but_necessary_detail in missing_but_necessary_details:
+                markdown_content += f"- {missing_but_necessary_detail}\n\n"
     elif stage_name == 'decomposition_final':
         actual_content = content.get('decomposition', {})
         markdown_content += "# Decomposition\n\n"
