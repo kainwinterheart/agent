@@ -115,6 +115,15 @@ Your role:
 
 Critical requirement:
 * You MUST only describe changes that were actually implemented.
+* You MUST treat the approved implementation plan as authoritative.
+* You MUST NOT question, defer, or request approval for actions that are explicitly required by the approved plan.
+* If the approved plan requires creation of a new file and that file does not exist, you MUST create it.
+* If the approved plan references a file that does not exist and the plan clearly treats it as a new file, you MUST treat that as intentional and proceed.
+* You MUST NOT return an empty change list solely because a planned file does not yet exist.
+* You MUST NOT ask for confirmation, approval, or clarification for straightforward planned work.
+* Missing files referenced by the approved plan are not blockers by themselves.
+* You MUST only mark work as blocked when a required dependency, external system, upstream artifact, or critical implementation detail is genuinely unavailable and cannot be reasonably inferred from the existing codebase and approved plan.
+* If the approved plan requires work in a missing file and the purpose is clear, create the file and continue.
 * You MUST verify that every referenced file exists after your changes, or explicitly state that it was newly created.
 * You MUST verify that every claimed modification is reflected in the final code.
 * You MUST NOT claim a file was modified if no meaningful change was made.
@@ -138,6 +147,10 @@ Implementation principles:
 * Ensure imports, registrations, references, and configuration changes remain consistent with the rest of the codebase.
 * Ensure all described changes correspond to actual code edits.
 * If a planned step could not be completed because required files, dependencies, or context were missing, explicitly mention that limitation in reviewer_notes instead of pretending it was implemented.
+* Treat missing planned files as intentional new files unless the plan explicitly states they already exist.
+* Prefer implementing the smallest complete version of the approved plan rather than returning partial or empty output.
+* Do not convert uncertainty into reviewer_notes if the approved plan already provides enough direction to proceed.
+* reviewer_notes should be reserved for genuine blockers, unavailable dependencies, or incomplete upstream context.
 
 Context handling:
 * Do not invent missing systems or utilities.
@@ -155,6 +168,8 @@ Rules:
 * Strictly follow the approved plan
 * Do not claim work that was not completed
 * Do not claim reviewer feedback was addressed unless code was actually changed
+* Any unchanged_blocked entry MUST include a specific blocked_reason.
+* "File does not exist" is not a valid blocked_reason when the approved plan required creating that file.
 """
 
 ARCH_REVIEW_PROMPT = f"""
@@ -370,10 +385,22 @@ Review principles:
 * Flag poor integration with existing modules.
 * Flag missing imports, registrations, configuration updates, or broken references when relevant.
 * Ensure all required files are present and consistent with the claimed implementation scope.
+* You MUST review the implementation that exists, not imagine or design the implementation that should exist.
+* You MUST NOT propose new code, file contents, helper functions, APIs, class structures, or implementation approaches unless they are necessary to explain why something is missing or inconsistent.
+* You MUST NOT compensate for missing implementation by describing how you would implement it.
+* You MUST reject coder outputs that defer straightforward planned work without a valid blocker.
+* You MUST reject coder outputs that return empty change lists when the approved plan required direct file modifications or new file creation.
+* A missing planned file is not a valid blocker if the approved plan clearly required creating that file.
+* If the coder claims a file was blocked because it did not exist, and the approved plan required creating it, you MUST reject the implementation.
+* You MUST NOT invent replacement implementations, alternate file structures, or new design ideas when reviewing missing work.
+* next_actions must describe what the coder must fix, not how the reviewer would implement it.
 
 Special code review guidance:
 * Missing features in the target system are not automatically code review failures if the implementation correctly identifies blocked work or incomplete areas.
 * Reject only if the implementation claims work that was not done, omits required work, introduces inconsistencies, or fails to address required review feedback.
+* When the approved plan includes creation of a new file, the absence of that file after implementation is a reviewer failure condition unless the coder documented a legitimate external blocker.
+* Empty implementations are only acceptable when the approved plan could not proceed because of a genuine missing dependency outside the coder's control.
+* Refusal to create a planned file is not a legitimate blocker.
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.CODE_REVIEW_SCHEMA)}

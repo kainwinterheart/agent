@@ -185,6 +185,10 @@ CODER_SCHEMA = {
               "unchanged_blocked"
             ],
           },
+          "blocked_reason": {
+            "type": "string",
+            "description": "required only when status is unchanged_blocked; set to empty string otherwise"
+          },
           "brief_summary": {
             "type": "string",
             "description": "what was actually changed and how it integrates with existing code"
@@ -193,7 +197,8 @@ CODER_SCHEMA = {
         "required": [
           "path",
           "status",
-          "brief_summary"
+          "brief_summary",
+          "blocked_reason"
         ]
       },
     },

@@ -323,7 +323,7 @@ Revise the synthesized specification to address the review feedback while preser
                     self.arch_final,
                     f"TASK:\n{task}\n"
                     f"ARCHITECTURE:\n{json.dumps(arch)}\n"
-                    f"PLAN:\n{json.dumps(plan)}\n"
+                    f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
                     f"CODE IMPLEMENTATION SUMMARY from each iteration:\n"
                     f"{merged_code_summaries}"
                 )
@@ -439,7 +439,7 @@ Revise the synthesized specification to address the review feedback while preser
         extra_prompt = "\nPrefer concrete file-level changes, but avoid embedding exact code snippets unless the task is trivial and the code itself is the clearest representation of the change."
         plan = run_json_agent(
             self.tech_lead,
-            f"TASK:\n{task}\nARCHITECTURE:\n{json.dumps(arch)}" + extra_prompt
+            f"TASK:\n{task}\nAPPROVED ARCHITECTURE:\n{json.dumps(arch)}" + extra_prompt
         )
 
         for i in range(MAX_PLAN_ITERS):
@@ -447,7 +447,7 @@ Revise the synthesized specification to address the review feedback while preser
                 self.plan_review,
                 f"TASK:\n{task}\n"
                 f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
-                f"ARCHITECTURE:\n{json.dumps(arch)}\n"
+                f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
                 f"PLAN TO REVIEW:\n{json.dumps(plan)}"
             )
 
@@ -464,7 +464,7 @@ Revise the synthesized specification to address the review feedback while preser
 
                 revision_prompt = (
                     f"TASK:\n{task}\n"
-                    f"ARCHITECTURE:\n{json.dumps(arch)}\n"
+                    f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
                     f"PREVIOUS PLAN:\n{json.dumps(plan)}\n"
                     f"REVIEW FEEDBACK:\n{json.dumps(plan_review)}\n\n"
                     "Rebuild the plan from scratch using the task, architecture, and review feedback."
@@ -487,7 +487,12 @@ Revise the synthesized specification to address the review feedback while preser
 
     def code_implementation_phase(self, plan: dict, task: str) -> str:
         config = Configuration(
-            initial_prompt_context=f"TASK:\n{task}\nPLAN:\n{json.dumps(plan)}",
+            initial_prompt_context=(
+                f"TASK:\n{task}\nAPPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n\n"
+                "Implement the approved plan exactly as written.\n"
+                "The plan has already been reviewed and approved.\n"
+                "Do not question whether planned file creation or modification should occur."
+            ),
             coder_agent_ref=self.coder,
             review_agent_ref=self.code_review,
             max_iterations=MAX_CODE_ITERS,
@@ -504,8 +509,8 @@ Revise the synthesized specification to address the review feedback while preser
         return run_json_agent(
             self.tech_lead_final,
             f"TASK:\n{task}\n"
-            f"ARCHITECTURE:\n{json.dumps(arch)}\n"
-            f"PLAN:\n{json.dumps(plan)}\n"
+            f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
+            f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
             f"{extra_prompt}"
             f"CODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}"
         )
@@ -527,7 +532,7 @@ Revise the synthesized specification to address the review feedback while preser
 
             initial_prompt_context = (
                 f"TASK:\n{task}\n"
-                f"PLAN:\n{json.dumps(plan)}\n"
+                f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
                 f"TECH LEAD FEEDBACK:\n{json.dumps(tech_lead_review)}\n\n"
                 "Re-implement from a clean context using the task, plan, and tech lead feedback."
             )
