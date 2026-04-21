@@ -166,6 +166,14 @@ CODER_SCHEMA = {
                         "type": "string",
                         "description": "what was actually changed and how it integrates with existing code",
                     },
+                    "exists_after_change": {
+                        "type": "boolean",
+                        "description": "true for created and modified files, false otherwise",
+                    },
+                    "diff_summary": {
+                        "type": "string",
+                        "description": "describe the actual code change",
+                    },
                 },
                 "required": ["path", "status", "brief_summary", "blocked_reason"],
             },
