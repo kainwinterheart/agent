@@ -54,8 +54,8 @@ class CodeExecutionFramework:
         watcher,
     ) -> str:
         coder_output, changes = collect_changes(
+            config.max_iterations,
             watcher,
-            run_json_agent,
             config.coder_agent_ref,
             config.initial_prompt_context,
             f"{invocation_id_prefix}-coder-0",
@@ -114,8 +114,8 @@ class CodeExecutionFramework:
                 coder_prompt = "FEEDBACK TO ADDRESS:\n" + json.dumps(review)
 
             coder_output, changes = collect_changes(
+                config.max_iterations,
                 watcher,
-                run_json_agent,
                 config.coder_agent_ref,
                 coder_prompt,
                 f"{invocation_id_prefix}-coder-{iteration_count + 1}",
@@ -131,12 +131,30 @@ class CodeExecutionFramework:
         )
 
 
-def collect_changes(watcher, fn, *args, **kwargs):
+def collect_changes(max_it, watcher, agent, prompt, invocation_id_prefix, subdir):
     watcher.wait()
     watcher.flush()
-    result = fn(*args, **kwargs)
+    next_prompt = prompt
+    first_result = None
+    for i in range(max_it):
+        result = run_json_agent(
+            agent, next_prompt, f"{invocation_id_prefix}-w{i}", subdir
+        )
+        if first_result is None:
+            first_result = result
+        next_steps = result.pop("next_steps", None)
+        if not next_steps:
+            break
+        if (i + 1) % 10 == 0:
+            next_prompt = prompt + "\n\n"
+        else:
+            next_prompt = ""
+        next_prompt += f"ITERATION: {i + 1}/{max_it}\n"
+        next_prompt += "ADDRESS YOUR NEXT STEPS:\n"
+        for next_step in next_steps:
+            next_prompt += f"* {next_step}\n"
     time.sleep(10)
-    return result, watcher.flush()
+    return first_result, watcher.flush()
 
 
 def changes_prompt(changes: set[str]) -> str:

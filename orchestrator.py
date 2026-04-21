@@ -228,7 +228,7 @@ class Orchestrator:
         rephrased_task = run_json_agent(
             self.pm_synth,
             f"ORIGINAL USER REQUEST:\n{self.task}\n\n{choices}"
-            """TASK:Select the single best interpretation of the original user request.Preserve only the minimum assumptions necessary.Reject speculative scope expansion.            """,
+            "TASK:\nSelect the single best interpretation of the original user request.Preserve only the minimum assumptions necessary.Reject speculative scope expansion.",
             "pm-spec-synthesis-0",
             [self.subdir],
         )
@@ -239,7 +239,7 @@ class Orchestrator:
                 f"ORIGINAL USER REQUEST:\n{self.task}\n\n"
                 f"SYNTHESIZED SPECIFICATION:\n{json.dumps(rephrased_task)}\n\n"
                 f"ATTEMPT: {iteration + 1}/{MAX_PLAN_ITERS}\n\n"
-                """TASK:Review whether the synthesized specification correctly preserves the original user intent.Reject only if the specification is ambiguous, speculative, internally inconsistent, or over-expanded.                """,
+                "TASK:\nReview whether the synthesized specification correctly preserves the original user intent.Reject only if the specification is ambiguous, speculative, internally inconsistent, or over-expanded.",
                 f"pm-spec-review-{iteration}",
                 [self.subdir],
             )

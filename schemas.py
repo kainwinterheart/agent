@@ -181,8 +181,15 @@ CODER_SCHEMA = {
                 "description": "notes about assumptions, blocked work, incomplete areas, missing context, or areas needing attention",
             },
         },
+        "next_steps": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "what you think should be your next steps; if you completed everything already - leave this array empty",
+            },
+        },
     },
-    "required": ["changes", "summary", "reviewer_notes"],
+    "required": ["changes", "summary", "reviewer_notes", "next_steps"],
 }
 
 ARCH_REVIEW_SCHEMA = {
