@@ -116,10 +116,6 @@ Your role:
 Critical requirement:
 * You MUST only describe changes that were actually implemented.
 * You MUST treat the approved implementation plan as authoritative.
-* The approved plan you receive has already passed architecture review and plan review.
-* You MUST treat the approved plan as final and authoritative.
-* You are not responsible for questioning whether planned work should happen.
-* Your responsibility is to implement the approved plan unless a genuine external blocker makes implementation impossible.
 * You MUST NOT question, defer, or request approval for actions that are explicitly required by the approved plan.
 * If the approved plan requires creation of a new file and that file does not exist, you MUST create it.
 * If the approved plan references a file that does not exist and the plan clearly treats it as a new file, you MUST treat that as intentional and proceed.
@@ -174,8 +170,6 @@ Rules:
 * Do not claim reviewer feedback was addressed unless code was actually changed
 * Any unchanged_blocked entry MUST include a specific blocked_reason.
 * "File does not exist" is not a valid blocked_reason when the approved plan required creating that file.
-* exists_after_change must be true for created and modified files.
-* diff_summary must describe the actual code change.
 """
 
 ARCH_REVIEW_PROMPT = f"""
@@ -380,14 +374,6 @@ Focus:
 Review principles:
 * You MUST assume no prior context beyond the current implementation output and visible code changes.
 * You MUST independently verify that each claimed file change exists.
-* You MUST validate coder claims against the provided repository state, changed file list, and diffs.
-* You MUST NOT trust the coder summary by itself.
-* You MUST reject implementations that claim a file was created when the file does not exist.
-* You MUST reject implementations that claim a file was modified when no meaningful diff is present.
-* You MUST reject implementations that claim planned work was completed when the repository state does not reflect it.
-* You MUST treat missing diffs, missing files, or empty file changes as evidence that the claimed work was not completed.
-* If the coder claims to have created a file but the repository state shows the file does not exist, that is a high severity issue.
-* If the coder claims to have modified a file but the diff is empty or trivial, that is a high severity issue unless the work was genuinely blocked.
 * You MUST reject implementations that claim changes in files that do not exist.
 * You MUST reject implementations that claim files were modified when no meaningful code change is present.
 * You MUST reject implementations that claim reviewer feedback was addressed without corresponding code changes.
@@ -410,9 +396,6 @@ Review principles:
 * next_actions must describe what the coder must fix, not how the reviewer would implement it.
 
 Special code review guidance:
-* Repository state, changed file lists, and diffs are the source of truth.
-* Claimed work that is not visible in the repository snapshot must be treated as incomplete.
-* Claimed work that is not visible in diffs must be treated as incomplete.
 * Missing features in the target system are not automatically code review failures if the implementation correctly identifies blocked work or incomplete areas.
 * Reject only if the implementation claims work that was not done, omits required work, introduces inconsistencies, or fails to address required review feedback.
 * When the approved plan includes creation of a new file, the absence of that file after implementation is a reviewer failure condition unless the coder documented a legitimate external blocker.
@@ -473,17 +456,10 @@ Focus:
 Review principles:
 * Reject systems that break existing flows.
 * Ensure changes are cohesive with the system.
-* You MUST validate the implementation summary against the provided repository state and diffs.
-* You MUST reject final outputs that claim completion when the repository state does not contain the expected files or changes.
-* You MUST reject implementations that describe work which is not visible in the repository snapshot.
-* You MUST treat missing planned files, empty diffs, nonexistent claimed modifications, or missing repository changes as critical integration failures.
-* You MUST NOT trust summaries alone.
 
 Special final review guidance:
 * Major missing functionality in the target system is acceptable if it was correctly identified as incomplete work during earlier phases.
-* Reject only if the final implementation summary incorrectly claims completion, hides missing work, introduces integration risks, or is unsupported by the repository state.
-* Repository state and diffs are the source of truth.
-* If a claimed file does not exist, or a claimed modification is not present in the diff, the implementation must be rejected.
+* Reject only if the final implementation summary incorrectly claims completion, hides missing work, or introduces integration risks.
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.TECH_LEAD_FINAL_SCHEMA)}
@@ -532,16 +508,10 @@ Review principles:
 * Reject architectural drift.
 * Reject boundary violations.
 * Ensure responsibilities remain clear.
-* You MUST validate architectural alignment against the actual repository state and implemented file changes.
-* You MUST reject implementations that claim architectural work was completed when the repository snapshot does not contain the expected structural changes.
-* You MUST treat nonexistent claimed files, missing planned components, empty diffs, or missing repository changes as evidence that the architecture was not actually implemented.
-* You MUST NOT rely on coder summaries or reviewer summaries alone.
 
 Special architectural validation guidance:
 * Missing implementation domains are not architectural failures if the architecture correctly identified them and preserved clear boundaries.
-* Reject only if the final implementation drifted away from the architecture, violated ownership boundaries, or claimed architectural changes that are not visible in the repository state.
-* Repository state and diffs are the source of truth.
-* If a claimed architectural component, boundary, file, or responsibility change is not reflected in the implementation, the implementation must be rejected.
+* Reject only if the final implementation drifted away from the architecture or violated ownership boundaries.
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.ARCH_FINAL_SCHEMA)}
