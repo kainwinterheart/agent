@@ -3,6 +3,7 @@
 # =========================
 
 import json
+import time
 from dataclasses import dataclass
 
 from agent import Agent
@@ -46,15 +47,22 @@ class CodeExecutionFramework:
         return bool(review.get("should_reset", False))
 
     def execute(
-        self, config: Configuration, subdir: list[str], invocation_id_prefix: str
+        self,
+        config: Configuration,
+        subdir: list[str],
+        invocation_id_prefix: str,
+        watcher,
     ) -> str:
-        coder_output = run_json_agent(
+        coder_output, changes = collect_changes(
+            watcher,
+            run_json_agent,
             config.coder_agent_ref,
             config.initial_prompt_context,
             f"{invocation_id_prefix}-coder-0",
             subdir,
         )
         all_outputs = [coder_output]
+        all_changes = changes
 
         for iteration_count in range(config.max_iterations):
             log(
@@ -68,7 +76,9 @@ class CodeExecutionFramework:
             review_prompt = (
                 f"TASK:\n{config.initial_prompt_context}\n"
                 f"ATTEMPT: {iteration_count + 1}/{config.max_iterations}\n\n"
-                f"MOST RECENT CHANGES:\n{json.dumps(recent_changes)}\n\n"
+                f"MOST RECENT CHANGES:\n{json.dumps(recent_changes)}\n"
+                + changes_prompt(changes)
+                + "\n"
                 f"changes from past iterations for context:\n{json.dumps(past_changes)}"
             )
 
@@ -103,12 +113,36 @@ class CodeExecutionFramework:
             else:
                 coder_prompt = "FEEDBACK TO ADDRESS:\n" + json.dumps(review)
 
-            coder_output = run_json_agent(
+            coder_output, changes = collect_changes(
+                watcher,
+                run_json_agent,
                 config.coder_agent_ref,
                 coder_prompt,
                 f"{invocation_id_prefix}-coder-{iteration_count + 1}",
                 subdir,
             )
             all_outputs.append(coder_output)
+            all_changes.update(changes)
 
-        return "\n\n".join([v.get("summary", "") for v in all_outputs])
+        return (
+            "\n\n".join([v.get("summary", "") for v in all_outputs])
+            + "\n\n"
+            + changes_prompt(all_changes)
+        )
+
+
+def collect_changes(watcher, fn, *args, **kwargs):
+    watcher.wait()
+    watcher.flush()
+    result = fn(*args, **kwargs)
+    time.sleep(10)
+    return result, watcher.flush()
+
+
+def changes_prompt(changes: set[str]) -> str:
+    if not changes:
+        return "**AUTOMATED VERIFICATION FAILED: NO ACTUAL CHANGES DETECTED**\n"
+    out = "AUTOMATED VERIFICATION DETECTED POTENTIAL CHANGES TO FOLLOWING FILES, COMPLETENESS MUST BE ASSESSED:\n"
+    for name, state in sorted(changes.items(), key=lambda v: v[0]):
+        out += f"* {state}: {name}\n"
+    return out

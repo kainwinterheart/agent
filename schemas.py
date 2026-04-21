@@ -592,7 +592,7 @@ PM_SYNTHESIZER_SCHEMA = {
     ],
 }
 
-PM_SPECULATIVE_EXPANSION_SCHEMA = {
+PM_EXPANSION_CLEANUP_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
     "additionalProperties": False,
@@ -815,4 +815,17 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
         },
     },
     "required": ["approved", "should_reset", "reset_reason", "issues"],
+}
+
+DESIGN_TO_IMPLEMENT_PHRASING_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "text": {
+            "type": "string",
+            "description": "only the transformed text, with no explanations or commentary",
+        },
+    },
+    "required": ["text"],
 }

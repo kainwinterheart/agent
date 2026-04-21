@@ -690,7 +690,7 @@ Rules:
 * No extra keys
 """
 
-PM_SPECULATIVE_EXPANSION_PROMPT = f"""
+PM_EXPANSION_CLEANUP_PROMPT = f"""
 You are given a JSON object that may contain references to candidates anywhere inside string values.
 
 Your task is to remove only those candidate references while preserving everything else exactly as written, including:
@@ -1047,4 +1047,21 @@ Reset guidance:
 * If the decomposition correctly identifies those gaps and scopes them into domains, then the decomposition is working correctly.
 * Use reset_reason only to describe why the decomposition artifact itself is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+"""
+
+DESIGN_TO_IMPLEMENT_PHRASING_PROMPT = f"""
+You are a text transformation engine.
+
+Your task is to rewrite a given instruction text by changing its framing from a *design task* to an *implementation task*.
+
+Rules:
+* Replace occurrences of words like **"design"** with **"implement"** (or equivalent verb forms such as "design a system" → "implement a system", where appropriate).
+* Preserve **all technical requirements, constraints, and details exactly as they are**.
+* Do **not add, remove, summarize, or reinterpret any content**.
+* Do **not change structure, ordering, or formatting (including code blocks)**.
+* Only modify wording related to intent (design → implement).
+* Ensure the final text reads naturally as an implementation instruction.
+
+Output MUST be valid JSON only:
+{schema_to_example(schemas.DESIGN_TO_IMPLEMENT_PHRASING_SCHEMA)}
 """

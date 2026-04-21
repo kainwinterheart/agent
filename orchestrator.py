@@ -3,6 +3,7 @@
 # =========================
 
 import json
+import os
 from typing import Optional
 
 import prompts
@@ -16,6 +17,7 @@ from utils import (
     markdown_document_generator,
     run_json_agent,
 )
+from wman import WatchmanBackgroundWatcher
 
 
 class Orchestrator:
@@ -38,10 +40,10 @@ class Orchestrator:
             self.subdir,
             timeout="30m",
         )
-        self.pm_speculative_expansion = Agent(
-            "pm_speculative_expansion",
-            prompts.PM_SPECULATIVE_EXPANSION_PROMPT,
-            schemas.PM_SPECULATIVE_EXPANSION_SCHEMA,
+        self.pm_expansion_cleanup = Agent(
+            "pm_expansion_cleanup",
+            prompts.PM_EXPANSION_CLEANUP_PROMPT,
+            schemas.PM_EXPANSION_CLEANUP_SCHEMA,
             self.subdir,
             ephemeral=True,
             timeout="10m",
@@ -53,6 +55,15 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="30m",
+        )
+
+        self.design_cleanup = Agent(
+            "design_cleanup",
+            prompts.DESIGN_TO_IMPLEMENT_PHRASING_PROMPT,
+            schemas.DESIGN_TO_IMPLEMENT_PHRASING_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="10m",
         )
 
         self.arch = Agent(
@@ -70,6 +81,7 @@ class Orchestrator:
             prompts.CODER_PROMPT,
             schemas.CODER_SCHEMA,
             self.subdir,
+            timeout="180m",
         )
 
         self.arch_review = Agent(
@@ -265,7 +277,7 @@ Revise the synthesized specification to address the review feedback while preser
         if isinstance(speculative_expansions, list) and speculative_expansions:
             while True:
                 clean_speculative_expansions = run_json_agent(
-                    self.pm_speculative_expansion,
+                    self.pm_expansion_cleanup,
                     "INPUT JSON:\n" + json.dumps({"lines": speculative_expansions}),
                     "pm-expansion-cleanup",
                     [self.subdir],
@@ -312,6 +324,14 @@ Revise the synthesized specification to address the review feedback while preser
         return out
 
     def run(self):
+        self.watcher = WatchmanBackgroundWatcher(self.subdir)
+        self.watcher.start(os.getcwd())
+        try:
+            return self._run()
+        finally:
+            self.watcher.stop()
+
+    def _run(self):
         root_task = self.pm_transformation_workflow()
 
         decomposition = self.decomposition_workflow(root_task)
@@ -319,17 +339,24 @@ Revise the synthesized specification to address the review feedback while preser
         domains = decomposition.get("decomposition", {}).get("domains", [])
 
         for domain_index, domain in enumerate(domains):
-            session_suffix = f"d{domain_index}-start"
+            task = domain.get("architect_input")
+            self.domain_id = domain.get("id", domain_index + 1)
+
+            session_suffix = f"d{self.domain_id}-start"
             self.arch.reset(session_suffix)
             self.tech_lead.reset(session_suffix)
             self.coder.reset(session_suffix)
             final_feedback = None
 
-            task = domain.get("architect_input")
-            self.domain_id = domain.get("id", domain_index + 1)
-
             if not task:
                 continue
+
+            coder_task = run_json_agent(
+                self.design_cleanup,
+                f"INPUT TEXT:\n{task}",
+                f"d{self.domain_id}-design-cleanup",
+                [self.subdir, str(self.domain_id)],
+            )["text"]
 
             for iteration in range(MAX_TOP_ITERATIONS):
                 log(
@@ -346,13 +373,13 @@ Revise the synthesized specification to address the review feedback while preser
 
                 plan = self.plan_creation_phase(
                     arch,
-                    task,
+                    coder_task,
                     f"d{self.domain_id}-plan-{iteration}",
                 )
 
                 code_summary = self.code_implementation_phase(
                     plan,
-                    task,
+                    coder_task,
                     f"d{self.domain_id}-impl-{iteration}",
                 )
 
@@ -364,7 +391,7 @@ Revise the synthesized specification to address the review feedback while preser
                         code_summary,
                         arch,
                         plan,
-                        task,
+                        coder_task,
                         tech_lead_final_review,
                         f"d{self.domain_id}-tl-review-{iteration}-{tl_iteration}",
                     )
@@ -379,7 +406,7 @@ Revise the synthesized specification to address the review feedback while preser
 
                     code_summary = self.revision_loops(
                         tech_lead_final_review,
-                        task,
+                        coder_task,
                         plan,
                         f"d{self.domain_id}-impl-revision-{iteration}-{tl_iteration}",
                         reset_coder=self.should_reset(tech_lead_final_review),
@@ -601,7 +628,10 @@ Revise the synthesized specification to address the review feedback while preser
         )
 
         return CodeExecutionFramework().execute(
-            config, [self.subdir, str(self.domain_id)], invocation_id_prefix
+            config,
+            [self.subdir, str(self.domain_id)],
+            invocation_id_prefix,
+            self.watcher,
         )
 
     def tech_lead_review_phase(
@@ -664,5 +694,8 @@ Revise the synthesized specification to address the review feedback while preser
         )
 
         return CodeExecutionFramework().execute(
-            config, [self.subdir, str(self.domain_id)], invocation_id_prefix
+            config,
+            [self.subdir, str(self.domain_id)],
+            invocation_id_prefix,
+            self.watcher,
         )
