@@ -1,14 +1,13 @@
-
 # =========================
 # EXECUTION FRAMEWORK
 # =========================
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 
 from agent import Agent
 from config import MAX_CODE_ITERS
-from utils import run_json_agent, log
+from utils import log, run_json_agent
 
 
 @dataclass
@@ -46,17 +45,21 @@ class CodeExecutionFramework:
         """Check whether the review recommends resetting coder context."""
         return bool(review.get("should_reset", False))
 
-    def execute(self, config: Configuration) -> str:
+    def execute(
+        self, config: Configuration, subdir: list[str], invocation_id_prefix: str
+    ) -> str:
         coder_output = run_json_agent(
             config.coder_agent_ref,
-            config.initial_prompt_context
+            config.initial_prompt_context,
+            f"{invocation_id_prefix}-coder-0",
+            subdir,
         )
         all_outputs = [coder_output]
 
         for iteration_count in range(config.max_iterations):
             log(
                 "CODER EXECUTION",
-                f"Iteration {iteration_count + 1}/{config.max_iterations}"
+                f"Iteration {iteration_count + 1}/{config.max_iterations}",
             )
 
             *past_changes, recent_changes = [v.get("changes", []) for v in all_outputs]
@@ -71,7 +74,9 @@ class CodeExecutionFramework:
 
             review = run_json_agent(
                 config.review_agent_ref,
-                review_prompt
+                review_prompt,
+                f"{invocation_id_prefix}-code-review-{iteration_count}",
+                subdir,
             )
 
             if self.review_ok(review):
@@ -81,10 +86,12 @@ class CodeExecutionFramework:
             if self.should_reset(review):
                 log(
                     "SYSTEM",
-                    f"Resetting coder agent context: {review.get('reset_reason', '')}"
+                    f"Resetting coder agent context: {review.get('reset_reason', '')}",
                 )
 
-                config.coder_agent_ref.reset()
+                config.coder_agent_ref.reset(
+                    f"{invocation_id_prefix}-{iteration_count}"
+                )
 
                 coder_prompt = (
                     f"TASK:\n{config.task}\n"
@@ -94,17 +101,14 @@ class CodeExecutionFramework:
                     "Do not assume prior implementation decisions are correct unless still justified."
                 )
             else:
-                coder_prompt = (
-                    "FEEDBACK TO ADDRESS:\n" + json.dumps(review)
-                )
+                coder_prompt = "FEEDBACK TO ADDRESS:\n" + json.dumps(review)
 
             coder_output = run_json_agent(
                 config.coder_agent_ref,
-                coder_prompt
+                coder_prompt,
+                f"{invocation_id_prefix}-coder-{iteration_count + 1}",
+                subdir,
             )
             all_outputs.append(coder_output)
 
-        return '\n\n'.join([
-            v.get('summary', '')
-            for v in all_outputs
-        ])
+        return "\n\n".join([v.get("summary", "") for v in all_outputs])
