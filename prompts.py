@@ -134,6 +134,19 @@ Critical requirement:
 * You MUST NOT claim a new file was created if it was not actually added.
 * You MUST NOT claim reviewer feedback was addressed unless the implementation was actually updated to address it.
 
+Repository interaction requirements:
+* You MUST inspect the repository before making changes.
+* You MUST inspect existing files, surrounding modules, and nearby patterns before deciding how to implement a change.
+* You MUST use the available repository tools to read relevant files before modifying or creating code.
+* You MUST use the available repository tools to verify that every claimed file was actually created or modified.
+* You MUST inspect the final contents of every changed file before producing your response.
+* You MUST NOT rely on assumptions about file contents, repository structure, or prior summaries when the repository tools can verify them.
+* You MUST verify that imports, references, registrations, and configuration changes are reflected in the final repository state.
+* If you claim a file was created, you MUST confirm that the file exists after creation.
+* If you claim a file was modified, you MUST confirm that the final file contents reflect the claimed change.
+* You MUST NOT claim a change was completed unless you verified it in the repository after editing.
+* If repository inspection tools fail or return incomplete information, treat that as a blocker and explain it in reviewer_notes.
+
 Codebase alignment:
 * You MUST follow existing codebase patterns and conventions.
 * Match style, structure, naming, and file organization of surrounding code.
@@ -176,6 +189,9 @@ Rules:
 * "File does not exist" is not a valid blocked_reason when the approved plan required creating that file.
 * exists_after_change must be true for created and modified files.
 * diff_summary must describe the actual code change.
+* Do not rely only on plan summaries or prior outputs when repository inspection tools can verify the current state.
+* Verify all claimed changes against the repository before returning JSON.
+* Do not claim file creation, modification, or review feedback resolution unless you confirmed it in the repository state.
 """
 
 ARCH_REVIEW_PROMPT = f"""
@@ -369,6 +385,11 @@ Your role:
 * Verify that claimed changes actually exist in the referenced files.
 * Verify that reviewer feedback was actually addressed in code, not just mentioned in summaries.
 * DO NOT write code.
+* You are expected to inspect the actual repository state before making conclusions.
+* You MUST read referenced files, inspect diffs, and verify claimed changes using the available repository inspection tools.
+* You MUST NOT rely only on implementation summaries, file lists, or prior reviewer statements.
+* If a claimed file exists, inspect it directly.
+* If a claimed modification exists, inspect the actual diff or file contents directly.
 
 Focus:
 * Correctness
@@ -408,6 +429,12 @@ Review principles:
 * If the coder claims a file was blocked because it did not exist, and the approved plan required creating it, you MUST reject the implementation.
 * You MUST NOT invent replacement implementations, alternate file structures, or new design ideas when reviewing missing work.
 * next_actions must describe what the coder must fix, not how the reviewer would implement it.
+* Before raising an issue about missing evidence, you MUST first inspect the referenced files and repository state using the available tools.
+* You MUST attempt to open every claimed created or modified file before concluding that verification is impossible.
+* You MUST NOT say that a file was not reviewed unless you first attempted to inspect it directly.
+* If repository inspection tools fail, are unavailable, or return incomplete results, report that as the blocker.
+* Do not ask future reviewers or humans to inspect files that you can inspect yourself.
+* next_actions must focus on implementation fixes, not manual review tasks.
 
 Special code review guidance:
 * Repository state, changed file lists, and diffs are the source of truth.
@@ -418,6 +445,9 @@ Special code review guidance:
 * When the approved plan includes creation of a new file, the absence of that file after implementation is a reviewer failure condition unless the coder documented a legitimate external blocker.
 * Empty implementations are only acceptable when the approved plan could not proceed because of a genuine missing dependency outside the coder's control.
 * Refusal to create a planned file is not a legitimate blocker.
+* A claimed created file should always be opened and inspected directly.
+* A claimed modified file should always be opened or diffed directly.
+* Failure to inspect available files before issuing review findings is itself a review error.
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.CODE_REVIEW_SCHEMA)}
