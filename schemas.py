@@ -258,7 +258,27 @@ ARCH_REVIEW_SCHEMA = {
                     "message": {"type": "string", "description": "issue description"},
                     "next_actions": {
                         "type": "array",
-                        "items": {"type": "string", "description": "actionable fixes"},
+                        "items": {
+                            "type": "string",
+                            "description": """
+Ordered list of 1–5 concrete, actionable instructions that the code review agent is issuing to the coder agent.
+
+These actions represent **external implementation work** that should be performed next to improve or complete the solution.
+
+Rules:
+* Each action must be something the coder agent can directly implement or modify in code
+* Use clear, imperative language (e.g., “Refactor…”, “Add…”, “Fix…”, “Remove…”)
+* Focus on specific, localized changes rather than broad goals
+* Do not include reasoning, justification, or analysis
+* Do not restate problems — only prescribe actions
+* Do not include internal thinking or validation steps (those belong in `next_steps`)
+* Avoid vague instructions (e.g., “improve this”, “optimize code”)
+* Do not delegate beyond the coder agent or introduce new roles
+* Each action should map to a concrete change in the codebase
+
+If no further code changes are required, return an empty array.
+""",
+                        },
                     },
                 },
                 "required": [
@@ -270,8 +290,9 @@ ARCH_REVIEW_SCHEMA = {
                 ],
             },
         },
+        "next_steps": next_steps,
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues"],
+    "required": ["approved", "should_reset", "reset_reason", "issues", "next_steps"],
 }
 
 PLAN_REVIEW_SCHEMA = {

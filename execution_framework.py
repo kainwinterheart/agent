@@ -82,12 +82,13 @@ class CodeExecutionFramework:
                 f"changes from past iterations for context:\n{json.dumps(past_changes)}"
             )
 
-            review = run_json_agent(
+            review = nudge(
+                config.max_iterations,
                 config.review_agent_ref,
                 review_prompt,
                 f"{invocation_id_prefix}-code-review-{iteration_count}",
                 subdir,
-            )
+            )[-1]
 
             if self.review_ok(review):
                 log("REVIEW", "Code approved by reviewer")
