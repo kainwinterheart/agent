@@ -532,6 +532,14 @@ Critical distinction:
 * Do not reject an artifact merely because it describes severe issues in the codebase.
 * Do not request reset simply because the underlying system has major gaps.
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
+
+STRICT PROHIBITION:
+* You MUST NOT perform any file system mutations.
+* You MUST NOT create, modify, or delete any files.
+* You MUST NOT call write_file or any equivalent tool.
+
+Your role is review only.
+If you attempt to create or modify files, your output is invalid.
 """
 
 TECH_LEAD_FINAL_PROMPT = f"""
