@@ -261,22 +261,22 @@ ARCH_REVIEW_SCHEMA = {
                         "items": {
                             "type": "string",
                             "description": """
-Ordered list of 1–5 concrete, actionable instructions that the code review agent is issuing to the coder agent.
+Ordered list of 1–5 concrete, actionable instructions that the system design reviewer is issuing to the software architect agent.
 
-These actions represent **external implementation work** that should be performed next to improve or complete the solution.
+These actions represent **external design work** that should be performed next to improve or complete the system architecture.
 
 Rules:
-* Each action must be something the coder agent can directly implement or modify in code
-* Use clear, imperative language (e.g., “Refactor…”, “Add…”, “Fix…”, “Remove…”)
-* Focus on specific, localized changes rather than broad goals
+* Each action must be something the software architect can directly update or define in the system design
+* Use clear, imperative language (e.g., “Define…”, “Refine…”, “Add…”, “Clarify…”, “Restructure…”)
+* Focus on specific design elements (components, interfaces, data flows, constraints), not broad architectural goals
 * Do not include reasoning, justification, or analysis
 * Do not restate problems — only prescribe actions
 * Do not include internal thinking or validation steps (those belong in `next_steps`)
-* Avoid vague instructions (e.g., “improve this”, “optimize code”)
-* Do not delegate beyond the coder agent or introduce new roles
-* Each action should map to a concrete change in the codebase
+* Avoid vague instructions (e.g., “improve scalability”, “make it better”)
+* Do not delegate beyond the software architect or introduce new roles
+* Each action should map to a concrete change or addition in the architecture
 
-If no further code changes are required, return an empty array.
+If no further design changes are required, return an empty array.
 """,
                         },
                     },
@@ -328,7 +328,27 @@ PLAN_REVIEW_SCHEMA = {
                     "message": {"type": "string", "description": "issue description"},
                     "next_actions": {
                         "type": "array",
-                        "items": {"type": "string", "description": "actionable fixes"},
+                        "items": {
+                            "type": "string",
+                            "description": """
+Ordered list of 1–5 concrete, actionable instructions that the implementation plan reviewer is issuing to the tech lead agent.
+
+These actions represent **external planning work** that should be performed next to improve or complete the implementation plan.
+
+Rules:
+* Each action must be something the tech lead can directly update in the implementation plan
+* Use clear, imperative language (e.g., “Break down…”, “Add…”, “Sequence…”, “Specify…”, “Adjust…”)
+* Focus on specific plan elements (task breakdowns, dependencies, sequencing, ownership, risks), not broad objectives
+* Do not include reasoning, justification, or analysis
+* Do not restate problems — only prescribe actions
+* Do not include internal thinking or validation steps (those belong in `next_steps`)
+* Avoid vague instructions (e.g., “improve plan”, “make it clearer”)
+* Do not delegate beyond the tech lead or introduce new roles
+* Each action should map to a concrete modification of the implementation plan
+
+If no further planning changes are required, return an empty array.
+""",
+                        },
                     },
                 },
                 "required": [
@@ -340,8 +360,9 @@ PLAN_REVIEW_SCHEMA = {
                 ],
             },
         },
+        "next_steps": next_steps,
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues"],
+    "required": ["approved", "should_reset", "reset_reason", "issues", "next_steps"],
 }
 
 CODE_REVIEW_SCHEMA = {
@@ -379,7 +400,24 @@ CODE_REVIEW_SCHEMA = {
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "description": "specific actionable fix",
+                            "description": """
+Ordered list of 1–5 concrete, actionable instructions that the code review agent is issuing to the coder agent.
+
+These actions represent **external implementation work** that should be performed next to improve or complete the solution.
+
+Rules:
+* Each action must be something the coder agent can directly implement or modify in code
+* Use clear, imperative language (e.g., “Refactor…”, “Add…”, “Fix…”, “Remove…”)
+* Focus on specific, localized changes rather than broad goals
+* Do not include reasoning, justification, or analysis
+* Do not restate problems — only prescribe actions
+* Do not include internal thinking or validation steps (those belong in `next_steps`)
+* Avoid vague instructions (e.g., “improve this”, “optimize code”)
+* Do not delegate beyond the coder agent or introduce new roles
+* Each action should map to a concrete change in the codebase
+
+If no further code changes are required, return an empty array.
+""",
                         },
                     },
                 },
@@ -392,8 +430,9 @@ CODE_REVIEW_SCHEMA = {
                 ],
             },
         },
+        "next_steps": next_steps,
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues"],
+    "required": ["approved", "should_reset", "reset_reason", "issues", "next_steps"],
 }
 
 TECH_LEAD_FINAL_SCHEMA = {

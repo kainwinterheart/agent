@@ -513,14 +513,15 @@ Revise the synthesized specification to address the review feedback while preser
         )[-1]
 
         for i in range(MAX_PLAN_ITERS):
-            arch_review = run_json_agent(
+            arch_review = nudge(
+                100,
                 self.arch_review,
                 f"TASK:\n{task}\n"
                 f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
                 f"ARCHITECTURE TO REVIEW:\n{json.dumps(arch)}",
                 f"{invocation_id_prefix}-review-{i}",
                 [self.subdir, str(self.domain_id)],
-            )
+            )[-1]
 
             if self.review_ok(arch_review):
                 break
@@ -574,7 +575,8 @@ Revise the synthesized specification to address the review feedback while preser
         )
 
         for i in range(MAX_PLAN_ITERS):
-            plan_review = run_json_agent(
+            plan_review = nudge(
+                100,
                 self.plan_review,
                 f"TASK:\n{task}\n"
                 f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
@@ -582,7 +584,7 @@ Revise the synthesized specification to address the review feedback while preser
                 f"PLAN TO REVIEW:\n{json.dumps(plan)}",
                 f"{invocation_id_prefix}-review-{i}",
                 [self.subdir, str(self.domain_id)],
-            )
+            )[-1]
 
             if self.review_ok(plan_review):
                 break
