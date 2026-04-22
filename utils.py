@@ -15,6 +15,7 @@ from typing import Optional
 
 import jsonschema
 
+import prompts
 from schema_utils import schema_to_example
 
 
@@ -23,10 +24,10 @@ def log(step, msg):
 
 
 async def run_codex_async(
+    agent_name: str,
     sess_id: Optional[str],
     prompt: str,
     schema: dict,
-    ephemeral: bool,
     timeout: Optional[str] = None,
 ) -> tuple[str, Optional[str]]:
     cmd_args = []
@@ -36,8 +37,6 @@ async def run_codex_async(
         cmd_args.extend(["codex", "exec", "resume", sess_id])
     else:
         cmd_args.extend(["codex", "exec"])
-    if ephemeral:
-        cmd_args.append("--ephemeral")
 
     with ExitStack() as stack:
         if not sess_id:
@@ -47,6 +46,12 @@ async def run_codex_async(
             cmd_args.append("--output-schema")
             cmd_args.append(schema_file.name)
         prompt_file = stack.enter_context(TemporaryFile(buffering=0))
+        if timeout:
+            prompt_file.write(
+                f"(allotted time: {timeout}, current time: {time.strftime('%Y-%m-%d %H:%M:%S')})\n\n".encode(
+                    "utf-8"
+                )
+            )
         prompt_file.write(prompt.encode("utf-8"))
         prompt_file.seek(0)
         process = await asyncio.create_subprocess_exec(
@@ -54,6 +59,7 @@ async def run_codex_async(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdin=prompt_file,
+            env={**os.environ, "AC_AGENT_NAME": agent_name},
         )
 
         task_a = asyncio.create_task(read_stderr_stream_task(process))
@@ -66,11 +72,7 @@ async def run_codex_async(
                 process.kill()
                 await process.wait()
 
-    if (
-        not sess_id
-        and not ephemeral
-        and (match := re.search(r"session id:\s*(\S*)", stderr))
-    ):
+    if match := re.search(r"session id:\s*(\S*)", stderr):
         sess_id = match.group(1)
 
     if not stdout:
@@ -79,14 +81,14 @@ async def run_codex_async(
 
 
 def run_codex(
+    agent_name: str,
     session: Optional[str],
     prompt: str,
     schema: dict,
-    ephemeral: bool,
     timeout: Optional[str] = None,
 ) -> tuple[str, Optional[str]]:
     """Sync wrapper for async run_codex_async - maintains backward compatibility."""
-    return asyncio.run(run_codex_async(session, prompt, schema, ephemeral, timeout))
+    return asyncio.run(run_codex_async(agent_name, session, prompt, schema, timeout))
 
 
 def extract_json(text: str):
@@ -132,8 +134,12 @@ def run_json_agent(agent, input_text, invocation_id: str, subdir: list[str]):
             atomic_write(cache_file, raw)
         updated = True
         try:
-            out = json.loads(extract_json(raw))
+            out = json.loads(extract_json(raw), strict=False)
             jsonschema.validate(out, agent.schema)
+            if agent.ephemeral:
+                agent.reset()
+            else:
+                agent.last_correct_response = out
             return out
         except KeyboardInterrupt:
             raise
@@ -147,23 +153,15 @@ def run_json_agent(agent, input_text, invocation_id: str, subdir: list[str]):
             else:
                 msg += str(e)
             raw = agent.run(f"""
-Your previous output was invalid JSON; it failed to parse with the following error:
-```
+<feedback>
+Your previous output failed JSON validation:
+<error>
 {msg}
-```
+</error>
 
-Fix it. ONLY return valid JSON:
+Output MUST be valid JSON only:
 {schema_to_example(agent.schema)}
-
-Previous output:
-```
-{raw}
-```
-
-Previous task:
-```
-{input_text}
-```
+</feedback>
 """)
 
 
@@ -364,3 +362,31 @@ def save_session_id(agent_name: str, session_id: str, subdir: str) -> None:
 def build_path(subdir: list[str], section: str) -> str:
     root_dir, *nested_dirs = subdir
     return os.path.join(root_dir, section, *nested_dirs)
+
+
+def nudge(max_it, agent, prompt, invocation_id_prefix, subdir):
+    next_prompt = prompt
+    results = []
+    for i in range(max_it):
+        result = run_json_agent(
+            agent, next_prompt, f"{invocation_id_prefix}-nudge{i}", subdir
+        )
+        results.append(result)
+        next_steps = result.pop("next_steps", None)
+        if not next_steps:
+            break
+        if agent.ephemeral or ((i + 1) % 10 == 0):
+            next_prompt = f"END GOAL:\n<reminder>{prompt}</reminder>\n\n"
+        else:
+            next_prompt = ""
+        if agent.ephemeral:
+            next_prompt += f"PREVIOUS RESPONSE: {json.dumps(result)}\n"
+        next_prompt += f"ITERATION: {i + 1}/{max_it}\n"
+        next_prompt += "<feedback>\nADDRESS YOUR NEXT STEPS:\n"
+        for next_step in next_steps:
+            next_prompt += f"* {next_step}\n"
+        next_prompt += "</feedback>\n"
+        if agent.ephemeral:
+            next_prompt += "\n"
+            next_prompt += prompts.FOLLOWUP
+    return results

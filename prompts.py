@@ -127,6 +127,17 @@ Rules:
 * Avoid defensive programming
 * Avoid fallback logic unless explicitly required
 * Do not rely only on prior summaries, reviewer notes, or implementation descriptions when repository inspection tools can verify the current state.
+
+STRICT PROHIBITION:
+* You MUST NOT perform any file system mutations.
+* You MUST NOT create, modify, or delete any files.
+* You MUST NOT call write_file or any equivalent tool.
+
+Your role is planning only.
+If you attempt to create or modify files, your output is invalid.
+
+Violation condition:
+If you create or modify any file during this phase, the plan is considered invalid and will be rejected.
 """
 
 CODER_PROMPT = f"""
@@ -1180,4 +1191,17 @@ Rules:
 
 Output MUST be valid JSON only:
 {schema_to_example(schemas.DESIGN_TO_IMPLEMENT_PHRASING_SCHEMA)}
+"""
+
+FOLLOWUP = """
+Instructions:
+- Rewrite the entire response from scratch incorporating the feedback
+- Do NOT return partial updates or diffs
+- Do NOT omit any sections
+- Output must follow the template exactly
+- The result must be a complete, standalone answer
+
+If any section is missing or the output is partial, the response is invalid.
+
+Return only the final rewritten response.
 """

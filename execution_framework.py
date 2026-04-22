@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from agent import Agent
 from config import MAX_CODE_ITERS
-from utils import log, run_json_agent
+from utils import log, nudge, run_json_agent
 
 
 @dataclass
@@ -125,8 +125,13 @@ class CodeExecutionFramework:
             all_changes.update(changes)
 
         return (
-            "\n\n".join([v.get("summary", "") for v in all_outputs])
-            + "\n\n"
+            "\n".join(
+                [
+                    f"<revision{v[0] + 1}>\n{v[1].get('summary', '')}\n</revision{v[0] + 1}>"
+                    for v in enumerate(all_outputs)
+                ]
+            )
+            + "\n"
             + changes_prompt(all_changes)
         )
 
@@ -134,27 +139,9 @@ class CodeExecutionFramework:
 def collect_changes(max_it, watcher, agent, prompt, invocation_id_prefix, subdir):
     watcher.wait()
     watcher.flush()
-    next_prompt = prompt
-    first_result = None
-    for i in range(max_it):
-        result = run_json_agent(
-            agent, next_prompt, f"{invocation_id_prefix}-w{i}", subdir
-        )
-        if first_result is None:
-            first_result = result
-        next_steps = result.pop("next_steps", None)
-        if not next_steps:
-            break
-        if (i + 1) % 10 == 0:
-            next_prompt = prompt + "\n\n"
-        else:
-            next_prompt = ""
-        next_prompt += f"ITERATION: {i + 1}/{max_it}\n"
-        next_prompt += "ADDRESS YOUR NEXT STEPS:\n"
-        for next_step in next_steps:
-            next_prompt += f"* {next_step}\n"
+    results = nudge(max_it, agent, prompt, invocation_id_prefix, subdir)
     time.sleep(10)
-    return first_result, watcher.flush()
+    return results[-1], watcher.flush()
 
 
 def changes_prompt(changes: set[str]) -> str:

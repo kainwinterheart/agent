@@ -12,6 +12,7 @@
 
 import argparse
 import os
+import random
 import time
 
 from orchestrator import Orchestrator
@@ -21,6 +22,8 @@ from orchestrator import Orchestrator
 # =========================
 
 if __name__ == "__main__":
+    random.seed(time.time())
+
     ts = time.strftime("%Y-%m-%d_%H-%M-%S")
     parser = argparse.ArgumentParser(description="Multi-Agent Codex CLI Orchestrator")
     parser.add_argument("task", nargs="...", help="Task description")

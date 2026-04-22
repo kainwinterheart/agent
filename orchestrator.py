@@ -15,6 +15,7 @@ from utils import (
     assert_not_empty,
     log,
     markdown_document_generator,
+    nudge,
     run_json_agent,
 )
 from wman import WatchmanBackgroundWatcher
@@ -22,7 +23,7 @@ from wman import WatchmanBackgroundWatcher
 
 class Orchestrator:
     def __init__(self, task: str, subdir: str):
-        self.task = task
+        self.task = wrap_text(task)
         self.subdir = subdir
 
         self.product_manager = Agent(
@@ -212,13 +213,14 @@ class Orchestrator:
                 "Bias toward identifying the user's likely business goal and ensuring the specification solves that goal with the smallest possible feature set.",
             ),
         ]:
-            candidate = run_json_agent(
+            candidate = nudge(
+                100,
                 self.product_manager,
                 f"USER REQUEST:\n{self.task}\n\n"
                 f"TASK:\nProduce a focused engineering-ready specification.\n{prompt}",
                 f"pm-spec-candidate-{idx}",
                 [self.subdir],
-            )
+            )[-1]
 
             candidates.append(candidate)
 
@@ -332,7 +334,7 @@ Revise the synthesized specification to address the review feedback while preser
             self.watcher.stop()
 
     def _run(self):
-        root_task = self.pm_transformation_workflow()
+        root_task = wrap_text(self.pm_transformation_workflow())
 
         decomposition = self.decomposition_workflow(root_task)
 
@@ -357,6 +359,9 @@ Revise the synthesized specification to address the review feedback while preser
                 f"d{self.domain_id}-design-cleanup",
                 [self.subdir, str(self.domain_id)],
             )["text"]
+
+            task = wrap_text(task)
+            coder_task = wrap_text(coder_task)
 
             for iteration in range(MAX_TOP_ITERATIONS):
                 log(
@@ -414,14 +419,20 @@ Revise the synthesized specification to address the review feedback while preser
 
                     code_summaries.append(code_summary)
 
-                merged_code_summaries = "\n\n".join(code_summaries)
+                merged_code_summaries = "\n".join(
+                    map(
+                        lambda v: f"<summary{v[0] + 1}>\n{v[1]}\n</summary{v[0] + 1}>",
+                        enumerate(code_summaries),
+                    )
+                )
                 final_feedback = run_json_agent(
                     self.arch_final,
                     f"TASK:\n{task}\n"
                     f"ARCHITECTURE:\n{json.dumps(arch)}\n"
                     f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
-                    f"CODE IMPLEMENTATION SUMMARY from each iteration:\n"
-                    f"{merged_code_summaries}",
+                    "<aggregate_implementation_summary>\n"
+                    f"{merged_code_summaries}\n"
+                    "</aggregate_implementation_summary>\n"
                     f"d{self.domain_id}-arch-final-review-{iteration}",
                     [self.subdir, str(self.domain_id)],
                 )
@@ -430,9 +441,9 @@ Revise the synthesized specification to address the review feedback while preser
                     break
 
     def decomposition_workflow(self, task: str) -> dict:
-        decomposition_result = run_json_agent(
-            self.decomposition, f"TASK:\n{task}", "decomposition-initial", [self.subdir]
-        )
+        decomposition_result = nudge(
+            100, self.decomposition, f"TASK:\n{task}", "decomposition-0", [self.subdir]
+        )[-1]
 
         assert_not_empty(decomposition_result, "DECOMPOSITION")
 
@@ -442,7 +453,7 @@ Revise the synthesized specification to address the review feedback while preser
                 f"TASK:\n{task}\n"
                 f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
                 f"DECOMPOSITION TO REVIEW:\n{json.dumps(decomposition_result)}",
-                "decomposition-review",
+                f"decomposition-review-{i}",
                 [self.subdir],
             )
 
@@ -466,12 +477,13 @@ Revise the synthesized specification to address the review feedback while preser
             else:
                 revision_prompt = f"REVISE DECOMPOSITION based on feedback:\n{json.dumps(decomposition_review)}"
 
-            decomposition_result = run_json_agent(
+            decomposition_result = nudge(
+                100,
                 self.decomposition,
                 revision_prompt,
-                "decomposition-revision",
+                f"decomposition-{i + 1}",
                 [self.subdir],
-            )
+            )[-1]
 
         decomposition_result.get("decomposition", {}).pop("reviewer_notes", None)
         markdown_document_generator(
@@ -492,12 +504,13 @@ Revise the synthesized specification to address the review feedback while preser
             initial_prompt = f"TASK:\n{task}"
 
         extra_prompt = "\nKeep architecture focused on component boundaries, ownership, and interactions. Avoid naming concrete functions, methods, language constructs, or exact code statements unless they are architecturally significant."
-        arch = run_json_agent(
+        arch = nudge(
+            100,
             self.arch,
             initial_prompt + extra_prompt,
             f"{invocation_id_prefix}-0",
             [self.subdir, str(self.domain_id)],
-        )
+        )[-1]
 
         for i in range(MAX_PLAN_ITERS):
             arch_review = run_json_agent(
@@ -531,12 +544,13 @@ Revise the synthesized specification to address the review feedback while preser
                     f"REVISE ARCHITECTURE based on feedback:\n{json.dumps(arch_review)}"
                 )
 
-            arch = run_json_agent(
+            arch = nudge(
+                100,
                 self.arch,
                 revision_prompt + extra_prompt,
                 f"{invocation_id_prefix}-{i + 1}",
                 [self.subdir, str(self.domain_id)],
-            )
+            )[-1]
 
         arch.get("architecture", {}).pop("reviewer_notes", None)
         markdown_document_generator(
@@ -652,7 +666,9 @@ Revise the synthesized specification to address the review feedback while preser
             f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
             f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
             f"{extra_prompt}"
-            f"CODE IMPLEMENTATION SUMMARY from each iteration:\n{code_summary}",
+            "<aggregate_implementation_summary>\n"
+            f"{code_summary}\n"
+            "</aggregate_implementation_summary>\n",
             invocation_id,
             [self.subdir, str(self.domain_id)],
         )
@@ -699,3 +715,7 @@ Revise the synthesized specification to address the review feedback while preser
             invocation_id_prefix,
             self.watcher,
         )
+
+
+def wrap_text(text: str) -> str:
+    return f"<text>\n{text}\n</text>"

@@ -1,3 +1,26 @@
+next_steps = {
+    "type": "array",
+    "items": {
+        "type": "string",
+        "description": """
+Ordered list of 1–5 concrete reasoning or analysis steps that are **required to complete this task within the agent’s role**, but have not yet been performed.
+
+These steps represent **missing internal work**, not future execution or delegation.
+
+Rules:
+* Each step must be something this agent itself should do (not another agent or system)
+* Do not propose implementation, external actions, or handoffs
+* Do not expand scope beyond the assigned task
+* Each step must address a specific gap, assumption, or incomplete part of the current output
+* Prefer steps that clarify, verify, compute, or refine the existing solution
+* Avoid vague phrasing (e.g., “think more”, “improve answer”)
+* Do not repeat steps already completed
+
+If no required reasoning steps are missing and the task is complete - leave this array empty.
+""",
+    },
+}
+
 ARCH_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
@@ -70,9 +93,10 @@ ARCH_SCHEMA = {
                 "tech_choices",
                 "constraints",
             ],
-        }
+        },
+        "next_steps": next_steps,
     },
-    "required": ["architecture"],
+    "required": ["architecture", "next_steps"],
 }
 
 PLAN_SCHEMA = {
@@ -137,7 +161,7 @@ PLAN_SCHEMA = {
                 },
             },
             "required": ["summary", "reviewer_notes", "files", "steps"],
-        }
+        },
     },
     "required": ["plan"],
 }
@@ -175,7 +199,14 @@ CODER_SCHEMA = {
                         "description": "describe the actual code change",
                     },
                 },
-                "required": ["path", "status", "brief_summary", "blocked_reason"],
+                "required": [
+                    "path",
+                    "status",
+                    "brief_summary",
+                    "blocked_reason",
+                    "exists_after_change",
+                    "diff_summary",
+                ],
             },
         },
         "summary": {
@@ -189,13 +220,7 @@ CODER_SCHEMA = {
                 "description": "notes about assumptions, blocked work, incomplete areas, missing context, or areas needing attention",
             },
         },
-        "next_steps": {
-            "type": "array",
-            "items": {
-                "type": "string",
-                "description": "what you think should be your next steps; if you completed everything already - leave this array empty",
-            },
-        },
+        "next_steps": next_steps,
     },
     "required": ["changes", "summary", "reviewer_notes", "next_steps"],
 }
@@ -486,6 +511,7 @@ PRODUCT_MANAGER_SCHEMA = {
                 "description": "if user request states specific facts - extract them, and put them here",
             },
         },
+        "next_steps": next_steps,
     },
     "required": [
         "task_specification",
@@ -494,6 +520,7 @@ PRODUCT_MANAGER_SCHEMA = {
         "files",
         "proper_nouns",
         "facts",
+        "next_steps",
     ],
 }
 
@@ -763,9 +790,10 @@ SYSTEM_DECOMPOSITION_SCHEMA = {
                 "integration_order",
                 "global_risks",
             ],
-        }
+        },
+        "next_steps": next_steps,
     },
-    "required": ["decomposition"],
+    "required": ["decomposition", "next_steps"],
 }
 
 SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
