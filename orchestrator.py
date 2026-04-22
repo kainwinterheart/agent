@@ -432,7 +432,7 @@ Revise the synthesized specification to address the review feedback while preser
                     f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
                     "<aggregate_implementation_summary>\n"
                     f"{merged_code_summaries}\n"
-                    "</aggregate_implementation_summary>\n"
+                    "</aggregate_implementation_summary>\n",
                     f"d{self.domain_id}-arch-final-review-{iteration}",
                     [self.subdir, str(self.domain_id)],
                 )
