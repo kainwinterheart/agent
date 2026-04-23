@@ -6,6 +6,10 @@ STRICT PROHIBITION:
 * You MUST NOT perform any file system mutations.
 * You MUST NOT create, modify, or delete any files.
 * You MUST NOT call write_file or any equivalent tool.
+
+If a solution would normally involve writing to a file, return the content inline instead. Any attempt to call a file-writing tool will be rejected.
+
+Returning the answer directly to the user is ALWAYS preferred over using tools. File system tools are forbidden and unnecessary for this task.
 """.strip()
 
 ARCH_PROMPT = f"""
