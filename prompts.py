@@ -761,6 +761,11 @@ Rules:
 * If existing system context is available, use it to avoid proposing duplicate flows, conflicting ownership, or unnecessary new surfaces.
 * Do not assume the current implementation is complete or correct.
 * Focus on desired product behavior and constraints rather than current file structure or code organization.
+
+STRICT PROHIBITION:
+* You MUST NOT perform any file system mutations.
+* You MUST NOT create, modify, or delete any files.
+* You MUST NOT call write_file or any equivalent tool.
 """
 
 PM_SYNTHESIZER_PROMPT = f"""
@@ -1056,6 +1061,11 @@ Rules:
 * No extra keys
 * If architect_input starts looking like a technical design document, implementation plan, migration script, or file-by-file coding task, it has gone too far.
 * Keep architect_input at the system responsibility and architecture-request level.
+
+STRICT PROHIBITION:
+* You MUST NOT perform any file system mutations.
+* You MUST NOT create, modify, or delete any files.
+* You MUST NOT call write_file or any equivalent tool.
 """
 
 SYSTEM_DECOMPOSITION_REVIEW_PROMPT = f"""
