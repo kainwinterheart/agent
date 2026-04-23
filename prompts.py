@@ -1,6 +1,13 @@
 import schemas
 from schema_utils import schema_to_example
 
+no_tools = """
+STRICT PROHIBITION:
+* You MUST NOT perform any file system mutations.
+* You MUST NOT create, modify, or delete any files.
+* You MUST NOT call write_file or any equivalent tool.
+""".strip()
+
 ARCH_PROMPT = f"""
 You are a senior software architect working on an existing production system.
 
@@ -68,6 +75,8 @@ Rules:
 * No explanations outside JSON
 * No extra keys
 * Do not rely only on prior summaries, reviewer notes, or implementation descriptions when repository inspection tools can verify the current state.
+
+{no_tools}
 """
 
 PLAN_PROMPT = f"""
@@ -128,10 +137,7 @@ Rules:
 * Avoid fallback logic unless explicitly required
 * Do not rely only on prior summaries, reviewer notes, or implementation descriptions when repository inspection tools can verify the current state.
 
-STRICT PROHIBITION:
-* You MUST NOT perform any file system mutations.
-* You MUST NOT create, modify, or delete any files.
-* You MUST NOT call write_file or any equivalent tool.
+{no_tools}
 
 Your role is planning only.
 If you attempt to create or modify files, your output is invalid.
@@ -351,6 +357,11 @@ Reset guidance:
 * If the artifact correctly identifies those problems, then the artifact is working correctly.
 * Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+{no_tools}
+
+Your role is review only.
+If you attempt to create or modify files, your output is invalid.
 """
 
 PLAN_REVIEW_PROMPT = f"""
@@ -422,6 +433,11 @@ Critical distinction:
 * Do not reject an artifact merely because it describes severe issues in the codebase.
 * Do not request reset simply because the underlying system has major gaps.
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
+
+{no_tools}
+
+Your role is review only.
+If you attempt to create or modify files, your output is invalid.
 """
 
 CODE_REVIEW_PROMPT = f"""
@@ -533,10 +549,7 @@ Critical distinction:
 * Do not request reset simply because the underlying system has major gaps.
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 
-STRICT PROHIBITION:
-* You MUST NOT perform any file system mutations.
-* You MUST NOT create, modify, or delete any files.
-* You MUST NOT call write_file or any equivalent tool.
+{no_tools}
 
 Your role is review only.
 If you attempt to create or modify files, your output is invalid.
@@ -612,6 +625,11 @@ Critical distinction:
 * Do not reject an artifact merely because it describes severe issues in the codebase.
 * Do not request reset simply because the underlying system has major gaps.
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
+
+{no_tools}
+
+Your role is review only.
+If you attempt to create or modify files, your output is invalid.
 """
 
 ARCH_FINAL_PROMPT = f"""
@@ -682,6 +700,11 @@ Critical distinction:
 * Do not reject an artifact merely because it describes severe issues in the codebase.
 * Do not request reset simply because the underlying system has major gaps.
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
+
+{no_tools}
+
+Your role is review only.
+If you attempt to create or modify files, your output is invalid.
 """
 
 PRODUCT_MANAGER_PROMPT = f"""
@@ -762,10 +785,7 @@ Rules:
 * Do not assume the current implementation is complete or correct.
 * Focus on desired product behavior and constraints rather than current file structure or code organization.
 
-STRICT PROHIBITION:
-* You MUST NOT perform any file system mutations.
-* You MUST NOT create, modify, or delete any files.
-* You MUST NOT call write_file or any equivalent tool.
+{no_tools}
 """
 
 PM_SYNTHESIZER_PROMPT = f"""
@@ -808,6 +828,8 @@ Rules:
 * If existing system context is available, use it to avoid proposing duplicate flows, conflicting ownership, or unnecessary new surfaces.
 * Do not assume the current implementation is complete or correct.
 * Focus on desired product behavior and constraints rather than current file structure or code organization.
+
+{no_tools}
 """
 
 PM_EXPANSION_CLEANUP_PROMPT = f"""
@@ -865,6 +887,8 @@ Example output:
     "Paper texture overlay could help"
   ]
 }}
+
+{no_tools}
 """
 
 PM_REVIEW_PROMPT = f"""
@@ -911,6 +935,11 @@ Rules:
 * If existing system context is available, use it to avoid proposing duplicate flows, conflicting ownership, or unnecessary new surfaces.
 * Do not assume the current implementation is complete or correct.
 * Focus on desired product behavior and constraints rather than current file structure or code organization.
+
+{no_tools}
+
+Your role is review only.
+If you attempt to create or modify files, your output is invalid.
 """
 
 SYSTEM_DECOMPOSITION_PROMPT = f"""
@@ -1062,10 +1091,7 @@ Rules:
 * If architect_input starts looking like a technical design document, implementation plan, migration script, or file-by-file coding task, it has gone too far.
 * Keep architect_input at the system responsibility and architecture-request level.
 
-STRICT PROHIBITION:
-* You MUST NOT perform any file system mutations.
-* You MUST NOT create, modify, or delete any files.
-* You MUST NOT call write_file or any equivalent tool.
+{no_tools}
 """
 
 SYSTEM_DECOMPOSITION_REVIEW_PROMPT = f"""
@@ -1192,6 +1218,11 @@ Reset guidance:
 * If the decomposition correctly identifies those gaps and scopes them into domains, then the decomposition is working correctly.
 * Use reset_reason only to describe why the decomposition artifact itself is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
+
+{no_tools}
+
+Your role is review only.
+If you attempt to create or modify files, your output is invalid.
 """
 
 DESIGN_TO_IMPLEMENT_PHRASING_PROMPT = f"""
@@ -1209,6 +1240,8 @@ Rules:
 
 Output MUST be valid JSON only:
 {schema_to_example(schemas.DESIGN_TO_IMPLEMENT_PHRASING_SCHEMA)}
+
+{no_tools}
 """
 
 FOLLOWUP = """
