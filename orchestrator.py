@@ -271,7 +271,7 @@ Revise the synthesized specification to address the review feedback while preser
             rephrased_task = run_json_agent(
                 self.pm_synth,
                 revision_prompt,
-                "pm-spec-synthesis-{iteration + 1}",
+                f"pm-spec-synthesis-{iteration + 1}",
                 [self.subdir],
             )
 
