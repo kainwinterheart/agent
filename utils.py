@@ -376,7 +376,7 @@ def nudge(max_it, agent, prompt, invocation_id_prefix, subdir):
         if not next_steps:
             break
         if agent.ephemeral or ((i + 1) % 10 == 0):
-            next_prompt = f"END GOAL:\n<reminder>{prompt}</reminder>\n\n"
+            next_prompt = f"END GOAL:\n<reminder>\n{prompt}\n</reminder>\n\n"
         else:
             next_prompt = ""
         if agent.ephemeral:
