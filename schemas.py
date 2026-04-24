@@ -39,7 +39,7 @@ CRITICAL: If the previous review contained high-severity issues, a transition to
     },
     "approved_confidence": {
         "type": "string",
-        "enum": ["low", "medium", "high"],
+        "enum": ["not_approved", "low", "medium", "high"],
     },
     "approved_reason": {
         "type": "string",
