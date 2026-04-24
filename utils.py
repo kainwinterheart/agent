@@ -386,6 +386,9 @@ def nudge(max_it, agent, prompt, invocation_id_prefix, subdir):
         for next_step in next_steps:
             next_prompt += f"* {next_step}\n"
         next_prompt += "</feedback>\n"
+        next_prompt += (
+            "Report results of each step, not just execute them implicitly.\n"
+        )
         if agent.ephemeral:
             next_prompt += "\n"
             next_prompt += prompts.FOLLOWUP

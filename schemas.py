@@ -1,3 +1,5 @@
+import json
+
 next_steps = {
     "type": "array",
     "items": {
@@ -5,7 +7,9 @@ next_steps = {
         "description": """
 Ordered list of 1–5 concrete reasoning or analysis steps that are **required to complete this task within the agent’s role**, but have not yet been performed.
 
-These steps represent **missing internal work**, not future execution or delegation.
+These steps represent only the following:
+* Analytical steps (reasoning)
+* Verification steps (code inspection, search, tracing)
 
 Rules:
 * Each step must be something this agent itself should do (not another agent or system)
@@ -18,6 +22,40 @@ Rules:
 
 If no required reasoning steps are missing and the task is complete - leave this array empty.
 """,
+    },
+}
+
+
+approved = {
+    "approved": {
+        "type": "boolean",
+        "description": "true/false; " + json.dumps("""
+Approval is only valid if:
+* All prior high-severity issues are either resolved or downgraded with explicit justification
+* At least one paragraph explains why the design is now considered sound
+
+CRITICAL: If the previous review contained high-severity issues, a transition to zero issues must include explicit justification for each.
+            """.strip()),
+    },
+    "approved_confidence": {
+        "type": "string",
+        "enum": ["low", "medium", "high"],
+    },
+    "approved_reason": {
+        "type": "string",
+        "description": "if approved=true - explain in detail why exactly has the approval been given, provide evidence; of approved=false - set this field to empty string",
+    },
+    "resolved_issues": {
+        "type": "array",
+        "items": {
+            "type": "string",
+            "description": """
+Issues cannot be removed without explanation.
+If an issue is no longer present - move it here, with justification.
+
+If no issues were resolved - leave this array empty.
+                        """.strip(),
+        },
     },
 }
 
@@ -230,9 +268,7 @@ ARCH_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "approved": {
-            "type": "boolean",
-        },
+        **approved,
         "should_reset": {
             "type": "boolean",
         },
@@ -292,7 +328,15 @@ If no further design changes are required, return an empty array.
         },
         "next_steps": next_steps,
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues", "next_steps"],
+    "required": [
+        "approved",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+        "next_steps",
+    ],
 }
 
 PLAN_REVIEW_SCHEMA = {
@@ -300,9 +344,7 @@ PLAN_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "approved": {
-            "type": "boolean",
-        },
+        **approved,
         "should_reset": {
             "type": "boolean",
         },
@@ -362,7 +404,15 @@ If no further planning changes are required, return an empty array.
         },
         "next_steps": next_steps,
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues", "next_steps"],
+    "required": [
+        "approved",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+        "next_steps",
+    ],
 }
 
 CODE_REVIEW_SCHEMA = {
@@ -370,9 +420,7 @@ CODE_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "approved": {
-            "type": "boolean",
-        },
+        **approved,
         "should_reset": {
             "type": "boolean",
         },
@@ -432,7 +480,15 @@ If no further code changes are required, return an empty array.
         },
         "next_steps": next_steps,
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues", "next_steps"],
+    "required": [
+        "approved",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+        "next_steps",
+    ],
 }
 
 TECH_LEAD_FINAL_SCHEMA = {
@@ -440,9 +496,7 @@ TECH_LEAD_FINAL_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "approved": {
-            "type": "boolean",
-        },
+        **approved,
         "should_reset": {
             "type": "boolean",
         },
@@ -481,7 +535,14 @@ TECH_LEAD_FINAL_SCHEMA = {
             },
         },
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues"],
+    "required": [
+        "approved",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+    ],
 }
 
 ARCH_FINAL_SCHEMA = {
@@ -489,9 +550,7 @@ ARCH_FINAL_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "approved": {
-            "type": "boolean",
-        },
+        **approved,
         "should_reset": {
             "type": "boolean",
         },
@@ -530,7 +589,14 @@ ARCH_FINAL_SCHEMA = {
             },
         },
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues"],
+    "required": [
+        "approved",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+    ],
 }
 
 PRODUCT_MANAGER_SCHEMA = {
@@ -707,7 +773,7 @@ PM_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "approved": {"type": "boolean", "description": "true"},
+        **approved,
         "should_reset": {"type": "boolean", "description": "False"},
         "reset_reason": {"type": "string", "description": ""},
         "issues": {
@@ -744,7 +810,14 @@ PM_REVIEW_SCHEMA = {
             },
         },
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues"],
+    "required": [
+        "approved",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+    ],
 }
 
 SYSTEM_DECOMPOSITION_SCHEMA = {
@@ -861,9 +934,7 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "approved": {
-            "type": "boolean",
-        },
+        **approved,
         "should_reset": {
             "type": "boolean",
         },
@@ -909,7 +980,14 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
             "description": "list of issues found",
         },
     },
-    "required": ["approved", "should_reset", "reset_reason", "issues"],
+    "required": [
+        "approved",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+    ],
 }
 
 DESIGN_TO_IMPLEMENT_PHRASING_SCHEMA = {

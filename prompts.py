@@ -1250,13 +1250,18 @@ Output MUST be valid JSON only:
 
 FOLLOWUP = """
 Instructions:
-- Rewrite the entire response from scratch incorporating the feedback
-- Do NOT return partial updates or diffs
-- Do NOT omit any sections
-- Output must follow the template exactly
-- The result must be a complete, standalone answer
+* Rewrite the entire response from scratch incorporating the feedback
+* Do NOT return partial updates or diffs
+* Do NOT omit any sections
+* Output must follow the template exactly
+* The answer must be complete **with respect to current evidence**
+* Remaining uncertainties should be explicitly stated
+* Every previously identified issue must be explicitly resolved with one of:
+    * Confirmed (still valid)
+    * Invalidated (with evidence)
+    * Reframed (updated understanding)
 
 If any section is missing or the output is partial, the response is invalid.
 
-Return only the final rewritten response.
+Return the rewritten response.
 """
