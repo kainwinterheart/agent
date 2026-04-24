@@ -14,46 +14,46 @@ User Task
     ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 1 ─ Product Management                   │
-│  · Break down the raw request into a structured  │
-│    spec using multiple reasoning angles          │
-│  · Synthesize, clean up, and review the spec     │
-│  · Convert design-language prompts into          │
-│    implementation-language prompts               │
+│  · Break down the raw request into a structured │
+│    spec using multiple reasoning angles         │
+│  · Synthesize, clean up, and review the spec    │
+│  · Convert design-language prompts into         │
+│    implementation-language prompts              │
 └─────────────────┬───────────────────────────────┘
                   ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 2 ─ System Decomposition                 │
-│  · Split the problem into independent domains    │
-│  · Review and iterate on the decomposition       │
+│  · Split the problem into independent domains   │
+│  · Review and iterate on the decomposition      │
 └─────────────────┬───────────────────────────────┘
                   ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 3 ─ Architecture                         │
-│  · Design architecture per domain                │
-│  · Review each architecture                      │
-│  · Convert design → implementation instructions  │
+│  · Design architecture per domain               │
+│  · Review each architecture                     │
+│  · Convert design → implementation instructions │
 └─────────────────┬───────────────────────────────┘
                   ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 4 ─ Implementation Plan                  │
-│  · Tech lead turns architecture into a           │
-│    step-by-step, file-level plan                 │
-│  · Review and iterate on the plan                │
+│  · Tech lead turns architecture into a          │
+│    step-by-step, file-level plan                │
+│  · Review and iterate on the plan               │
 └─────────────────┬───────────────────────────────┘
                   ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 5 ─ Code Execution                       │
-│  · Coder agent writes actual code changes        │
-│  · Review agent inspects changes each iteration  │
-│  · Repeats until reviewer approves or max        │
-│    iterations reached                            │
+│  · Coder agent writes actual code changes       │
+│  · Review agent inspects changes each iteration │
+│  · Repeats until reviewer approves or max       │
+│    iterations reached                           │
 └─────────────────┬───────────────────────────────┘
                   ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 6 ─ Final Review                         │
-│  · Tech lead + architect review the final code   │
-│  · Optional revision loops if feedback requires  │
-│    a full re-implementation                      │
+│  · Tech lead + architect review the final code  │
+│  · Optional revision loops if feedback requires │
+│    a full re-implementation                     │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -78,8 +78,8 @@ Every output between phases is **JSON-only**, validated against a strict schema,
 | Dependency | Purpose |
 |---|---|
 | **[OpenAI Codex CLI](https://github.com/openai/codex)** (`codex` binary) | The underlying AI agent that actually reads prompts and writes code. Every "agent" in the orchestrator is just a named configuration of Codex CLI sessions. |
-| **Linux / macOS + `watchman`** | File-system watching (via `pywatchman`) so the system can detect which files the coder agent creates or modifies during execution. |
-| Python 3.x (with packages in `requirements.txt`) | Runtime. Only needs standard library + `jsonschema`, `pywatchman`. |
+| **[Watchman](https://github.com/facebook/watchman)** | File-system watching (via `pywatchman`) so the system can detect which files the coder agent creates or modifies during execution. |
+| Python 3.12+ (with packages in `requirements.txt`) | Runtime. Only needs standard library + `jsonschema`, `pywatchman`. |
 
 The system does **not** contain any AI models itself — it is purely an orchestration layer on top of Codex CLI.
 
@@ -106,7 +106,7 @@ cd agent
 pip install -r requirements.txt   # or: python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 ```
 
-Optional but recommended — ensure `watchman` is installed for file-watching:
+Ensure `watchman` is installed for file-watching:
 
 ```bash
 # macOS
@@ -152,7 +152,7 @@ All intermediate artifacts are saved as JSON and as human-readable Markdown in:
 
 ```
 .agent-jwt-migration/
-├── .agent-2026-04-23_14-30-00-task.txt    ← your original task
+├── 2026-04-23_14-30-00-task.txt           ← your original task
 ├── .state/                                ← cached agent outputs + sessions
 │   ├── .sessions/                         ← persistent Codex session IDs
 │   └── ...                                ← per-invocation JSON caches
