@@ -129,6 +129,16 @@ def run_json_agent(agent, input_text, invocation_id: str, subdir: list[str]):
     if raw is None:
         raw = agent.run(input_text)
         updated = True
+    else:  # XXX
+        try:
+            x = json.loads(extract_json(raw), strict=False)
+            if "approved" in x and "approved_confidence" not in x:
+                x["approved_confidence"] = "low"
+                x["approved_reason"] = "backfill"
+                x["resolved_issues"] = []
+                raw = json.dumps(x)
+        except:
+            pass
     while True:
         if updated:
             atomic_write(cache_file, raw)
