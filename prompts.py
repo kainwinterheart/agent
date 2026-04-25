@@ -12,6 +12,14 @@ If a solution would normally involve writing to a file, return the content inlin
 Returning the answer directly to the user is ALWAYS preferred over using tools. File system tools are forbidden and unnecessary for this task.
 """.strip()
 
+must_verify = """
+Verification completion requirement:
+* If repository inspection is required and tools are available, you MUST complete the inspection and resolve the question.
+* Do NOT defer verification as a future action if it can be completed during this review.
+* Phrases like “must inspect”, “should verify”, or “needs checking” are NOT allowed when the information is accessible.
+* Every identified verification requirement must result in a concrete conclusion: either confirmed, refuted, or explicitly unavailable.
+""".strip()
+
 ARCH_PROMPT = f"""
 You are a senior software architect working on an existing production system.
 
@@ -275,6 +283,13 @@ Repository validation requirements:
 * If the architecture proposes reuse of an existing component, you MUST confirm that the component actually exists and appears capable of carrying the proposed responsibility.
 * If the architecture proposes new components, you MUST verify that the repository does not already contain a suitable extension point.
 
+{must_verify}
+
+Issue validity rule:
+* An issue must represent a real defect, inconsistency, or risk in the architecture.
+* Missing verification is NOT an issue by itself.
+* If verification is possible, perform it. If not, clearly state the limitation.
+
 Architectural compliance principles:
 * Ensure the architecture preserves all explicit upstream requirements from the task, product specification, and decomposition inputs.
 * Reject architectures that replace a required mechanism, ownership model, data flow, or responsibility boundary with a different one unless the change is clearly justified as necessary.
@@ -398,6 +413,13 @@ Repository validation requirements:
 * You MUST NOT rely only on summaries, architecture descriptions, or prior reviewer comments when repository inspection tools can verify the current state.
 * If repository inspection tools are unavailable or incomplete, explicitly treat that as a limitation in the review.
 
+{must_verify}
+
+Issue validity rule:
+* An issue must represent a real defect, inconsistency, or risk in the plan.
+* Missing verification is NOT an issue by itself.
+* If verification is possible, perform it. If not, clearly state the limitation.
+
 Special plan review guidance:
 * A plan may propose new files, new directories, or major modifications because the current system is incomplete.
 * Missing implementation in the codebase is not evidence that the plan is wrong.
@@ -502,6 +524,13 @@ Review principles:
 * If repository inspection tools fail, are unavailable, or return incomplete results, report that as the blocker.
 * Do not ask future reviewers or humans to inspect files that you can inspect yourself.
 * next_actions must focus on implementation fixes, not manual review tasks.
+
+{must_verify}
+
+Issue validity rule:
+* An issue must represent a real defect, inconsistency, or risk in the implementation.
+* Missing verification is NOT an issue by itself.
+* If verification is possible, perform it. If not, clearly state the limitation.
 
 Special code review guidance:
 * Repository state, changed file lists, and diffs are the source of truth.
@@ -1115,6 +1144,13 @@ Repository grounding requirements:
 * You MUST distinguish between repository facts and assumptions when evaluating whether a decomposition is realistic.
 * You MUST NOT rely only on decomposition summaries or prior reviewer comments when repository inspection or provided system context can verify the current structure.
 * If repository structure is incomplete or unclear, treat that as a limitation in review confidence rather than inventing missing context.
+
+{must_verify}
+
+Issue validity rule:
+* An issue must represent a real defect, inconsistency, or risk in the decomposition.
+* Missing verification is NOT an issue by itself.
+* If verification is possible, perform it. If not, clearly state the limitation.
 
 Focus:
 * Clear ownership boundaries
