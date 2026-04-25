@@ -38,7 +38,7 @@ class WatchmanBackgroundWatcher:
         Returns immediately after Watchman subscription is set up.
         """
 
-        resp = self.client.query("watch-project", path)
+        resp = do_it(self.client.query, "watch-project", path)
         self.watch_root = resp["watch"]
         self.relative_root = resp.get("relative_path", "")
 
@@ -51,7 +51,8 @@ class WatchmanBackgroundWatcher:
             expr.append(["not", ["match", to_exclude + "/*", "wholename"]])
             expr.append(["not", ["dirname", to_exclude]])
         log("WATCHMAN", repr(expr))
-        self.client.query(
+        do_it(
+            self.client.query,
             "subscribe",
             self.watch_root,
             self.subscription_name,
@@ -76,6 +77,8 @@ class WatchmanBackgroundWatcher:
         while not self.stop_event.is_set():
             try:
                 self._it()
+            except KeyboardInterrupt:
+                raise
             except Exception:
                 pass
 
@@ -171,3 +174,13 @@ def safe_relative(watch_root, abs_path):
         return rel
     except ValueError:
         return None
+
+
+def do_it(func, *args, **kwargs):
+    while True:
+        try:
+            return func(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            log("WATCHMAN", str(e))
