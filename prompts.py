@@ -347,6 +347,7 @@ Critical distinction:
 * Reject only when the architecture is structurally flawed, unrealistic, incomplete, inconsistent, over-engineered, poorly scoped, misaligned with the existing system, or misaligned with upstream requirements.
 * Do not reject an architecture merely because it describes severe issues in the codebase.
 * Do not request reset simply because the underlying system has major gaps.
+* If the system appears already implemented, ignore that fact and evaluate the architecture as if it has not yet been executed.
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.ARCH_REVIEW_SCHEMA)}
@@ -459,6 +460,7 @@ Critical distinction:
 * Do not reject an artifact merely because it describes severe issues in the codebase.
 * Do not request reset simply because the underlying system has major gaps.
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
+* If the system appears already implemented, ignore that fact and evaluate the plan as if it has not yet been executed.
 
 {no_tools}
 
@@ -1219,6 +1221,7 @@ Review principles:
 * Ensure each domain could realistically be passed to a single software architect as a focused architecture task.
 * Ensure cross-domain integration concerns are acknowledged somewhere in the decomposition.
 * Ensure architect_input is detailed enough for an architect to produce a correct design without needing hidden context.
+* If the system appears already implemented, ignore that fact and evaluate the decomposition as if it has not yet been executed.
 
 Good review examples:
 * Accept a decomposition that creates a dedicated persistence domain because persistence is currently missing.
