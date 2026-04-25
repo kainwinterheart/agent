@@ -114,7 +114,13 @@ def atomic_write(path: str, content: str) -> None:
         raise
 
 
-def run_json_agent(agent, input_text, invocation_id: str, subdir: list[str]):
+def run_json_agent(
+    agent,
+    input_text,
+    invocation_id: str,
+    subdir: list[str],
+    return_system_state: bool = False,
+):
     raw = None
     updated = False
     # Cache check
@@ -142,7 +148,6 @@ def run_json_agent(agent, input_text, invocation_id: str, subdir: list[str]):
     while True:
         if updated:
             atomic_write(cache_file, raw)
-        updated = True
         try:
             out = json.loads(extract_json(raw), strict=False)
             jsonschema.validate(out, agent.schema)
@@ -150,7 +155,10 @@ def run_json_agent(agent, input_text, invocation_id: str, subdir: list[str]):
                 agent.reset()
             else:
                 agent.last_correct_response = out
-            return out
+            if return_system_state:
+                return {"out": out, "from_cache": not updated}
+            else:
+                return out
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -162,6 +170,7 @@ def run_json_agent(agent, input_text, invocation_id: str, subdir: list[str]):
                 msg += e.message
             else:
                 msg += str(e)
+            updated = True
             raw = agent.run(f"""
 <feedback>
 Your previous output failed JSON validation:
@@ -374,14 +383,27 @@ def build_path(subdir: list[str], section: str) -> str:
     return os.path.join(root_dir, section, *nested_dirs)
 
 
-def nudge(max_it, agent, prompt, invocation_id_prefix, subdir):
+def nudge(
+    max_it,
+    agent,
+    prompt,
+    invocation_id_prefix,
+    subdir,
+    return_system_state: bool = False,
+):
     next_prompt = prompt
     results = []
     for i in range(max_it):
         result = run_json_agent(
-            agent, next_prompt, f"{invocation_id_prefix}-nudge{i}", subdir
+            agent,
+            next_prompt,
+            f"{invocation_id_prefix}-nudge{i}",
+            subdir,
+            return_system_state=return_system_state,
         )
         results.append(result)
+        if return_system_state:
+            result = result["out"]
         next_steps = result.pop("next_steps", None)
         if not next_steps:
             break

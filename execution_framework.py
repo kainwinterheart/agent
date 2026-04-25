@@ -140,9 +140,12 @@ class CodeExecutionFramework:
 def collect_changes(max_it, watcher, agent, prompt, invocation_id_prefix, subdir):
     watcher.wait()
     watcher.flush()
-    results = nudge(max_it, agent, prompt, invocation_id_prefix, subdir)
-    time.sleep(10)
-    return results[-1], watcher.flush()
+    results = nudge(
+        max_it, agent, prompt, invocation_id_prefix, subdir, return_system_state=True
+    )
+    if not results[-1]["from_cache"]:
+        time.sleep(10)
+    return results[-1]["out"], watcher.flush()
 
 
 def changes_prompt(changes: set[str]) -> str:
