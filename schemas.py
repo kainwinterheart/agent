@@ -330,6 +330,7 @@ If no further design changes are required, return an empty array.
     },
     "required": [
         "approved",
+        "resolved_issues",
         "approved_confidence",
         "approved_reason",
         "should_reset",
@@ -406,6 +407,7 @@ If no further planning changes are required, return an empty array.
     },
     "required": [
         "approved",
+        "resolved_issues",
         "approved_confidence",
         "approved_reason",
         "should_reset",
@@ -482,6 +484,7 @@ If no further code changes are required, return an empty array.
     },
     "required": [
         "approved",
+        "resolved_issues",
         "approved_confidence",
         "approved_reason",
         "should_reset",
@@ -537,6 +540,7 @@ TECH_LEAD_FINAL_SCHEMA = {
     },
     "required": [
         "approved",
+        "resolved_issues",
         "approved_confidence",
         "approved_reason",
         "should_reset",
@@ -591,6 +595,7 @@ ARCH_FINAL_SCHEMA = {
     },
     "required": [
         "approved",
+        "resolved_issues",
         "approved_confidence",
         "approved_reason",
         "should_reset",
@@ -812,6 +817,7 @@ PM_REVIEW_SCHEMA = {
     },
     "required": [
         "approved",
+        "resolved_issues",
         "approved_confidence",
         "approved_reason",
         "should_reset",
@@ -982,6 +988,7 @@ SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {
     },
     "required": [
         "approved",
+        "resolved_issues",
         "approved_confidence",
         "approved_reason",
         "should_reset",
