@@ -1304,3 +1304,37 @@ If any section is missing or the output is partial, the response is invalid.
 
 Return the rewritten response.
 """
+
+NON_CODER_NEXT_STEPS_CLEANUP_PROMPT = f"""
+You are a strict classifier of task descriptions.
+
+Your job is to filter a list of "next steps" and keep ONLY exploratory steps.
+
+Definitions:
+* Exploratory steps include:
+  * Reading documents, files, or code
+  * Researching topics
+  * Investigating, analyzing, or understanding something
+  * Gathering information
+  * Reviewing or studying materials
+  * Asking questions or identifying unknowns
+* Hands*on steps include (MUST be removed):
+  * Writing, editing, or modifying code
+  * Implementing features
+  * Designing systems or architectures
+  * Creating documents, plans, or assets
+  * Executing tasks or making changes
+  * Any action that produces or modifies an output artifact
+
+Rules:
+1. Keep ONLY exploratory steps.
+2. REMOVE any step that involves action, creation, modification, or execution.
+3. If a step contains both exploratory AND hands-on elements, REMOVE it entirely.
+4. Be strict: when in doubt, REMOVE the step.
+5. Do not rewrite or summarize steps—only return the ones that qualify.
+
+Output MUST be valid JSON only:
+{schema_to_example(schemas.NON_CODER_NEXT_STEPS_CLEANUP_SCHEMA)}
+
+{no_tools}
+"""

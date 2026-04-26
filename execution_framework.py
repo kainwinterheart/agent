@@ -5,6 +5,7 @@
 import json
 import time
 from dataclasses import dataclass
+from typing import Optional
 
 from agent import Agent
 from config import MAX_CODE_ITERS
@@ -22,6 +23,7 @@ class Configuration:
     plan: dict
 
     max_iterations: int = MAX_CODE_ITERS
+    nsc: Optional[object] = None
 
 
 class CodeExecutionFramework:
@@ -88,6 +90,7 @@ class CodeExecutionFramework:
                 review_prompt,
                 f"{invocation_id_prefix}-code-review-{iteration_count}",
                 subdir,
+                nsc=config.nsc,
             )[-1]
 
             if self.review_ok(review):

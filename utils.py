@@ -389,7 +389,9 @@ def nudge(
     prompt,
     invocation_id_prefix,
     subdir,
+    *,
     return_system_state: bool = False,
+    nsc: Optional[object] = None,
 ):
     next_prompt = prompt
     results = []
@@ -407,6 +409,21 @@ def nudge(
         next_steps = result.pop("next_steps", None)
         if not next_steps:
             break
+        if nsc:
+            next_steps = run_json_agent(
+                nsc,
+                f"""
+INPUT:
+{json.dumps({{"next_steps": next_steps}})}
+
+Return the filtered list of steps, exactly as written.
+Do not include any explanation or commentary.
+                """.strip(),
+                f"{invocation_id_prefix}-nudge{i}-nsc",
+                subdir,
+            )["lines"]
+            if not next_steps:
+                break
         if agent.ephemeral or ((i + 1) % 10 == 0):
             next_prompt = f"END GOAL:\n<reminder>\n{prompt}\n</reminder>\n\n"
         else:

@@ -773,6 +773,22 @@ PM_EXPANSION_CLEANUP_SCHEMA = {
     "required": ["lines"],
 }
 
+NON_CODER_NEXT_STEPS_CLEANUP_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "lines": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "exploratory steps ONLY, preserved as-is",
+            },
+        },
+    },
+    "required": ["lines"],
+}
+
 PM_REVIEW_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

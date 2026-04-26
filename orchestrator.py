@@ -49,6 +49,14 @@ class Orchestrator:
             ephemeral=True,
             timeout="10m",
         )
+        self.next_steps_cleanup = Agent(
+            "next_steps_cleanup",
+            prompts.NON_CODER_NEXT_STEPS_CLEANUP_PROMPT,
+            schemas.NON_CODER_NEXT_STEPS_CLEANUP_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="10m",
+        )
         self.pm_review = Agent(
             "pm_review",
             prompts.PM_REVIEW_PROMPT,
@@ -220,6 +228,7 @@ class Orchestrator:
                 f"TASK:\nProduce a focused engineering-ready specification.\n{prompt}",
                 f"pm-spec-candidate-{idx}",
                 [self.subdir],
+                nsc=self.next_steps_cleanup,
             )[-1]
 
             candidates.append(candidate)
@@ -442,7 +451,12 @@ Revise the synthesized specification to address the review feedback while preser
 
     def decomposition_workflow(self, task: str) -> dict:
         decomposition_result = nudge(
-            100, self.decomposition, f"TASK:\n{task}", "decomposition-0", [self.subdir]
+            100,
+            self.decomposition,
+            f"TASK:\n{task}",
+            "decomposition-0",
+            [self.subdir],
+            nsc=self.next_steps_cleanup,
         )[-1]
 
         assert_not_empty(decomposition_result, "DECOMPOSITION")
@@ -483,6 +497,7 @@ Revise the synthesized specification to address the review feedback while preser
                 revision_prompt,
                 f"decomposition-{i + 1}",
                 [self.subdir],
+                nsc=self.next_steps_cleanup,
             )[-1]
 
         decomposition_result.get("decomposition", {}).pop("reviewer_notes", None)
@@ -510,6 +525,7 @@ Revise the synthesized specification to address the review feedback while preser
             initial_prompt + extra_prompt,
             f"{invocation_id_prefix}-0",
             [self.subdir, str(self.domain_id)],
+            nsc=self.next_steps_cleanup,
         )[-1]
 
         for i in range(MAX_PLAN_ITERS):
@@ -521,6 +537,7 @@ Revise the synthesized specification to address the review feedback while preser
                 f"ARCHITECTURE TO REVIEW:\n{json.dumps(arch)}",
                 f"{invocation_id_prefix}-review-{i}",
                 [self.subdir, str(self.domain_id)],
+                nsc=self.next_steps_cleanup,
             )[-1]
 
             if self.review_ok(arch_review):
@@ -551,6 +568,7 @@ Revise the synthesized specification to address the review feedback while preser
                 revision_prompt + extra_prompt,
                 f"{invocation_id_prefix}-{i + 1}",
                 [self.subdir, str(self.domain_id)],
+                nsc=self.next_steps_cleanup,
             )[-1]
 
         arch.get("architecture", {}).pop("reviewer_notes", None)
@@ -584,6 +602,7 @@ Revise the synthesized specification to address the review feedback while preser
                 f"PLAN TO REVIEW:\n{json.dumps(plan)}",
                 f"{invocation_id_prefix}-review-{i}",
                 [self.subdir, str(self.domain_id)],
+                nsc=self.next_steps_cleanup,
             )[-1]
 
             if self.review_ok(plan_review):
@@ -641,6 +660,7 @@ Revise the synthesized specification to address the review feedback while preser
             max_iterations=MAX_CODE_ITERS,
             task=task,
             plan=plan,
+            nsc=self.next_steps_cleanup,
         )
 
         return CodeExecutionFramework().execute(
@@ -709,6 +729,7 @@ Revise the synthesized specification to address the review feedback while preser
             max_iterations=MAX_CODE_ITERS,
             task=task,
             plan=plan,
+            nsc=self.next_steps_cleanup,
         )
 
         return CodeExecutionFramework().execute(
