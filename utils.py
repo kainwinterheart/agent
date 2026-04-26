@@ -414,7 +414,7 @@ def nudge(
                 nsc,
                 f"""
 INPUT:
-{json.dumps({{"next_steps": next_steps}})}
+{json.dumps({"next_steps": next_steps})}
 
 Return the filtered list of steps, exactly as written.
 Do not include any explanation or commentary.
