@@ -4,6 +4,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import re
 import subprocess
@@ -333,23 +334,43 @@ def markdown_document_generator(
 
 async def read_stderr_stream_task(process):
     out = ""
+    bad = 0
     while True:
-        chunk = await process.stderr.read(65535)
-        if not chunk:
+        if bad > 100:
             break
-        decoded = chunk.decode("utf-8")
-        sys.stderr.write(decoded)
-        out += decoded
+        try:
+            chunk = await process.stderr.read(65535)
+            if not chunk:
+                break
+            decoded = chunk.decode("utf-8")
+            sys.stderr.write(decoded)
+            out += decoded
+            bad = 0
+        except:
+            logging.exception("stderr stream error")
+            bad += 1
+            if (bad % 10) == 0:
+                time.sleep(0.1)
     return out
 
 
 async def read_stdout_buffer_task(process):
     out = ""
+    bad = 0
     while True:
-        chunk = await process.stdout.read(65535)
-        if not chunk:
+        if bad > 100:
             break
-        out += chunk.decode("utf-8")
+        try:
+            chunk = await process.stdout.read(65535)
+            if not chunk:
+                break
+            out += chunk.decode("utf-8")
+            bad = 0
+        except:
+            logging.exception("stdout stream error")
+            bad += 1
+            if (bad % 10) == 0:
+                time.sleep(0.1)
     return out
 
 
