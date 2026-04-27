@@ -200,8 +200,9 @@ PLAN_SCHEMA = {
             },
             "required": ["summary", "reviewer_notes", "files", "steps"],
         },
+        "next_steps": next_steps,
     },
-    "required": ["plan"],
+    "required": ["plan", "next_steps"],
 }
 
 CODER_SCHEMA = {
@@ -537,6 +538,7 @@ TECH_LEAD_FINAL_SCHEMA = {
                 ],
             },
         },
+        "next_steps": next_steps,
     },
     "required": [
         "approved",
@@ -546,6 +548,7 @@ TECH_LEAD_FINAL_SCHEMA = {
         "should_reset",
         "reset_reason",
         "issues",
+        "next_steps",
     ],
 }
 

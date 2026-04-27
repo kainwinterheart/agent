@@ -139,10 +139,18 @@ def run_json_agent(
     else:  # XXX
         try:
             x = json.loads(extract_json(raw), strict=False)
+            kludged = False
             if "approved" in x and "approved_confidence" not in x:
                 x["approved_confidence"] = "low"
                 x["approved_reason"] = "backfill"
                 x["resolved_issues"] = []
+                kludged = True
+            if (
+                "tech_lead_final" == agent.name or "plan" in x
+            ) and "next_steps" not in x:
+                x["next_steps"] = []
+                kludged = True
+            if kludged:
                 raw = json.dumps(x)
         except:
             pass

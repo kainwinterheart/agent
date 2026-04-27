@@ -585,12 +585,14 @@ Revise the synthesized specification to address the review feedback while preser
         invocation_id_prefix: str,
     ) -> dict:
         extra_prompt = "\nPrefer concrete file-level changes, but avoid embedding exact code snippets unless the task is trivial and the code itself is the clearest representation of the change."
-        plan = run_json_agent(
+        plan = nudge(
+            100,
             self.tech_lead,
             f"TASK:\n{task}\nAPPROVED ARCHITECTURE:\n{json.dumps(arch)}" + extra_prompt,
             f"{invocation_id_prefix}-0",
             [self.subdir, str(self.domain_id)],
-        )
+            nsc=self.next_steps_cleanup,
+        )[-1]
 
         for i in range(MAX_PLAN_ITERS):
             plan_review = nudge(
@@ -628,12 +630,14 @@ Revise the synthesized specification to address the review feedback while preser
                     f"REVISE PLAN based on feedback:\n{json.dumps(plan_review)}"
                 )
 
-            plan = run_json_agent(
+            plan = nudge(
+                100,
                 self.tech_lead,
                 revision_prompt + extra_prompt,
                 f"{invocation_id_prefix}-{i + 1}",
                 [self.subdir, str(self.domain_id)],
-            )
+                nsc=self.next_steps_cleanup,
+            )[-1]
 
         plan.get("plan", {}).pop("reviewer_notes", None)
         markdown_document_generator(
@@ -682,7 +686,8 @@ Revise the synthesized specification to address the review feedback while preser
         extra_prompt = ""
         if tech_lead_final_review:
             extra_prompt = f"PREVIOUS FEEDBACK:\n{json.dumps(tech_lead_final_review)}\n"
-        return run_json_agent(
+        return nudge(
+            100,
             self.tech_lead_final,
             f"TASK:\n{task}\n"
             f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
@@ -693,7 +698,8 @@ Revise the synthesized specification to address the review feedback while preser
             "</aggregate_implementation_summary>\n",
             invocation_id,
             [self.subdir, str(self.domain_id)],
-        )
+            nsc=self.next_steps_cleanup,
+        )[-1]
 
     def revision_loops(
         self,
