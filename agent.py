@@ -58,7 +58,7 @@ class Agent:
         prev_session = self.session
         while True:
             next_prompt = prompt + last_error
-            if self.session:
+            if self.session or self.last_correct_response:
                 next_prompt += "\n\n"
                 if self.last_correct_response:
                     next_prompt += f"PREVIOUS RESPONSE: {json.dumps(self.last_correct_response)}\n\n"
