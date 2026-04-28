@@ -40,19 +40,13 @@ async def run_codex_async(
         cmd_args.extend(["codex", "exec"])
 
     with ExitStack() as stack:
-        if not sess_id:
+        if not sess_id and not os.environ.get("AC_AGENT_NO_SCHEMA"):
             schema_file = stack.enter_context(NamedTemporaryFile(delete_on_close=False))
             schema_file.write(json.dumps(schema, indent=2).encode("utf-8"))
             schema_file.close()
             cmd_args.append("--output-schema")
             cmd_args.append(schema_file.name)
         prompt_file = stack.enter_context(TemporaryFile(buffering=0))
-        if timeout:
-            prompt_file.write(
-                f"(allotted time: {timeout}, current time: {time.strftime('%Y-%m-%d %H:%M:%S')})\n\n".encode(
-                    "utf-8"
-                )
-            )
         prompt_file.write(prompt.encode("utf-8"))
         prompt_file.seek(0)
         process = await asyncio.create_subprocess_exec(
@@ -76,6 +70,7 @@ async def run_codex_async(
     if match := re.search(r"session id:\s*(\S*)", stderr):
         sess_id = match.group(1)
 
+    stdout = stdout.strip()
     if not stdout:
         raise RuntimeError("Empty output, likely timeout issue")
     return stdout, sess_id
