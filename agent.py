@@ -57,7 +57,7 @@ class Agent:
         last_error = ""
         prev_session = self.session
         while True:
-            next_prompt = prompt + last_error
+            next_prompt = last_error + prompt
             if self.session or self.last_correct_response:
                 next_prompt += "\n\n"
                 if self.last_correct_response:
@@ -78,17 +78,17 @@ class Agent:
                 raise
             except Exception as e:
                 logging.exception(f"Failed to run {self.name}, retrying...")
-                last_error = f"""\n\n
-<warning>
-**Previous attempt to read your response for the current task failed**:
+                last_error = f"""
+<feedback>
+Previous attempt to read your new response FAILED:
 <error>
 {e}
 </error>
 
 Output MUST be valid JSON only:
 {schema_to_example(self.schema)}
-</warning>
-"""
+</feedback>\n\n
+""".strip()
         return out
 
     def reset(self, session_suffix: Optional[str] = None) -> None:
