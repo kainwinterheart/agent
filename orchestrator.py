@@ -64,6 +64,7 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
         )
 
         self.design_cleanup = Agent(
@@ -100,6 +101,7 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
         )
         self.plan_review = Agent(
             "plan_review",
@@ -108,6 +110,7 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
         )
         self.code_review = Agent(
             "code_review",
@@ -116,6 +119,7 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="60m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
         )
 
         self.tech_lead_final = Agent(
@@ -125,6 +129,7 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="60m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
         )
         self.arch_final = Agent(
             "arch_final",
@@ -133,6 +138,7 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="60m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
         )
 
         self.decomposition = Agent(
@@ -149,6 +155,7 @@ class Orchestrator:
             self.subdir,
             ephemeral=True,
             timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
         )
 
     def review_ok(self, review: dict) -> bool:

@@ -27,6 +27,7 @@ class Agent:
         *,
         ephemeral: bool = False,
         timeout: bool = None,
+        resume: str = "YOU WERE INTERRUPTED, CONTINUE.\n\n",
     ) -> None:
         self.name = name
         self.subdir = subdir
@@ -37,6 +38,7 @@ class Agent:
         self.ephemeral = ephemeral
         self.timeout = timeout
         self.last_correct_response = None
+        self.resume_prompt = resume
 
     @property
     def session_key(self) -> Optional[str]:
@@ -57,7 +59,7 @@ class Agent:
         last_error = ""
         prev_session = self.session
         while True:
-            next_prompt = last_error + prompt
+            next_prompt = prompt + last_error
             if self.session or self.last_correct_response:
                 next_prompt += "\n\n"
                 if self.last_correct_response:
@@ -79,6 +81,8 @@ class Agent:
             except Exception as e:
                 logging.exception(f"Failed to run {self.name}, retrying...")
                 last_error = f"""
+{self.resume_prompt}
+
 <feedback>
 Previous attempt to read your new response FAILED:
 <error>
@@ -88,7 +92,7 @@ Previous attempt to read your new response FAILED:
 Output MUST be valid JSON only:
 {schema_to_example(self.schema)}
 </feedback>\n\n
-""".strip()
+"""
         return out
 
     def reset(self, session_suffix: Optional[str] = None) -> None:

@@ -1338,3 +1338,23 @@ Output MUST be valid JSON only:
 
 {no_tools}
 """
+
+REVIEWER_RESUME_PROMPT = """
+CRITICAL CONTINUATION REQUIREMENTS:
+1. You MUST resume from the previous review state provided in this conversation.
+2. You MUST explicitly reference prior findings, including:
+   * At least one previously identified issue OR
+   * The prior approval/rejection decision
+3. Your opening paragraph MUST:
+   * Summarize the previous review outcome (approved/rejected)
+   * Describe the state of unresolved vs resolved issues
+4. You MUST NOT:
+   * Restate the task
+   * Re-list files to inspect without referencing prior findings
+   * Start a fresh review pass
+5. If prior state is unavailable or incomplete, explicitly state that and proceed with best-effort continuation.
+
+INVALID RESPONSE CONDITIONS:
+* If the response restarts interrupted analysis from scratch → INVALID
+* If the response ignores previously identified issues → INVALID
+"""

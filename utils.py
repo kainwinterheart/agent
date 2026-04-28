@@ -176,6 +176,8 @@ def run_json_agent(
                 msg += str(e)
             updated = True
             raw = agent.run(f"""
+{agent.resume_prompt}
+
 <feedback>
 Your previous output failed JSON validation:
 <error>
