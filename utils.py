@@ -34,18 +34,17 @@ async def run_codex_async(
     cmd_args = []
     if timeout:
         cmd_args.extend(["timeout", timeout])
-    if sess_id:
-        cmd_args.extend(["codex", "exec", "resume", sess_id])
-    else:
-        cmd_args.extend(["codex", "exec"])
+    cmd_args.extend(["codex", "exec"])
 
     with ExitStack() as stack:
-        if not sess_id and not os.environ.get("AC_AGENT_NO_SCHEMA"):
+        if not os.environ.get("AC_AGENT_NO_SCHEMA"):
             schema_file = stack.enter_context(NamedTemporaryFile(delete_on_close=False))
             schema_file.write(json.dumps(schema, indent=2).encode("utf-8"))
             schema_file.close()
             cmd_args.append("--output-schema")
             cmd_args.append(schema_file.name)
+        if sess_id:
+            cmd_args.extend(["resume", sess_id])
         prompt_file = stack.enter_context(TemporaryFile(buffering=0))
         prompt_file.write(prompt.encode("utf-8"))
         prompt_file.seek(0)
