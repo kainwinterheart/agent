@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "main": "exec tsx ./main.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.90",
+    "commander": "^14.0.3",
+    "tsx": "^4.21.0"
+  }
+}
