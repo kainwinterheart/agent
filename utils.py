@@ -128,6 +128,12 @@ def run_json_agent(
             raw = f.read()
 
     if raw is None:
+        atomic_write(
+            os.path.join(
+                build_path(subdir, ".state"), f"{agent.name}_{invocation_id}.in"
+            ),
+            input_text,
+        )
         raw = agent.run(input_text)
         updated = True
     else:  # XXX
