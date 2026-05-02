@@ -400,7 +400,6 @@ Revise the synthesized specification to address the review feedback while preser
 
                 code_summary = self.code_implementation_phase(
                     plan,
-                    coder_task,
                     f"d{self.domain_id}-impl-{iteration}",
                 )
 
@@ -427,7 +426,6 @@ Revise the synthesized specification to address the review feedback while preser
 
                     code_summary = self.revision_loops(
                         tech_lead_final_review,
-                        coder_task,
                         plan,
                         f"d{self.domain_id}-impl-revision-{iteration}-{tl_iteration}",
                         reset_coder=self.should_reset(tech_lead_final_review),
@@ -656,12 +654,11 @@ Revise the synthesized specification to address the review feedback while preser
     def code_implementation_phase(
         self,
         plan: dict,
-        task: str,
         invocation_id_prefix: str,
     ) -> str:
         config = Configuration(
             initial_prompt_context=(
-                f"TASK:\n{task}\nAPPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n\n"
+                f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n\n"
                 "Implement the approved plan exactly as written.\n"
                 "The plan has already been reviewed and approved.\n"
                 "Do not question whether planned file creation or modification should occur."
@@ -669,7 +666,6 @@ Revise the synthesized specification to address the review feedback while preser
             coder_agent_ref=self.coder,
             review_agent_ref=self.code_review,
             max_iterations=MAX_CODE_ITERS,
-            task=task,
             plan=plan,
             nsc=self.next_steps_cleanup,
         )
@@ -711,7 +707,6 @@ Revise the synthesized specification to address the review feedback while preser
     def revision_loops(
         self,
         tech_lead_review: dict,
-        task: str,
         plan: dict,
         invocation_id_prefix: str,
         reset_coder: bool = False,
@@ -725,10 +720,9 @@ Revise the synthesized specification to address the review feedback while preser
             self.coder.reset(f"{invocation_id_prefix}-start")
 
             initial_prompt_context = (
-                f"TASK:\n{task}\n"
                 f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
                 f"TECH LEAD FEEDBACK:\n{json.dumps(tech_lead_review)}\n\n"
-                "Re-implement from a clean context using the task, plan, and tech lead feedback."
+                "Re-implement from a clean context using the plan and tech lead feedback."
             )
         else:
             initial_prompt_context = (
@@ -740,7 +734,6 @@ Revise the synthesized specification to address the review feedback while preser
             coder_agent_ref=self.coder,
             review_agent_ref=self.code_review,
             max_iterations=MAX_CODE_ITERS,
-            task=task,
             plan=plan,
             nsc=self.next_steps_cleanup,
         )

@@ -19,7 +19,6 @@ class Configuration:
     initial_prompt_context: str
     coder_agent_ref: object
     review_agent_ref: object
-    task: str
     plan: dict
 
     max_iterations: int = MAX_CODE_ITERS
@@ -108,10 +107,9 @@ class CodeExecutionFramework:
                 )
 
                 coder_prompt = (
-                    f"TASK:\n{config.task}\n"
                     f"PLAN:\n{json.dumps(config.plan)}\n"
                     f"REVIEW FEEDBACK:\n{json.dumps(review)}\n\n"
-                    "Re-implement from a clean context using the task, plan, and review feedback. "
+                    "Re-implement from a clean context using the plan and review feedback. "
                     "Do not assume prior implementation decisions are correct unless still justified."
                 )
             else:
