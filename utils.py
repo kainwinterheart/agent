@@ -33,7 +33,7 @@ async def run_codex_async(
 ) -> tuple[str, Optional[str]]:
     cmd_args = []
     if timeout:
-        cmd_args.extend(["timeout", timeout])
+        cmd_args.extend(["timeout", "-s", "9", timeout])
     cmd_args.extend(["codex", "exec"])
 
     with ExitStack() as stack:
