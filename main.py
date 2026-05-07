@@ -10,9 +10,9 @@
 # - Better logging (raw + parsed)
 # - Simple repo awareness (file tree passed to coder)
 
-import argparse
 import os
 import random
+import sys
 import time
 
 from orchestrator import Orchestrator
@@ -21,27 +21,58 @@ from orchestrator import Orchestrator
 # CLI
 # =========================
 
-if __name__ == "__main__":
+def read_stdin():
+    data = []
+    while True:
+        chunk = sys.stdin.read(4096)
+        if not chunk:
+            break
+        data.append(chunk)
+    return "".join(data).strip()
+
+
+def main():
     random.seed(time.time())
-
     ts = time.strftime("%Y-%m-%d_%H-%M-%S")
-    parser = argparse.ArgumentParser(description="Multi-Agent Codex CLI Orchestrator")
-    parser.add_argument("task", nargs="...", help="Task description")
-    parser.add_argument(
-        "--dir",
-        type=str,
-        default=f".agent-{ts}",
-        help="path for the state store",
-    )
 
-    args = parser.parse_args()
-    task = " ".join(args.task) if args.task else ""
+    # Manual argument parsing for predictable positional handling
+    args = sys.argv[1:]
 
-    if task:
-        os.makedirs(args.dir, exist_ok=True)
-        task_file = os.path.join(args.dir, f"{ts}-task.txt")
-        with open(task_file, "w") as f:
-            f.write(task)
+    if args and args[0] == "exec":
+        args = args[1:]
+    elif args and args[0] in ("-h", "--help"):
+        print("usage: main.py exec [resume <session_id>]", file=sys.stderr)
+        sys.exit(0)
+    else:
+        print("usage: main.py exec [resume <session_id>]", file=sys.stderr)
+        sys.exit(1)
 
-    orch = Orchestrator(task, args.dir)
+    is_resume = False
+    session_id = None
+
+    if args and args[0] == "resume":
+        is_resume = True
+        args = args[1:]
+        if not args:
+            print("Missing session_id", file=sys.stderr)
+            sys.exit(1)
+        session_id = args[0]
+
+    subdir = session_id if is_resume else f".agent-{ts}"
+
+    # Print session id to stderr (same prefix as codex/claudex tools)
+    print("session id: " + subdir, file=sys.stderr)
+
+    task = read_stdin()
+
+    os.makedirs(subdir, exist_ok=True)
+    task_file = os.path.join(subdir, f"{ts}-task.txt")
+    with open(task_file, "w") as f:
+        f.write(task)
+
+    orch = Orchestrator(task, subdir)
     orch.run()
+
+
+if __name__ == "__main__":
+    main()
