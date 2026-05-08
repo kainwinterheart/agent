@@ -11,7 +11,10 @@ if [ ! -z "${AC_AGENT_NAME}" ]; then
     if [ "${AC_AGENT_NAME}" != 'coder' ] || [ ! -z "${isolate_coder}" ]; then
         spec=""
         spec="${spec} -v /tmp:/tmp:O"
-        spec="${spec} -v ${HOME}:${HOME}:O"
+
+        if [ $(realpath "${HOME}") != $(realpath "${PWD}") ]; then
+            spec="${spec} -v ${HOME}:${HOME}:O"
+        fi
 
         pwd_mount_suffix=''
         if [ "${AC_AGENT_NAME}" != 'coder' ]; then
