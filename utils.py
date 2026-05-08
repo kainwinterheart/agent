@@ -334,12 +334,190 @@ def markdown_document_generator(
                         markdown_content += f"### Step {id_val}\n\n"
                         markdown_content += f"{description}\n\n"
 
+    elif stage_name == "investigation_plan":
+        workstreams = content.get("workstreams", [])
+        markdown_content += "# Investigation Plan\n\n"
+        for N, ws in enumerate(workstreams):
+            markdown_content += f"## Workstream {N}\n\n"
+            objective = ws.get("objective", "")
+            if objective:
+                markdown_content += f"{objective}\n\n"
+            data_sources = ws.get("data_sources", [])
+            if data_sources:
+                markdown_content += "Data Sources:\n"
+                for ds in data_sources:
+                    markdown_content += f"* {ds}\n"
+                markdown_content += "\n"
+            hypotheses = ws.get("hypotheses", [])
+            if hypotheses:
+                markdown_content += "Hypotheses:\n"
+                for h in hypotheses:
+                    markdown_content += f"* {h}\n"
+                markdown_content += "\n"
+            methods = ws.get("investigation_methods", [])
+            if methods:
+                markdown_content += "Investigation Methods:\n"
+                for m in methods:
+                    markdown_content += f"* {m}\n"
+                markdown_content += "\n"
+            deliverables = ws.get("expected_deliverables", [])
+            if deliverables:
+                markdown_content += "Expected Deliverables:\n"
+                for d in deliverables:
+                    markdown_content += f"* {d}\n"
+                markdown_content += "\n"
+
+    elif stage_name.startswith("investigation_workstream_"):
+        markdown_content += "# Investigation Findings\n\n"
+        objective = content.get("workstream_objective", "")
+        if objective:
+            markdown_content += f"{objective}\n\n"
+        conclusions = content.get("conclusions", [])
+        if conclusions:
+            markdown_content += "Conclusions:\n"
+            for c in conclusions:
+                markdown_content += f"* {c}\n"
+            markdown_content += "\n"
+        evidence = content.get("supporting_evidence", [])
+        if evidence:
+            markdown_content += "Supporting Evidence:\n"
+            for item in evidence:
+                if isinstance(item, dict):
+                    etype = item.get("evidence_type", "")
+                    edesc = item.get("evidence_description", "")
+                    sref = item.get("source_reference", "")
+                    markdown_content += f"* **[{etype}]** {edesc} (ref: {sref})\n"
+                else:
+                    markdown_content += f"* {item}\n"
+            markdown_content += "\n"
+        confidence = content.get("confidence_level", "")
+        if confidence:
+            markdown_content += f"Confidence Level: {confidence}\n\n"
+        unanswered = content.get("unanswered_questions", [])
+        if unanswered:
+            markdown_content += "Unanswered Questions:\n"
+            for q in unanswered:
+                markdown_content += f"* {q}\n"
+            markdown_content += "\n"
+
+    elif stage_name == "investigation_report_final":
+        markdown_content += "# Investigation Report\n\n"
+        exec_summary = content.get("executive_summary", "")
+        if exec_summary:
+            markdown_content += f"{exec_summary}\n\n"
+
+        rca = content.get("root_cause_analysis")
+        if rca and isinstance(rca, dict):
+            markdown_content += "## Root Cause Analysis\n\n"
+            primary = rca.get("primary_cause")
+            if primary:
+                markdown_content += f"### Primary Cause\n\n{primary}\n\n"
+            contrib = rca.get("contributing_factors", [])
+            if contrib:
+                markdown_content += "### Contributing Factors\n\n"
+                for f in contrib:
+                    markdown_content += f"* {f}\n"
+                markdown_content += "\n"
+            trail = rca.get("evidence_trail", [])
+            if trail:
+                markdown_content += "### Evidence Trail\n\n"
+                for item in trail:
+                    markdown_content += f"* {item}\n"
+                markdown_content += "\n"
+
+        timeline = content.get("timeline_reconstruction", [])
+        if timeline:
+            markdown_content += "## Timeline Reconstruction\n\n"
+            for entry in timeline:
+                if isinstance(entry, dict):
+                    ts = entry.get("timestamp", "")
+                    evt = entry.get("event", "")
+                    markdown_content += f"### {ts}\n\n{evt}\n\n"
+
+        impact = content.get("customer_impact_assessment")
+        if impact and isinstance(impact, dict):
+            markdown_content += "## Customer Impact Assessment\n\n"
+            affected = impact.get("affected_users")
+            if affected:
+                markdown_content += f"### Affected Users\n\n{affected}\n\n"
+            severity = impact.get("severity")
+            if severity:
+                markdown_content += f"### Severity\n\n{severity}\n\n"
+            duration = impact.get("duration")
+            if duration:
+                markdown_content += f"### Duration\n\n{duration}\n\n"
+
+        correlations = content.get("correlation_findings", [])
+        if correlations:
+            markdown_content += "## Correlation Findings\n\n"
+            for item in correlations:
+                if isinstance(item, dict):
+                    obs = item.get("observation", "")
+                    strength = item.get("correlation_strength", "")
+                    causal = item.get("causal_claim", "")
+                    markdown_content += f"* **Observation**: {obs}\n"
+                    if strength:
+                        markdown_content += f"  **Strength**: {strength}\n"
+                    if causal:
+                        markdown_content += f"  **Causal Claim**: {causal}\n"
+                    markdown_content += "\n"
+
+        hyp_results = content.get("hypothesis_test_results", [])
+        if hyp_results:
+            markdown_content += "## Hypothesis Test Results\n\n"
+            for item in hyp_results:
+                if isinstance(item, dict):
+                    hyp = item.get("hypothesis", "")
+                    test = item.get("test_performed", "")
+                    result = item.get("result", "")
+                    conclusion = item.get("conclusion", "")
+                    markdown_content += f"* **Hypothesis**: {hyp}\n"
+                    if test:
+                        markdown_content += f"  **Test**: {test}\n"
+                    if result:
+                        markdown_content += f"  **Result**: {result}\n"
+                    if conclusion:
+                        markdown_content += f"  **Conclusion**: {conclusion}\n"
+                    markdown_content += "\n"
+
+        gaps = content.get("known_gaps_and_unknowns", [])
+        if gaps:
+            markdown_content += "## Known Gaps and Unknowns\n\n"
+            for g in gaps:
+                markdown_content += f"* {g}\n"
+            markdown_content += "\n"
+
+        recs = content.get("recommendations", [])
+        if recs:
+            markdown_content += "## Recommendations\n\n"
+            for item in recs:
+                if isinstance(item, dict):
+                    priority = item.get("priority", "")
+                    action = item.get("action", "")
+                    rationale = item.get("rationale", "")
+                    markdown_content += f"* **[{priority}]** {action}"
+                    if rationale:
+                        markdown_content += f" — {rationale}"
+                    markdown_content += "\n"
+                else:
+                    markdown_content += f"* {item}\n"
+            markdown_content += "\n"
+
+    elif stage_name == "investigation_classification":
+        markdown_content += "# Investigation Classification\n\n"
+        task_type = content.get("type", "unknown")
+        reasoning = content.get("reasoning", "")
+        markdown_content += f"**Type**: {task_type}\n\n"
+        if reasoning:
+            markdown_content += f"**Reasoning**: {reasoning}\n\n"
+
     log("MARKDOWN", f"Writing {filepath}...")
     dir_path = os.path.dirname(filepath)
     if dir_path:
         os.makedirs(dir_path, exist_ok=True)
     with open(filepath, "w") as f:
         f.write(markdown_content)
+    return filepath
 
 
 async def read_stderr_stream_task(process):

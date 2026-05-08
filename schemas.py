@@ -1028,3 +1028,383 @@ DESIGN_TO_IMPLEMENT_PHRASING_SCHEMA = {
     },
     "required": ["text"],
 }
+
+INVESTIGATION_CLASSIFIER_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "type": {
+            "type": "string",
+            "enum": ["investigation", "engineering"],
+            "description": "classification type: 'investigation' for exploratory/research tasks, 'engineering' for implementation tasks",
+        },
+        "reasoning": {
+            "type": "string",
+            "description": "brief explanation of why this task was classified as investigation or engineering",
+        },
+    },
+    "required": ["type", "reasoning"],
+}
+
+INVESTIGATOR_PLAN_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "workstreams": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "objective": {
+                        "type": "string",
+                        "description": "clear statement of what this workstream aims to determine",
+                    },
+                    "data_sources": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": "specific logs, metrics, files, or systems to examine",
+                        },
+                    },
+                    "hypotheses": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": "testable hypotheses to investigate",
+                        },
+                    },
+                    "investigation_methods": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": "specific methods or techniques for gathering evidence",
+                        },
+                    },
+                    "expected_deliverables": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": "what this workstream should produce",
+                        },
+                    },
+                },
+                "required": [
+                    "objective",
+                    "data_sources",
+                    "hypotheses",
+                    "investigation_methods",
+                    "expected_deliverables",
+                ],
+            },
+        },
+    },
+    "required": ["workstreams"],
+}
+
+INVESTIGATOR_FINDINGS_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "workstream_objective": {
+            "type": "string",
+            "description": "which workstream objective this finding addresses",
+        },
+        "conclusions": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "findings derived from evidence",
+            },
+        },
+        "supporting_evidence": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "evidence_type": {
+                        "type": "string",
+                        "description": "category of evidence (e.g., log_entry, metric_value, code_snippet, user_report)",
+                    },
+                    "evidence_description": {
+                        "type": "string",
+                        "description": "detailed description of the evidence",
+                    },
+                    "source_reference": {
+                        "type": "string",
+                        "description": "reference to the source where this evidence was found",
+                    },
+                },
+                "required": [
+                    "evidence_type",
+                    "evidence_description",
+                    "source_reference",
+                ],
+            },
+            "description": "specific evidence backing each conclusion",
+        },
+        "confidence_level": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "confidence in the conclusions based on evidence quality and quantity",
+        },
+        "unanswered_questions": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "questions that remain after investigation",
+            },
+        },
+    },
+    "required": [
+        "workstream_objective",
+        "conclusions",
+        "supporting_evidence",
+        "confidence_level",
+        "unanswered_questions",
+    ],
+}
+
+INVESTIGATION_REPORT_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "executive_summary": {
+            "type": "string",
+            "description": "high-level summary of investigation findings for non-technical stakeholders",
+        },
+        "root_cause_analysis": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "primary_cause": {
+                    "type": "string",
+                    "description": "the single most important underlying cause",
+                },
+                "contributing_factors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "description": "secondary factors that contributed to the issue",
+                    },
+                },
+                "evidence_trail": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "description": "step in the evidence chain",
+                    },
+                    "description": "logical chain of evidence connecting root cause to symptoms",
+                },
+            },
+            "required": ["primary_cause", "contributing_factors", "evidence_trail"],
+        },
+        "timeline_reconstruction": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "timestamp": {
+                        "type": "string",
+                        "description": "when the event occurred",
+                    },
+                    "event": {
+                        "type": "string",
+                        "description": "what happened at that time",
+                    },
+                },
+                "required": ["timestamp", "event"],
+            },
+            "description": "chronological account of events leading to and surrounding the issue",
+        },
+        "customer_impact_assessment": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "affected_users": {
+                    "type": "string",
+                    "description": "estimate of how many users/customers were impacted",
+                },
+                "severity": {
+                    "type": "string",
+                    "description": "overall severity of customer impact",
+                },
+                "duration": {
+                    "type": "string",
+                    "description": "how long the impact lasted",
+                },
+            },
+            "required": ["affected_users", "severity", "duration"],
+        },
+        "correlation_findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "observation": {
+                        "type": "string",
+                        "description": "what correlation was observed",
+                    },
+                    "correlation_strength": {
+                        "type": "string",
+                        "enum": ["weak", "moderate", "strong"],
+                        "description": "how confident we are in this correlation",
+                    },
+                    "causal_claim": {
+                        "type": "string",
+                        "description": "whether this correlation implies causation and to what extent",
+                    },
+                },
+                "required": ["observation", "correlation_strength", "causal_claim"],
+            },
+            "description": "correlations discovered between variables or events",
+        },
+        "hypothesis_test_results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "hypothesis": {
+                        "type": "string",
+                        "description": "the hypothesis that was tested",
+                    },
+                    "test_performed": {
+                        "type": "string",
+                        "description": "description of the test method used",
+                    },
+                    "result": {
+                        "type": "string",
+                        "enum": ["confirmed", "refuted", "inconclusive"],
+                        "description": "outcome of the hypothesis test",
+                    },
+                    "conclusion": {
+                        "type": "string",
+                        "description": "interpretation of the result",
+                    },
+                },
+                "required": ["hypothesis", "test_performed", "result", "conclusion"],
+            },
+            "description": "results of hypothesis testing during the investigation",
+        },
+        "known_gaps_and_unknowns": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "areas where evidence is incomplete or findings are uncertain",
+            },
+            "description": "list of known gaps and unknowns",
+        },
+        "recommendations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"],
+                        "description": "urgency of the recommendation",
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "what should be done",
+                    },
+                    "rationale": {
+                        "type": "string",
+                        "description": "why this recommendation follows from the findings",
+                    },
+                },
+                "required": ["priority", "action", "rationale"],
+            },
+            "description": "actionable recommendations based on findings",
+        },
+    },
+    "required": [
+        "executive_summary",
+        "root_cause_analysis",
+        "timeline_reconstruction",
+        "customer_impact_assessment",
+        "correlation_findings",
+        "hypothesis_test_results",
+        "known_gaps_and_unknowns",
+        "recommendations",
+    ],
+}
+
+ISSUE_ITEM = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+        },
+        "severity_reason": {
+            "type": "string",
+            "description": "short explanation of why current severity level was chosen",
+        },
+        "category": {
+            "type": "string",
+            "description": "category of the issue (e.g., implementation, design, testing)",
+        },
+        "message": {"type": "string", "description": "issue description"},
+        "next_actions": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "description": "specific actionable fix",
+            },
+        },
+    },
+    "required": [
+        "severity",
+        "severity_reason",
+        "category",
+        "message",
+        "next_actions",
+    ],
+}
+
+BASE_REVIEW_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        **approved,
+        "should_reset": {
+            "type": "boolean",
+        },
+        "reset_reason": {
+            "type": "string",
+            "description": "short explanation of why prior context is no longer trustworthy",
+        },
+        "issues": {
+            "type": "array",
+            "items": ISSUE_ITEM,
+            "description": "list of issues found",
+        },
+        "next_steps": next_steps,
+    },
+    "required": [
+        "approved",
+        "resolved_issues",
+        "approved_confidence",
+        "approved_reason",
+        "should_reset",
+        "reset_reason",
+        "issues",
+        "next_steps",
+    ],
+}
+
+GAP_ANALYSIS_REVIEW_SCHEMA = dict(BASE_REVIEW_SCHEMA)
+
+FACT_CHECKING_REVIEW_SCHEMA = dict(BASE_REVIEW_SCHEMA)

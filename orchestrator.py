@@ -157,6 +157,54 @@ class Orchestrator:
             timeout="30m",
             resume=prompts.REVIEWER_RESUME_PROMPT,
         )
+        self.investigation_classifier = Agent(
+            "investigation_classifier",
+            prompts.INVESTIGATION_CLASSIFIER_PROMPT,
+            schemas.INVESTIGATION_CLASSIFIER_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="10m",
+        )
+        self.investigator_planner = Agent(
+            "investigator_planner",
+            prompts.INVESTIGATOR_PLANNER_PROMPT,
+            schemas.INVESTIGATOR_PLAN_SCHEMA,
+            self.subdir,
+            timeout="40m",
+        )
+        self.investigator_executor = Agent(
+            "investigator_executor",
+            prompts.INVESTIGATOR_EXECUTOR_PROMPT,
+            schemas.INVESTIGATOR_FINDINGS_SCHEMA,
+            self.subdir,
+            timeout="60m",
+        )
+        self.synthesis_agent = Agent(
+            "synthesis_agent",
+            prompts.SYNTHESIS_PROMPT,
+            schemas.INVESTIGATION_REPORT_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="30m",
+        )
+        self.gap_analysis_reviewer = Agent(
+            "gap_analysis_reviewer",
+            prompts.GAP_ANALYSIS_REVIEW_PROMPT,
+            schemas.GAP_ANALYSIS_REVIEW_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
+        )
+        self.fact_checking_reviewer = Agent(
+            "fact_checking_reviewer",
+            prompts.FACT_CHECKING_REVIEW_PROMPT,
+            schemas.FACT_CHECKING_REVIEW_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
+        )
 
     def review_ok(self, review: dict) -> bool:
         approved = review.get("approved", False)
@@ -350,8 +398,31 @@ Revise the synthesized specification to address the review feedback while preser
             self.watcher.stop()
 
     def _run(self):
-        root_task = wrap_text(self.pm_transformation_workflow())
+        pm_output = self.pm_transformation_workflow()
+        root_task = wrap_text(pm_output)
 
+        # Classify task as investigation vs engineering
+        classification = run_json_agent(
+            self.investigation_classifier,
+            f"REFINED TASK SPECIFICATION:\n{root_task}",
+            "investigation-classifier",
+            [self.subdir],
+        )
+
+        task_type = classification.get("type", "engineering")
+        log("CLASSIFICATION", f"Task classified as: {task_type}")
+        log("CLASSIFICATION", f"Reasoning: {classification.get('reasoning', '')}")
+
+        # Persist classification decision as markdown
+        markdown_document_generator(classification, "investigation_classification", [self.subdir])
+
+        if task_type == "investigation":
+            # Run the investigation loop (documentation-only, no code changes)
+            report = self.investigation_workflow(pm_output)
+            print(report)
+            return
+
+        # Engineering path: proceed with decomposition + implementation loop
         decomposition = self.decomposition_workflow(root_task)
 
         domains = decomposition.get("decomposition", {}).get("domains", [])
@@ -511,6 +582,188 @@ Revise the synthesized specification to address the review feedback while preser
         )
 
         return decomposition_result
+
+    def investigation_workflow(self, task: str) -> str:
+        wrapped_task = wrap_text(task)
+
+        # ========== PHASE 1: Planning ==========
+        plan = nudge(
+            MAX_PLAN_ITERS,
+            self.investigator_planner,
+            prompt=f"TASK:\n{wrapped_task}",
+            invocation_id_prefix="investigation-plan",
+            subdir=[self.subdir],
+            nsc=self.next_steps_cleanup,
+        )[-1]
+
+        for i in range(MAX_PLAN_ITERS):
+            gap_review = run_json_agent(
+                self.gap_analysis_reviewer,
+                f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
+                f"investigation-gap-review-{i}",
+                [self.subdir],
+            )
+            fact_review = run_json_agent(
+                self.fact_checking_reviewer,
+                f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
+                f"investigation-fact-review-{i}",
+                [self.subdir],
+            )
+
+            if self.review_ok(gap_review) and self.review_ok(fact_review):
+                break
+
+            combined_review = {"gap_review": gap_review, "fact_review": fact_review}
+
+            if self.should_reset(gap_review) or self.should_reset(fact_review):
+                log(
+                    "SYSTEM",
+                    f"Resetting investigator planner context: {combined_review.get('reset_reason', '')}",
+                )
+                self.investigator_planner.reset(f"investigation-plan-{i}")
+
+            revision_prompt = (
+                f"TASK:\n{wrapped_task}\n"
+                f"PREVIOUS PLAN:\n{json.dumps(plan)}\n"
+                f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
+                "Rebuild the investigation plan from scratch using the original task and review feedback."
+            )
+
+            plan = nudge(
+                MAX_PLAN_ITERS,
+                self.investigator_planner,
+                revision_prompt,
+                f"investigation-plan-{i + 1}",
+                [self.subdir],
+                nsc=self.next_steps_cleanup,
+            )[-1]
+
+        markdown_document_generator(plan, "investigation_plan", [self.subdir])
+
+        workstreams = plan.get("workstreams", [])
+
+        if not workstreams:
+            return "## Executive Summary\n\nNo investigation plan was produced."
+
+        # ========== PHASE 2: Workstream Execution ==========
+        findings_list = []
+
+        for N, workstream in enumerate(workstreams):
+            if not workstream.get("hypotheses") or not workstream.get("data_sources"):
+                continue
+
+            findings = nudge(
+                MAX_PLAN_ITERS,
+                self.investigator_executor,
+                prompt=f"TASK:\n{wrapped_task}\nWORKSTREAM:\n{json.dumps(workstream)}",
+                invocation_id_prefix=f"investigation-workstream-{N}",
+                subdir=[self.subdir],
+                nsc=self.next_steps_cleanup,
+            )[-1]
+
+            for i in range(MAX_PLAN_ITERS):
+                gap_review = run_json_agent(
+                    self.gap_analysis_reviewer,
+                    f"TASK:\n{wrapped_task}\nWORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
+                    f"investigation-gap-review-ws-{N}-{i}",
+                    [self.subdir],
+                )
+                fact_review = run_json_agent(
+                    self.fact_checking_reviewer,
+                    f"TASK:\n{wrapped_task}\nWORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
+                    f"investigation-fact-review-ws-{N}-{i}",
+                    [self.subdir],
+                )
+
+                if self.review_ok(gap_review) and self.review_ok(fact_review):
+                    break
+
+                combined_review = {"gap_review": gap_review, "fact_review": fact_review}
+
+                if self.should_reset(gap_review) or self.should_reset(fact_review):
+                    log(
+                        "SYSTEM",
+                        f"Resetting investigator executor context: {combined_review.get('reset_reason', '')}",
+                    )
+                    self.investigator_executor.reset(
+                        f"investigation-workstream-{N}-{i}"
+                    )
+
+                revision_prompt = (
+                    f"TASK:\n{wrapped_task}\n"
+                    f"WORKSTREAM:\n{json.dumps(workstream)}\n"
+                    f"PREVIOUS FINDINGS:\n{json.dumps(findings)}\n"
+                    f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
+                    "Revise the investigation findings for this workstream."
+                )
+
+                findings = nudge(
+                    MAX_PLAN_ITERS,
+                    self.investigator_executor,
+                    revision_prompt,
+                    f"investigation-workstream-{N}-{i + 1}",
+                    [self.subdir],
+                    nsc=self.next_steps_cleanup,
+                )[-1]
+
+            markdown_document_generator(
+                findings, f"investigation_workstream_{N}", [self.subdir]
+            )
+            findings_list.append(findings)
+
+        # ========== PHASE 3: Synthesis ==========
+        report = nudge(
+            MAX_PLAN_ITERS,
+            self.synthesis_agent,
+            prompt=f"TASK:\n{wrapped_task}\nFINDINGS:\n{json.dumps(findings_list)}",
+            invocation_id_prefix="investigation-synthesis",
+            subdir=[self.subdir],
+            nsc=self.next_steps_cleanup,
+        )[-1]
+
+        for i in range(MAX_PLAN_ITERS):
+            gap_review = run_json_agent(
+                self.gap_analysis_reviewer,
+                f"TASK:\n{wrapped_task}\nFINDINGS:\n{json.dumps(findings_list)}\nREPORT TO REVIEW:\n{json.dumps(report)}",
+                f"investigation-gap-review-final-{i}",
+                [self.subdir],
+            )
+            fact_review = run_json_agent(
+                self.fact_checking_reviewer,
+                f"TASK:\n{wrapped_task}\nFINDINGS:\n{json.dumps(findings_list)}\nREPORT TO REVIEW:\n{json.dumps(report)}",
+                f"investigation-fact-review-final-{i}",
+                [self.subdir],
+            )
+
+            if self.review_ok(gap_review) and self.review_ok(fact_review):
+                break
+
+            combined_review = {"gap_review": gap_review, "fact_review": fact_review}
+
+            # NOTE: synthesis_agent is ephemeral - do NOT call self.synthesis_agent.reset()
+            # Ephemeral agents auto-reset via run_json_agent (utils.py:163-164)
+
+            revision_prompt = (
+                f"TASK:\n{wrapped_task}\n"
+                f"PREVIOUS REPORT:\n{json.dumps(report)}\n"
+                f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
+                "Rebuild the investigation report from scratch using the task and review feedback."
+            )
+
+            report = nudge(
+                MAX_PLAN_ITERS,
+                self.synthesis_agent,
+                revision_prompt,
+                f"investigation-synthesis-{i + 1}",
+                [self.subdir],
+                nsc=self.next_steps_cleanup,
+            )[-1]
+
+        report_filepath = markdown_document_generator(report, "investigation_report_final", [self.subdir])
+
+        # Read and return the markdown file contents (single source of truth for formatting)
+        with open(report_filepath, "r") as f:
+            return f.read()
 
     def architecture_design_phase(
         self,

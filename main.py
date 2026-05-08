@@ -21,6 +21,7 @@ from orchestrator import Orchestrator
 # CLI
 # =========================
 
+
 def read_stdin():
     data = []
     while True:
