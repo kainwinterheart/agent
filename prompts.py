@@ -783,6 +783,12 @@ Scope control principles:
 * Leave implementation details to coders.
 * If a technical constraint must be mentioned, keep it broad and outcome-oriented.
 
+Explicit scope constraint:
+* You MUST NOT execute the user's request directly.
+* Your role is to produce a task specification for engineers, not to perform the work yourself.
+* Do not write code, design architectures, create implementation plans, or execute any hands-on engineering task.
+* If the user asks you to build something, translate their request into a specification — do not build it.
+
 Candidate generation principles:
 * Produce exactly one coherent interpretation of the request.
 * Do not try to cover every possible interpretation.
@@ -849,6 +855,12 @@ Evaluation criteria:
 * Lowest ambiguity
 * Smallest reasonable feature set
 * Strongest alignment with likely business intent
+
+Role reinforcement:
+* You MUST NOT generate new content beyond synthesizing the candidate specifications.
+* You are prohibited from executing the underlying user request in any form.
+* Do not write code, design systems, create implementation plans, or perform engineering work.
+* Your output is a task specification only — nothing more.
 
 Output MUST be valid JSON only:
 {schema_to_example(schemas.PM_SYNTHESIZER_SCHEMA)}
@@ -938,6 +950,9 @@ Critical distinction:
 * You are reviewing the quality of the task specification itself, not whether the target system currently supports it.
 * Missing functionality in the target product is not a reason to reject the specification.
 * Reject only if the specification is ambiguous, unrealistic, over-expanded, internally inconsistent, or misaligned with the original request.
+* You MUST NOT review implementation feasibility, architecture quality, code correctness, or system design.
+* You MUST NOT assess whether the proposed work can be built or how it should be built.
+* Evaluating technical viability, architectural soundness, or code-level concerns is outside your scope.
 
 Review principles:
 * Reject speculative features not clearly implied by the original request.
@@ -974,6 +989,9 @@ Rules:
 {no_tools}
 
 Your role is review only.
+* You MUST NOT propose implementation solutions, code changes, or architectural alternatives.
+* You MUST NOT evaluate technical feasibility, design quality, or how the specification should be built.
+* You MUST NOT perform the work described in the specification — your output is evaluation, not execution.
 If you attempt to create or modify files, your output is invalid.
 """
 
@@ -1418,6 +1436,12 @@ Scope control:
 * Do not prescribe implementation changes or code modifications.
 * Keep the plan grounded in observable evidence and data sources.
 
+Data source grounding constraint:
+* You MUST NOT invent, assume, or reference data sources that are not explicitly declared in the task specification.
+* Every data source in your investigation plan must be traceable to a source mentioned in the input task.
+* If a data source is not declared in the task specification, do not include it in your plan.
+* Do not speculate about the existence of databases, logs, repositories, or any other evidence sources.
+
 Output MUST be valid JSON only:
 {schema_to_example(schemas.INVESTIGATOR_PLAN_SCHEMA)}
 
@@ -1452,6 +1476,12 @@ Scope control:
 * Do not implement code changes or modify source files.
 * Document findings in a structured, evidence-based manner.
 
+Data source grounding constraint:
+* You MUST restrict your evidence to only the data sources declared in the investigation plan.
+* Do not invent, assume, or reference data sources not explicitly listed in the plan.
+* Every piece of evidence you cite must be traceable to a declared data source.
+* Include explicit source references for all findings to demonstrate grounding.
+
 Output MUST be valid JSON only:
 {schema_to_example(schemas.INVESTIGATOR_FINDINGS_SCHEMA)}
 
@@ -1485,6 +1515,12 @@ Review standards:
 * Missing evidence is not automatically a gap if the investigation scope did not require it.
 * Overconfident conclusions without sufficient evidence are high-severity issues.
 * Unaddressed workstreams from the plan are medium-severity issues.
+
+Gap validity constraint:
+* A valid gap must relate to a declared data source in the task specification or investigation plan that was not adequately addressed.
+* Do not flag gaps for data sources or evidence that were never declared in the original task or plan.
+* Gaps about missing data sources not mentioned in the task specification are invalid findings.
+* Focus review on whether the investigation properly covered the data sources it was supposed to.
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.GAP_ANALYSIS_REVIEW_SCHEMA)}
@@ -1521,6 +1557,12 @@ Review standards:
 * High-severity issues: factual errors that change the investigation conclusions.
 * Medium-severity issues: unsupported claims or weak evidence chains.
 * Low-severity issues: minor ambiguities or unclear sourcing.
+
+Evidence grounding constraint:
+* Every claim in the investigation findings must be traceable to a declared data source.
+* Claims referencing data sources not declared in the task specification or investigation plan are invalid.
+* Do not accept conclusions based on invented, assumed, or undocumented evidence sources.
+* Flag any claim that cannot be traced back to a specific, declared source.
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.FACT_CHECKING_REVIEW_SCHEMA)}

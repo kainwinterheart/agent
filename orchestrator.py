@@ -276,15 +276,13 @@ class Orchestrator:
                 "Bias toward identifying the user's likely business goal and ensuring the specification solves that goal with the smallest possible feature set.",
             ),
         ]:
-            candidate = nudge(
-                100,
+            candidate = run_json_agent(
                 self.product_manager,
                 f"USER REQUEST:\n{self.task}\n\n"
                 f"TASK:\nProduce a focused engineering-ready specification.\n{prompt}",
                 f"pm-spec-candidate-{idx}",
                 [self.subdir],
-                nsc=self.next_steps_cleanup,
-            )[-1]
+            )
 
             candidates.append(candidate)
 

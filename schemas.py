@@ -645,7 +645,6 @@ PRODUCT_MANAGER_SCHEMA = {
                 "description": "if user request states specific facts - extract them, and put them here",
             },
         },
-        "next_steps": next_steps,
     },
     "required": [
         "task_specification",
@@ -654,7 +653,6 @@ PRODUCT_MANAGER_SCHEMA = {
         "files",
         "proper_nouns",
         "facts",
-        "next_steps",
     ],
 }
 
