@@ -351,7 +351,7 @@ Revise the synthesized specification to address the review feedback while preser
                     break
             rephrased_task["speculative_expansions"] = clean_speculative_expansions
 
-        markdown_document_generator(
+        pm_filepath = markdown_document_generator(
             rephrased_task, "product_manager_final", [self.subdir]
         )
         out = rephrased_task["task_specification"]
@@ -385,7 +385,7 @@ Revise the synthesized specification to address the review feedback while preser
             out += "\n\nOut of scope:\n"
             for speculative_expansion in speculative_expansions:
                 out += f"* {speculative_expansion}\n"
-        return out
+        return out, pm_filepath
 
     def run(self):
         self.watcher = WatchmanBackgroundWatcher(self.subdir)
@@ -396,7 +396,7 @@ Revise the synthesized specification to address the review feedback while preser
             self.watcher.stop()
 
     def _run(self):
-        pm_output = self.pm_transformation_workflow()
+        pm_output, pm_filepath = self.pm_transformation_workflow()
         root_task = wrap_text(pm_output)
 
         # Classify task as investigation vs engineering
@@ -459,12 +459,14 @@ Revise the synthesized specification to address the review feedback while preser
                     final_feedback,
                     task,
                     f"d{self.domain_id}-arch-{iteration}",
+                    pm_filepath,
                 )
 
                 plan = self.plan_creation_phase(
                     arch,
                     coder_task,
                     f"d{self.domain_id}-plan-{iteration}",
+                    pm_filepath,
                 )
 
                 code_summary = self.code_implementation_phase(
@@ -483,6 +485,7 @@ Revise the synthesized specification to address the review feedback while preser
                         coder_task,
                         tech_lead_final_review,
                         f"d{self.domain_id}-tl-review-{iteration}-{tl_iteration}",
+                        pm_filepath,
                     )
 
                     if self.review_ok(tech_lead_final_review):
@@ -646,31 +649,34 @@ Revise the synthesized specification to address the review feedback while preser
         # ========== PHASE 2: Workstream Execution ==========
         findings_list = []
 
-        for N, workstream in enumerate(workstreams):
+        for N, workstream in enumerate(workstreams, 1):
+            self.domain_id = N
+            session_suffix = f"d{self.domain_id}-start"
+            self.investigator_executor.reset(session_suffix)
             if not workstream.get("hypotheses") or not workstream.get("data_sources"):
                 continue
 
             findings = nudge(
                 MAX_PLAN_ITERS,
                 self.investigator_executor,
-                prompt=f"TASK:\n{wrapped_task}\nWORKSTREAM:\n{json.dumps(workstream)}",
+                prompt=f"WORKSTREAM:\n{json.dumps(workstream)}",
                 invocation_id_prefix=f"investigation-workstream-{N}",
-                subdir=[self.subdir],
+                subdir=[self.subdir, str(self.domain_id)],
                 nsc=self.next_steps_cleanup,
             )[-1]
 
             for i in range(MAX_PLAN_ITERS):
                 gap_review = run_json_agent(
                     self.gap_analysis_reviewer,
-                    f"TASK:\n{wrapped_task}\nWORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
+                    f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
                     f"investigation-gap-review-ws-{N}-{i}",
-                    [self.subdir],
+                    [self.subdir, str(self.domain_id)],
                 )
                 fact_review = run_json_agent(
                     self.fact_checking_reviewer,
-                    f"TASK:\n{wrapped_task}\nWORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
+                    f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
                     f"investigation-fact-review-ws-{N}-{i}",
-                    [self.subdir],
+                    [self.subdir, str(self.domain_id)],
                 )
 
                 if self.review_ok(gap_review) and self.review_ok(fact_review):
@@ -688,7 +694,6 @@ Revise the synthesized specification to address the review feedback while preser
                     )
 
                 revision_prompt = (
-                    f"TASK:\n{wrapped_task}\n"
                     f"WORKSTREAM:\n{json.dumps(workstream)}\n"
                     f"PREVIOUS FINDINGS:\n{json.dumps(findings)}\n"
                     f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
@@ -700,12 +705,12 @@ Revise the synthesized specification to address the review feedback while preser
                     self.investigator_executor,
                     revision_prompt,
                     f"investigation-workstream-{N}-{i + 1}",
-                    [self.subdir],
+                    [self.subdir, str(self.domain_id)],
                     nsc=self.next_steps_cleanup,
                 )[-1]
 
             markdown_document_generator(
-                findings, f"investigation_workstream_{N}", [self.subdir]
+                findings, f"investigation_workstream_{N}", [self.subdir, str(self.domain_id)]
             )
             findings_list.append(findings)
 
@@ -768,11 +773,12 @@ Revise the synthesized specification to address the review feedback while preser
         final_feedback: dict,
         task: str,
         invocation_id_prefix: str,
+        pm_filepath: str,
     ) -> dict:
         if final_feedback:
-            initial_prompt = f"REVISE ARCHITECTURE based on feedback post implementation:\n{json.dumps(final_feedback)}"
+            initial_prompt = f"BROAD PRODUCT SPECIFICATION: {pm_filepath}\nREVISE ARCHITECTURE based on feedback post implementation:\n{json.dumps(final_feedback)}"
         else:
-            initial_prompt = f"TASK:\n{task}"
+            initial_prompt = f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}"
 
         extra_prompt = "\nKeep architecture focused on component boundaries, ownership, and interactions. Avoid naming concrete functions, methods, language constructs, or exact code statements unless they are architecturally significant."
         arch = nudge(
@@ -788,7 +794,7 @@ Revise the synthesized specification to address the review feedback while preser
             arch_review = nudge(
                 100,
                 self.arch_review,
-                f"TASK:\n{task}\n"
+                f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\n"
                 f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
                 f"ARCHITECTURE TO REVIEW:\n{json.dumps(arch)}",
                 f"{invocation_id_prefix}-review-{i}",
@@ -808,13 +814,14 @@ Revise the synthesized specification to address the review feedback while preser
                 self.arch.reset(f"{invocation_id_prefix}-{i}")
 
                 revision_prompt = (
-                    f"TASK:\n{task}\n"
+                    f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\n"
                     f"PREVIOUS ARCHITECTURE:\n{json.dumps(arch)}\n"
                     f"REVIEW FEEDBACK:\n{json.dumps(arch_review)}\n\n"
                     "Rebuild the architecture from scratch using the task and review feedback."
                 )
             else:
                 revision_prompt = (
+                    f"BROAD PRODUCT SPECIFICATION: {pm_filepath}\n"
                     f"REVISE ARCHITECTURE based on feedback:\n{json.dumps(arch_review)}"
                 )
 
@@ -839,12 +846,13 @@ Revise the synthesized specification to address the review feedback while preser
         arch: dict,
         task: str,
         invocation_id_prefix: str,
+        pm_filepath: str,
     ) -> dict:
         extra_prompt = "\nPrefer concrete file-level changes, but avoid embedding exact code snippets unless the task is trivial and the code itself is the clearest representation of the change."
         plan = nudge(
             100,
             self.tech_lead,
-            f"TASK:\n{task}\nAPPROVED ARCHITECTURE:\n{json.dumps(arch)}" + extra_prompt,
+            f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\nAPPROVED ARCHITECTURE:\n{json.dumps(arch)}" + extra_prompt,
             f"{invocation_id_prefix}-0",
             [self.subdir, str(self.domain_id)],
             nsc=self.next_steps_cleanup,
@@ -854,7 +862,7 @@ Revise the synthesized specification to address the review feedback while preser
             plan_review = nudge(
                 100,
                 self.plan_review,
-                f"TASK:\n{task}\n"
+                f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\n"
                 f"ATTEMPT: {i + 1}/{MAX_PLAN_ITERS}\n"
                 f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
                 f"PLAN TO REVIEW:\n{json.dumps(plan)}",
@@ -875,7 +883,7 @@ Revise the synthesized specification to address the review feedback while preser
                 self.tech_lead.reset(f"{invocation_id_prefix}-{i}")
 
                 revision_prompt = (
-                    f"TASK:\n{task}\n"
+                    f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\n"
                     f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
                     f"PREVIOUS PLAN:\n{json.dumps(plan)}\n"
                     f"REVIEW FEEDBACK:\n{json.dumps(plan_review)}\n\n"
@@ -883,6 +891,7 @@ Revise the synthesized specification to address the review feedback while preser
                 )
             else:
                 revision_prompt = (
+                    f"BROAD PRODUCT SPECIFICATION: {pm_filepath}\n"
                     f"REVISE PLAN based on feedback:\n{json.dumps(plan_review)}"
                 )
 
@@ -936,6 +945,7 @@ Revise the synthesized specification to address the review feedback while preser
         task: str,
         tech_lead_final_review: Optional[dict],
         invocation_id: str,
+        pm_filepath: str,
     ) -> dict:
         extra_prompt = ""
         if tech_lead_final_review:
@@ -943,7 +953,7 @@ Revise the synthesized specification to address the review feedback while preser
         return nudge(
             100,
             self.tech_lead_final,
-            f"TASK:\n{task}\n"
+            f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\n"
             f"APPROVED ARCHITECTURE:\n{json.dumps(arch)}\n"
             f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
             f"{extra_prompt}"
