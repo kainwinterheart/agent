@@ -623,12 +623,16 @@ Revise the synthesized specification to address the review feedback while preser
                 )
                 self.investigator_planner.reset(f"investigation-plan-{i}")
 
-            revision_prompt = (
-                f"TASK:\n{wrapped_task}\n"
-                f"PREVIOUS PLAN:\n{json.dumps(plan)}\n"
-                f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
-                "Rebuild the investigation plan from scratch using the original task and review feedback."
-            )
+                revision_prompt = (
+                    f"TASK:\n{wrapped_task}\n"
+                    f"PREVIOUS PLAN:\n{json.dumps(plan)}\n"
+                    f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
+                    "Rebuild the investigation plan from scratch using the original task and review feedback."
+                )
+            else:
+                revision_prompt = (
+                    f"REVISE PLAN based on feedback:\n{json.dumps(combined_review)}"
+                )
 
             plan = nudge(
                 MAX_PLAN_ITERS,
@@ -693,12 +697,16 @@ Revise the synthesized specification to address the review feedback while preser
                         f"investigation-workstream-{N}-{i}"
                     )
 
-                revision_prompt = (
-                    f"WORKSTREAM:\n{json.dumps(workstream)}\n"
-                    f"PREVIOUS FINDINGS:\n{json.dumps(findings)}\n"
-                    f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
-                    "Revise the investigation findings for this workstream."
-                )
+                    revision_prompt = (
+                        f"WORKSTREAM:\n{json.dumps(workstream)}\n"
+                        f"PREVIOUS FINDINGS:\n{json.dumps(findings)}\n"
+                        f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
+                        "Revise the investigation findings for this workstream."
+                    )
+                else:
+                    revision_prompt = (
+                        f"REVISE INVESTIGATION FINDINGS based on feedback:\n{json.dumps(combined_review)}"
+                    )
 
                 findings = nudge(
                     MAX_PLAN_ITERS,
@@ -718,7 +726,7 @@ Revise the synthesized specification to address the review feedback while preser
         report = nudge(
             MAX_PLAN_ITERS,
             self.synthesis_agent,
-            prompt=f"TASK:\n{wrapped_task}\nFINDINGS:\n{json.dumps(findings_list)}",
+            prompt=f"FINDINGS:\n{json.dumps(findings_list)}",
             invocation_id_prefix="investigation-synthesis",
             subdir=[self.subdir],
             nsc=self.next_steps_cleanup,
@@ -727,13 +735,13 @@ Revise the synthesized specification to address the review feedback while preser
         for i in range(MAX_PLAN_ITERS):
             gap_review = run_json_agent(
                 self.gap_analysis_reviewer,
-                f"TASK:\n{wrapped_task}\nFINDINGS:\n{json.dumps(findings_list)}\nREPORT TO REVIEW:\n{json.dumps(report)}",
+                f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
                 f"investigation-gap-review-final-{i}",
                 [self.subdir],
             )
             fact_review = run_json_agent(
                 self.fact_checking_reviewer,
-                f"TASK:\n{wrapped_task}\nFINDINGS:\n{json.dumps(findings_list)}\nREPORT TO REVIEW:\n{json.dumps(report)}",
+                f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
                 f"investigation-fact-review-final-{i}",
                 [self.subdir],
             )
@@ -747,10 +755,10 @@ Revise the synthesized specification to address the review feedback while preser
             # Ephemeral agents auto-reset via run_json_agent (utils.py:163-164)
 
             revision_prompt = (
-                f"TASK:\n{wrapped_task}\n"
-                f"PREVIOUS REPORT:\n{json.dumps(report)}\n"
-                f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
-                "Rebuild the investigation report from scratch using the task and review feedback."
+                f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n"
+                f"FINDINGS:\n{json.dumps(findings_list)}\n",
+                f"PREVIOUS REPORT:\n{json.dumps(report)}\n\n"
+                "Rebuild the investigation report from scratch using the findings and review feedback."
             )
 
             report = nudge(
