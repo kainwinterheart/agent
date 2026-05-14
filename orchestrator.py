@@ -620,28 +620,30 @@ IMPORTANT:
         wrapped_task = wrap_text(task)
 
         # ========== PHASE 1: Planning ==========
-        plan = nudge(
-            MAX_PLAN_ITERS,
+        plan = run_json_agent(
             self.investigator_planner,
             prompt=f"TASK:\n{wrapped_task}",
             invocation_id_prefix="investigation-plan",
             subdir=subdir,
-            nsc=self.next_steps_cleanup,
-        )[-1]
+        )
 
         for i in range(MAX_PLAN_ITERS):
-            gap_review = run_json_agent(
+            gap_review = nudge(
+                MAX_PLAN_ITERS,
                 self.gap_analysis_reviewer,
                 f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
                 f"investigation-gap-review-{i}",
                 subdir,
-            )
-            fact_review = run_json_agent(
+                nsc=self.next_steps_cleanup,
+            )[-1]
+            fact_review = nudge(
+                MAX_PLAN_ITERS,
                 self.fact_checking_reviewer,
                 f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
                 f"investigation-fact-review-{i}",
                 subdir,
-            )
+                nsc=self.next_steps_cleanup,
+            )[-1]
 
             if self.review_ok(gap_review) and self.review_ok(fact_review):
                 break
@@ -666,14 +668,12 @@ IMPORTANT:
                     f"REVISE PLAN based on feedback:\n{json.dumps(combined_review)}"
                 )
 
-            plan = nudge(
-                MAX_PLAN_ITERS,
+            plan = run_json_agent(
                 self.investigator_planner,
                 revision_prompt,
                 f"investigation-plan-{i + 1}",
                 subdir,
-                nsc=self.next_steps_cleanup,
-            )[-1]
+            )
 
         markdown_document_generator(plan, "investigation_plan", subdir)
 
@@ -692,28 +692,30 @@ IMPORTANT:
             if not workstream.get("hypotheses") or not workstream.get("data_sources"):
                 continue
 
-            findings = nudge(
-                MAX_PLAN_ITERS,
+            findings = run_json_agent(
                 self.investigator_executor,
                 prompt=f"WORKSTREAM:\n{json.dumps(workstream)}",
                 invocation_id_prefix=f"investigation-workstream-{N}",
                 subdir=[*subdir, str(self.domain_id)],
-                nsc=self.next_steps_cleanup,
-            )[-1]
+            )
 
             for i in range(MAX_PLAN_ITERS):
-                gap_review = run_json_agent(
+                gap_review = nudge(
+                    MAX_PLAN_ITERS,
                     self.gap_analysis_reviewer,
                     f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
                     f"investigation-gap-review-ws-{N}-{i}",
                     [*subdir, str(self.domain_id)],
-                )
-                fact_review = run_json_agent(
+                    nsc=self.next_steps_cleanup,
+                )[-1]
+                fact_review = nudge(
+                    MAX_PLAN_ITERS,
                     self.fact_checking_reviewer,
                     f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
                     f"investigation-fact-review-ws-{N}-{i}",
                     [*subdir, str(self.domain_id)],
-                )
+                    nsc=self.next_steps_cleanup,
+                )[-1]
 
                 if self.review_ok(gap_review) and self.review_ok(fact_review):
                     break
@@ -738,14 +740,12 @@ IMPORTANT:
                 else:
                     revision_prompt = f"REVISE INVESTIGATION FINDINGS based on feedback:\n{json.dumps(combined_review)}"
 
-                findings = nudge(
-                    MAX_PLAN_ITERS,
+                findings = run_json_agent(
                     self.investigator_executor,
                     revision_prompt,
                     f"investigation-workstream-{N}-{i + 1}",
                     [*subdir, str(self.domain_id)],
-                    nsc=self.next_steps_cleanup,
-                )[-1]
+                )
 
             markdown_document_generator(
                 findings,
@@ -755,28 +755,30 @@ IMPORTANT:
             findings_list.append(findings)
 
         # ========== PHASE 3: Synthesis ==========
-        report = nudge(
-            MAX_PLAN_ITERS,
+        report = run_json_agent(
             self.synthesis_agent,
             prompt=f"FINDINGS:\n{json.dumps(findings_list)}",
             invocation_id_prefix="investigation-synthesis",
             subdir=subdir,
-            nsc=self.next_steps_cleanup,
-        )[-1]
+        )
 
         for i in range(MAX_PLAN_ITERS):
-            gap_review = run_json_agent(
+            gap_review = nudge(
+                MAX_PLAN_ITERS,
                 self.gap_analysis_reviewer,
                 f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
                 f"investigation-gap-review-final-{i}",
                 subdir,
-            )
-            fact_review = run_json_agent(
+                nsc=self.next_steps_cleanup,
+            )[-1]
+            fact_review = nudge(
+                MAX_PLAN_ITERS,
                 self.fact_checking_reviewer,
                 f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
                 f"investigation-fact-review-final-{i}",
                 subdir,
-            )
+                nsc=self.next_steps_cleanup,
+            )[-1]
 
             if self.review_ok(gap_review) and self.review_ok(fact_review):
                 break
@@ -793,14 +795,12 @@ IMPORTANT:
                 "Rebuild the investigation report from scratch using the findings and review feedback.",
             )
 
-            report = nudge(
-                MAX_PLAN_ITERS,
+            report = run_json_agent(
                 self.synthesis_agent,
                 revision_prompt,
                 f"investigation-synthesis-{i + 1}",
                 subdir,
-                nsc=self.next_steps_cleanup,
-            )[-1]
+            )
 
         report_filepath = markdown_document_generator(
             report, "investigation_report_final", subdir
