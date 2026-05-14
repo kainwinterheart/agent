@@ -412,7 +412,9 @@ Revise the synthesized specification to address the review feedback while preser
         log("CLASSIFICATION", f"Reasoning: {classification.get('reasoning', '')}")
 
         # Persist classification decision as markdown
-        markdown_document_generator(classification, "investigation_classification", [self.subdir])
+        markdown_document_generator(
+            classification, "investigation_classification", [self.subdir]
+        )
 
         if task_type == "investigation":
             # Run the investigation loop (documentation-only, no code changes)
@@ -525,6 +527,35 @@ Revise the synthesized specification to address the review feedback while preser
 
                 if self.review_ok(final_feedback):
                     break
+
+        report = self.investigation_workflow(f"""
+INVESTIGATION OBJECTIVE:
+Determine whether the resulting system state faithfully realizes the intent of the original request.
+
+The task is not to verify the presence of artifacts.
+The task is to identify semantic mismatches between requested intent and resulting system behavior/structure.
+
+ORIGINAL REQUEST:
+{self.task}
+
+FOCUS AREAS:
+* hidden assumptions
+* ambiguity resolution choices
+* workflow coherence
+* semantic completeness
+* edge cases implied by the request
+* overengineering
+* underengineering
+* brittle architecture
+* superficial requirement satisfaction
+* optimization toward incorrect interpretations
+
+IMPORTANT:
+* Do not infer correctness from implementation sophistication.
+* Do not assume implemented behavior reflects intended behavior.
+* Treat all implementation decisions as hypotheses requiring justification.
+        """.strip())
+        print(report)
 
     def decomposition_workflow(self, task: str) -> dict:
         decomposition_result = nudge(
@@ -704,9 +735,7 @@ Revise the synthesized specification to address the review feedback while preser
                         "Revise the investigation findings for this workstream."
                     )
                 else:
-                    revision_prompt = (
-                        f"REVISE INVESTIGATION FINDINGS based on feedback:\n{json.dumps(combined_review)}"
-                    )
+                    revision_prompt = f"REVISE INVESTIGATION FINDINGS based on feedback:\n{json.dumps(combined_review)}"
 
                 findings = nudge(
                     MAX_PLAN_ITERS,
@@ -718,7 +747,9 @@ Revise the synthesized specification to address the review feedback while preser
                 )[-1]
 
             markdown_document_generator(
-                findings, f"investigation_workstream_{N}", [self.subdir, str(self.domain_id)]
+                findings,
+                f"investigation_workstream_{N}",
+                [self.subdir, str(self.domain_id)],
             )
             findings_list.append(findings)
 
@@ -758,7 +789,7 @@ Revise the synthesized specification to address the review feedback while preser
                 f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n"
                 f"FINDINGS:\n{json.dumps(findings_list)}\n",
                 f"PREVIOUS REPORT:\n{json.dumps(report)}\n\n"
-                "Rebuild the investigation report from scratch using the findings and review feedback."
+                "Rebuild the investigation report from scratch using the findings and review feedback.",
             )
 
             report = nudge(
@@ -770,7 +801,9 @@ Revise the synthesized specification to address the review feedback while preser
                 nsc=self.next_steps_cleanup,
             )[-1]
 
-        report_filepath = markdown_document_generator(report, "investigation_report_final", [self.subdir])
+        report_filepath = markdown_document_generator(
+            report, "investigation_report_final", [self.subdir]
+        )
 
         # Read and return the markdown file contents (single source of truth for formatting)
         with open(report_filepath, "r") as f:
@@ -786,7 +819,9 @@ Revise the synthesized specification to address the review feedback while preser
         if final_feedback:
             initial_prompt = f"BROAD PRODUCT SPECIFICATION: {pm_filepath}\nREVISE ARCHITECTURE based on feedback post implementation:\n{json.dumps(final_feedback)}"
         else:
-            initial_prompt = f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}"
+            initial_prompt = (
+                f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}"
+            )
 
         extra_prompt = "\nKeep architecture focused on component boundaries, ownership, and interactions. Avoid naming concrete functions, methods, language constructs, or exact code statements unless they are architecturally significant."
         arch = nudge(
@@ -860,7 +895,8 @@ Revise the synthesized specification to address the review feedback while preser
         plan = nudge(
             100,
             self.tech_lead,
-            f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\nAPPROVED ARCHITECTURE:\n{json.dumps(arch)}" + extra_prompt,
+            f"TASK:\n{task}\n\nBROAD PRODUCT SPECIFICATION: {pm_filepath}\nAPPROVED ARCHITECTURE:\n{json.dumps(arch)}"
+            + extra_prompt,
             f"{invocation_id_prefix}-0",
             [self.subdir, str(self.domain_id)],
             nsc=self.next_steps_cleanup,
