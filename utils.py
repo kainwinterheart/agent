@@ -337,7 +337,7 @@ def markdown_document_generator(
     elif stage_name == "investigation_plan":
         workstreams = content.get("workstreams", [])
         markdown_content += "# Investigation Plan\n\n"
-        for N, ws in enumerate(workstreams):
+        for N, ws in enumerate(workstreams, 1):
             markdown_content += f"## Workstream {N}\n\n"
             objective = ws.get("objective", "")
             if objective:
