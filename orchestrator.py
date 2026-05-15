@@ -205,6 +205,15 @@ class Orchestrator:
             timeout="30m",
             resume=prompts.REVIEWER_RESUME_PROMPT,
         )
+        self.structural_reviewer = Agent(
+            "structural_reviewer",
+            prompts.STRUCTURE_REVIEW_PROMPT,
+            schemas.STRUCTURAL_REVIEW_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
+        )
 
     def review_ok(self, review: dict) -> bool:
         approved = review.get("approved", False)
@@ -622,9 +631,9 @@ IMPORTANT:
         # ========== PHASE 1: Planning ==========
         plan = run_json_agent(
             self.investigator_planner,
-            prompt=f"TASK:\n{wrapped_task}",
-            invocation_id_prefix="investigation-plan",
-            subdir=subdir,
+            f"TASK:\n{wrapped_task}",
+            "investigation-plan",
+            subdir,
         )
 
         for i in range(MAX_PLAN_ITERS):
@@ -644,13 +653,21 @@ IMPORTANT:
                 subdir,
                 nsc=self.next_steps_cleanup,
             )[-1]
+            struct_review = nudge(
+                MAX_PLAN_ITERS,
+                self.structural_reviewer,
+                f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
+                f"investigation-struct-review-{i}",
+                subdir,
+                nsc=self.next_steps_cleanup,
+            )[-1]
 
-            if self.review_ok(gap_review) and self.review_ok(fact_review):
+            if self.review_ok(gap_review) and self.review_ok(fact_review) and self.review_ok(struct_review):
                 break
 
-            combined_review = {"gap_review": gap_review, "fact_review": fact_review}
+            combined_review = {"gap_review": gap_review, "fact_review": fact_review, "struct_review": struct_review}
 
-            if self.should_reset(gap_review) or self.should_reset(fact_review):
+            if self.should_reset(gap_review) or self.should_reset(fact_review) or self.should_reset(struct_review):
                 log(
                     "SYSTEM",
                     f"Resetting investigator planner context: {combined_review.get('reset_reason', '')}",
@@ -694,9 +711,9 @@ IMPORTANT:
 
             findings = run_json_agent(
                 self.investigator_executor,
-                prompt=f"WORKSTREAM:\n{json.dumps(workstream)}",
-                invocation_id_prefix=f"investigation-workstream-{N}",
-                subdir=[*subdir, str(self.domain_id)],
+                f"WORKSTREAM:\n{json.dumps(workstream)}",
+                f"investigation-workstream-{N}",
+                [*subdir, str(self.domain_id)],
             )
 
             for i in range(MAX_PLAN_ITERS):
@@ -757,9 +774,9 @@ IMPORTANT:
         # ========== PHASE 3: Synthesis ==========
         report = run_json_agent(
             self.synthesis_agent,
-            prompt=f"FINDINGS:\n{json.dumps(findings_list)}",
-            invocation_id_prefix="investigation-synthesis",
-            subdir=subdir,
+            f"FINDINGS:\n{json.dumps(findings_list)}",
+            "investigation-synthesis",
+            subdir,
         )
 
         for i in range(MAX_PLAN_ITERS):
@@ -790,9 +807,9 @@ IMPORTANT:
 
             revision_prompt = (
                 f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n"
-                f"FINDINGS:\n{json.dumps(findings_list)}\n",
+                f"FINDINGS:\n{json.dumps(findings_list)}\n"
                 f"PREVIOUS REPORT:\n{json.dumps(report)}\n\n"
-                "Rebuild the investigation report from scratch using the findings and review feedback.",
+                "Rebuild the investigation report from scratch using the findings and review feedback."
             )
 
             report = run_json_agent(

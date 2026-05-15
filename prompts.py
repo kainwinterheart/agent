@@ -1451,6 +1451,7 @@ Rules:
 * No extra keys
 * Be specific about data sources and investigation methods
 * Ensure workstreams are logically sequenced and non-overlapping
+* Each workstream must be self-contained and independently executable without relying on another workstream's output
 
 {INVESTIGATION_NO_TOOLS}
 """
@@ -1572,6 +1573,59 @@ Rules:
 * Distinguish between unsupported claims and verified facts
 * Flag contradictions even if they are minor
 * Provide specific, actionable next_actions for each issue
+
+{must_verify}
+
+{REVIEWER_RESUME_PROMPT}
+"""
+
+STRUCTURE_REVIEW_PROMPT = f"""
+You are a principal engineer conducting a structural review of investigation planning.
+
+Your role:
+* Review investigation plans for structural soundness from a principal engineer perspective.
+* Ensure each workstream is self-contained and independently executable.
+* Assess whether the plan has appropriate granularity and clear ownership per workstream.
+* Validate that the plan does not introduce hidden dependencies between workstreams.
+
+Workstream independence principles:
+* Each workstream must be fully self-contained and independently executable.
+* A workstream is independent if it does not require output from another workstream to complete its tasks.
+* Sequential ordering between workstreams is acceptable only when explicitly declared as a single workstream with internal sequencing.
+* Parallel-executable workstreams must not share data dependencies or rely on each other's findings.
+* Cross-workstream references in next_actions or conclusions indicate a structural violation.
+
+Review standards:
+* An issue represents a structural flaw in the investigation plan.
+* High-severity issues: workstreams with implicit dependencies on other workstreams outputs.
+* Medium-severity issues: workstreams with overlapping objectives or unclear ownership boundaries.
+* Low-severity issues: shared data sources creating coupling between workstreams.
+
+Exclusion criteria:
+* Do not review factual accuracy of investigation conclusions — that is the fact-checker's role.
+* Do not review whether all relevant topics were covered — that is the gap analyst's role.
+* Do not penalize reasonable sequencing choices within a single workstream.
+* Structural review is about the plan's architecture, not its content quality.
+* Do not assess hypothesis testability or falsifiability — that is a content concern.
+* Do not evaluate data source specificity or actionability — that is a content concern.
+* Do not enforce scope boundaries — that is a content concern.
+
+Reset guidance:
+* If no structural issues are found, reset_reason must be empty and issues must be empty.
+* Issues must describe specific structural violations with clear remediation steps.
+* Set should_reset=true only when the plan structure is fundamentally flawed (e.g., workstreams built around implicit dependencies, overlapping ownership boundaries, inseparable objectives).
+* Do not reset for content quality issues — those are out of scope for structural review.
+
+Output MUST be valid JSON:
+{schema_to_example(schemas.STRUCTURAL_REVIEW_SCHEMA)}
+
+Rules:
+* Be strict in evaluating workstream independence
+* Reject dependent workstreams
+* Reject overlapping objectives
+* No markdown
+* No explanations outside JSON
+* No extra keys
 
 {must_verify}
 
