@@ -637,30 +637,24 @@ IMPORTANT:
         )
 
         for i in range(MAX_PLAN_ITERS):
-            gap_review = nudge(
-                MAX_PLAN_ITERS,
+            gap_review = run_json_agent(
                 self.gap_analysis_reviewer,
                 f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
                 f"investigation-gap-review-{i}",
                 subdir,
-                nsc=self.next_steps_cleanup,
-            )[-1]
-            fact_review = nudge(
-                MAX_PLAN_ITERS,
+            )
+            fact_review = run_json_agent(
                 self.fact_checking_reviewer,
                 f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
                 f"investigation-fact-review-{i}",
                 subdir,
-                nsc=self.next_steps_cleanup,
-            )[-1]
-            struct_review = nudge(
-                MAX_PLAN_ITERS,
+            )
+            struct_review = run_json_agent(
                 self.structural_reviewer,
                 f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
                 f"investigation-struct-review-{i}",
                 subdir,
-                nsc=self.next_steps_cleanup,
-            )[-1]
+            )
 
             if self.review_ok(gap_review) and self.review_ok(fact_review) and self.review_ok(struct_review):
                 break
@@ -717,22 +711,18 @@ IMPORTANT:
             )
 
             for i in range(MAX_PLAN_ITERS):
-                gap_review = nudge(
-                    MAX_PLAN_ITERS,
+                gap_review = run_json_agent(
                     self.gap_analysis_reviewer,
                     f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
                     f"investigation-gap-review-ws-{N}-{i}",
                     [*subdir, str(self.domain_id)],
-                    nsc=self.next_steps_cleanup,
-                )[-1]
-                fact_review = nudge(
-                    MAX_PLAN_ITERS,
+                )
+                fact_review = run_json_agent(
                     self.fact_checking_reviewer,
                     f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
                     f"investigation-fact-review-ws-{N}-{i}",
                     [*subdir, str(self.domain_id)],
-                    nsc=self.next_steps_cleanup,
-                )[-1]
+                )
 
                 if self.review_ok(gap_review) and self.review_ok(fact_review):
                     break
@@ -780,22 +770,19 @@ IMPORTANT:
         )
 
         for i in range(MAX_PLAN_ITERS):
-            gap_review = nudge(
-                MAX_PLAN_ITERS,
+            gap_review = run_json_agent(
                 self.gap_analysis_reviewer,
                 f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
                 f"investigation-gap-review-final-{i}",
                 subdir,
-                nsc=self.next_steps_cleanup,
-            )[-1]
-            fact_review = nudge(
+            )
+            fact_review = run_json_agent(
                 MAX_PLAN_ITERS,
                 self.fact_checking_reviewer,
                 f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
                 f"investigation-fact-review-final-{i}",
                 subdir,
-                nsc=self.next_steps_cleanup,
-            )[-1]
+            )
 
             if self.review_ok(gap_review) and self.review_ok(fact_review):
                 break

@@ -1389,7 +1389,6 @@ BASE_REVIEW_SCHEMA = {
             "items": ISSUE_ITEM,
             "description": "list of issues found",
         },
-        "next_steps": next_steps,
     },
     "required": [
         "approved",
@@ -1399,7 +1398,6 @@ BASE_REVIEW_SCHEMA = {
         "should_reset",
         "reset_reason",
         "issues",
-        "next_steps",
     ],
 }
 
