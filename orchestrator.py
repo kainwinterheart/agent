@@ -170,14 +170,14 @@ class Orchestrator:
             prompts.INVESTIGATOR_PLANNER_PROMPT,
             schemas.INVESTIGATOR_PLAN_SCHEMA,
             self.subdir,
-            timeout="40m",
+            timeout="90m",
         )
         self.investigator_executor = Agent(
             "investigator_executor",
             prompts.INVESTIGATOR_EXECUTOR_PROMPT,
             schemas.INVESTIGATOR_FINDINGS_SCHEMA,
             self.subdir,
-            timeout="60m",
+            timeout="180m",
         )
         self.synthesis_agent = Agent(
             "synthesis_agent",
@@ -185,7 +185,7 @@ class Orchestrator:
             schemas.INVESTIGATION_REPORT_SCHEMA,
             self.subdir,
             ephemeral=True,
-            timeout="30m",
+            timeout="90m",
         )
         self.gap_analysis_reviewer = Agent(
             "gap_analysis_reviewer",
@@ -193,7 +193,7 @@ class Orchestrator:
             schemas.GAP_ANALYSIS_REVIEW_SCHEMA,
             self.subdir,
             ephemeral=True,
-            timeout="30m",
+            timeout="60m",
             resume=prompts.REVIEWER_RESUME_PROMPT,
         )
         self.fact_checking_reviewer = Agent(
@@ -202,7 +202,7 @@ class Orchestrator:
             schemas.FACT_CHECKING_REVIEW_SCHEMA,
             self.subdir,
             ephemeral=True,
-            timeout="30m",
+            timeout="60m",
             resume=prompts.REVIEWER_RESUME_PROMPT,
         )
         self.structural_reviewer = Agent(
@@ -229,7 +229,7 @@ class Orchestrator:
             schemas.SYNTHESIS_CONSISTENCY_REVIEW_SCHEMA,
             self.subdir,
             ephemeral=True,
-            timeout="30m",
+            timeout="60m",
             resume=prompts.REVIEWER_RESUME_PROMPT,
         )
 
