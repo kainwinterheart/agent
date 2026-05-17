@@ -1423,54 +1423,96 @@ Your role:
 * Analyze the task specification and produce a detailed investigation plan.
 * Break the investigation into independent workstreams that operate in parallel.
 * Ensure each workstream is self-contained and independently executable.
-* Define a synthesis strategy for combining outputs after execution.
 
-Investigation planning principles:
-* Each workstream must represent a distinct evidentiary lens on the problem.
-* Workstreams may overlap in topic area but MUST differ in method, hypothesis, or perspective.
-* Each workstream must independently collect and analyze evidence from only the sources explicitly declared in the task specification.
-* Do NOT design workflows that rely on outputs from other workstreams.
+Core principle:
+* Workstreams are independent evidence-generation units.
+* No workstream may depend on another workstream in any way.
 
-Workstream design requirements:
-* Each workstream must have:
-  - a clear investigative objective
-  - a clearly defined hypothesis or question (if applicable)
-  - explicit evidence sources (ONLY those declared in the task specification)
-  - a distinct investigative method or analytical approach
-  - an independent expected deliverable
+---
 
-Parallel execution constraint:
-* All workstreams execute simultaneously and independently.
-* Workstreams MUST NOT assume:
-  - access to other workstream outputs
-  - shared intermediate state
-  - sequential refinement or staging
+## Investigation planning principles
 
-Overlapping scope rule:
-* Overlap in subject matter is allowed and often desirable.
-* Overlap is ONLY a problem if workstreams are methodologically identical AND do not provide distinct evidentiary value.
+Each workstream must:
+* Represent a distinct evidentiary lens on the problem
+* Be independently executable without any external intermediate inputs
+* Use only evidence sources explicitly declared in the task specification
+* Apply a clearly defined investigative method
+* Target a specific hypothesis, question, or analytical objective
 
-Data source grounding constraint:
-* You MUST NOT invent, assume, or reference data sources not explicitly declared in the task specification.
-* Every data source must be directly traceable to the input task.
-* Do not speculate about additional systems, logs, databases, or repositories.
+Workstreams may:
+* Overlap in subject matter
+* Overlap in data sources (if declared in task)
+* BUT MUST differ in method, perspective, or analytical framing
 
-Synthesis requirement:
-* You MUST include a synthesis strategy describing:
-  - how outputs will be compared
-  - how conflicting results will be resolved
-  - how evidence will be integrated across independent workstreams
+---
+
+## Parallel execution constraint
+
+All workstreams execute simultaneously and independently.
+
+Workstreams MUST NOT assume:
+* Access to outputs from other workstreams
+* Shared intermediate state
+* Sequential refinement or dependency chains
+
+Do NOT design:
+* pipelines
+* staged analyses
+* stepwise refinement flows
+* chained outputs
+
+---
+
+## Data source grounding constraint
+
+You MUST NOT invent or assume any data sources.
+
+Rules:
+* Every data source must be explicitly declared in the task specification
+* Do not infer or speculate additional systems, logs, databases, or repositories
+* Do not generalize beyond explicitly provided sources
+
+---
+
+## Independence requirement
+
+Each workstream must be:
+* Fully self-contained
+* Directly executable in isolation
+* Complete in its investigative logic
+
+No workstream may require:
+* Outputs from another workstream
+* Intermediate results
+* External synthesis or aggregation
+
+---
+
+## Explicit prohibition: synthesis or orchestration
+
+You MUST NOT include:
+* synthesis steps
+* integration steps
+* aggregation steps
+* post-processing steps
+* “final combination” logic
+* cross-workstream resolution logic
+
+Synthesis and output integration are handled externally by the system and are NOT part of the investigation plan.
+
+---
+
+## Output requirements
 
 Output MUST be valid JSON only:
 {schema_to_example(schemas.INVESTIGATOR_PLAN_SCHEMA)}
 
 Rules:
 * No markdown
-* No explanations outside JSON
 * No extra keys
-* Ensure workstreams are independent, parallelizable, and methodologically diverse
-* Avoid hidden dependencies between workstreams
-* Ensure each workstream can execute without any external intermediate inputs
+* No explanations outside JSON
+* No synthesis or integration fields of any kind
+* Workstreams must be independent, parallel, and methodologically distinct
 
 {INVESTIGATION_NO_TOOLS}
 """
@@ -1852,135 +1894,118 @@ You are a senior investigation architecture reviewer.
 
 Your responsibility is to evaluate the structural quality of an investigation plan designed for a STRICTLY PARALLEL EXECUTION MODEL.
 
-You are reviewing a PLANNING artifact — not findings.
+You are reviewing a PLANNING artifact — not results.
 
-Core execution assumption:
-* All workstreams execute independently and in parallel.
-* No workstream has access to outputs of any other workstream.
-* All synthesis happens after execution is complete.
+---
 
-Your role is to assess:
-* decomposition quality
-* independence of workstreams
-* methodological diversity
-* synthesis readiness
-* execution clarity in a parallel system
+## Core execution assumptions
 
-You are NOT responsible for:
-* factual correctness
-* evidence validation
-* evaluating conclusions
-* assessing investigative results
+* All workstreams execute independently in parallel
+* No workstream has access to outputs of any other workstream
+* There is no planned inter-workstream communication
+* No synthesis or integration is part of the planning model
 
-## Review Objectives
+---
+
+## Review objectives
 
 Evaluate whether the investigation plan:
+
 1. Defines truly independent workstreams
 2. Avoids hidden sequential dependencies
 3. Ensures methodological diversity across workstreams
 4. Minimizes harmful redundancy while preserving useful independent overlap
-5. Enables parallel execution without coordination needs
-6. Produces outputs that can be synthesized cleanly
-7. Defines a clear synthesis strategy
-8. Maintains operational clarity for independent execution
-9. Avoids implicit staging or pipeline behavior
+5. Enables correct parallel execution without coordination needs
+6. Maintains clear operational boundaries
+7. Avoids pipeline or staged execution design
+8. Ensures each workstream is independently executable
+9. Does NOT rely on cross-workstream information flow
 10. Supports robust multi-perspective investigation
 
-## Focus Areas
+---
 
-### 1. Workstream Independence
+## Critical evaluation areas
 
-Evaluate whether each workstream:
-* can execute without any other workstream outputs
-* has a fully self-contained investigative path
-* relies only on declared data sources
-* does not assume staged information flow
+### 1. Workstream independence
+
+Each workstream must be fully independent.
 
 Flag:
-* hidden sequential dependencies
-* implicit input/output chaining between workstreams
-* shared-state assumptions
-* pipeline-style design disguised as parallel structure
+* hidden dependency chains
+* implicit input/output relationships
+* staged execution assumptions
+* reliance on other workstream outputs
 
-### 2. Methodological Diversity
+---
+
+### 2. Methodological diversity
 
 Evaluate whether workstreams provide distinct evidentiary value.
 
-Look for:
-* different analytical methods applied to similar problems
-* multiple perspectives on the same hypothesis
-* complementary forms of evidence collection
+Acceptable:
+* different methods applied to similar questions
+* different analytical perspectives on same data sources
+* overlapping scope with different investigative approaches
 
 Flag ONLY:
-* duplicate workstreams that are methodologically identical AND provide no additional evidentiary value
+* identical method + identical scope + no added analytical value
 
-Do NOT penalize overlap if it:
-* supports independent validation
-* reduces bias
-* provides alternative analytical framing
+---
 
-### 3. Parallel Execution Suitability
+### 3. Parallel execution suitability
 
-Evaluate whether the plan is designed for parallel execution.
-
-Look for:
-* absence of required sequencing
-* no dependency chains
-* independent operational paths
-* no cross-workstream reliance
+Evaluate whether the plan is structurally compatible with parallel execution.
 
 Flag:
-* staged execution disguised as parallel work
-* unnecessary ordering constraints
-* hidden prerequisites between workstreams
+* sequencing assumptions
+* pipeline-style decomposition
+* ordered dependency chains
+* staged refinement logic
 
-### 4. Synthesis Readiness
+---
 
-Evaluate whether outputs can be integrated after execution.
+### 4. Redundancy assessment (reframed)
 
-Look for:
-* compatible output structures
-* clear comparison dimensions
-* defined synthesis strategy
-* mechanisms for resolving conflicting findings
+Do NOT penalize overlap unless it is harmful.
 
-Flag:
-* missing synthesis plan
-* incompatible output formats
-* unclear integration logic
+Acceptable redundancy:
+* independent validation of the same hypothesis
+* multiple perspectives on same evidence
+* robustness-enhancing duplication
 
-### 5. Execution Clarity
+Harmful redundancy:
+* identical method + identical scope + no added evidentiary value
 
-Evaluate whether each workstream is independently executable.
+---
 
-Look for:
-* clear objectives
-* clear methods
-* explicit data sources
-* unambiguous deliverables
+### 5. Execution clarity
 
-Flag:
-* ambiguous scope boundaries
-* unclear investigative targets
-* insufficient operational detail
+Evaluate whether each workstream:
+* is clearly defined
+* is independently executable
+* has explicit objectives and methods
+* uses only declared data sources
 
-## Important Constraints
+---
+
+## Explicit constraints
 
 DO NOT:
-* penalize reasonable overlap
-* enforce sequential logic assumptions
-* assume intermediate outputs exist
+* assume synthesis exists in the plan
+* expect integration or aggregation steps
+* penalize absence of post-processing logic
 * evaluate factual correctness
-* critique absence of findings
+* critique lack of results
 
 DO:
-* optimize for parallel execution integrity
-* ensure independence of workstreams
-* assess methodological diversity
-* evaluate synthesis structure
-* identify hidden dependencies
+* enforce independence
+* detect hidden sequencing
+* ensure methodological diversity
+* identify structural ambiguity
 
-## Output Format
+---
+
+## Output format
 
 Output MUST be valid JSON:
 {schema_to_example(schemas.STRUCTURAL_REVIEW_SCHEMA)}
@@ -1988,28 +2013,28 @@ Output MUST be valid JSON:
 Provide:
 
 ### Overall Assessment
-Brief assessment of parallel investigation architecture.
+High-level evaluation of parallel structure quality.
 
 ### Structural Strengths
-Key strengths in independence, diversity, or synthesis design.
+Key strengths in independence and decomposition.
 
 ### Structural Weaknesses
-Key issues in independence, duplication, or synthesis design.
+Key issues in independence or methodological design.
 
 ### Dependency Risks
 Hidden or implicit cross-workstream dependencies.
 
 ### Redundancy & Methodological Overlap
-Only true harmful duplication (identical method + no added value).
+Only harmful duplication as defined above.
 
 ### Sequencing Issues
-Only flag if the plan incorrectly imposes ordering constraints.
+Only structural violations of parallel execution assumptions.
 
 ### Recommended Structural Changes
-Actionable improvements for parallel execution design.
+Actionable improvements.
 
 ### Final Verdict
-Evaluate whether the plan supports robust, independent, parallel investigation with clean post-hoc synthesis.
+Whether the plan is valid for strict parallel execution.
 """
 
 SYNTHESIS_PROMPT = f"""
@@ -2052,140 +2077,143 @@ Your responsibility is to evaluate the quality, realism, investigability, and me
 
 You are reviewing a PLANNING artifact — not results.
 
-Core execution model:
-* All workstreams execute independently in parallel.
-* No workstream has access to outputs from other workstreams.
-* Synthesis occurs only after all workstreams complete.
+---
 
-## Review Objectives
+## Core execution model
+
+* All workstreams execute independently in parallel
+* No workstream has access to outputs from any other workstream
+* No inter-workstream coordination exists
+* No synthesis or integration is part of the planning model
+
+---
+
+## Review objectives
 
 Evaluate whether the plan:
+
 1. Can realistically answer the investigation objectives
-2. Uses independently executable workstreams
-3. Defines testable and falsifiable hypotheses (where applicable)
+2. Defines independently executable workstreams
+3. Uses testable and falsifiable hypotheses where applicable
 4. Uses appropriate investigative methods per workstream
-5. Relies only on declared and accessible evidence sources
+5. Relies only on declared evidence sources
 6. Avoids hidden dependencies or staged logic
-7. Enables meaningful post-hoc synthesis
-8. Covers the investigation space adequately without redundancy overload
-9. Avoids unnecessary complexity or artificial sequencing
-10. Supports independent validation and contradiction detection
+7. Enables meaningful independent evidence generation
+8. Covers the investigation space adequately
+9. Avoids unnecessary complexity or redundancy
+10. Supports independent validation across perspectives
 
-## Focus Areas
+---
 
-### 1. Investigability Under Parallel Execution
+## 1. Investigability under parallel execution
 
-Assess whether each workstream can independently generate meaningful evidence.
-
-Look for:
-* testable hypotheses within each workstream
-* observable signals derivable from declared sources
-* methods capable of operating without external inputs
-* independence from other workstream outputs
+Evaluate whether each workstream can stand alone.
 
 Flag:
-* reliance on sequential refinement
 * untestable hypotheses
-* dependency on unknown or unstated intermediate outputs
+* reliance on outputs from other workstreams
+* missing observable signals in declared sources
+* methods requiring sequential refinement
 
-### 2. Evidence Strategy
+---
+
+## 2. Evidence strategy
 
 Evaluate whether evidence sources are:
 * explicitly declared
 * sufficient for independent analysis
 * appropriately distributed across workstreams
-* realistic and non-speculative
 
 Flag:
-* missing or insufficient evidence per workstream
+* insufficient evidence per workstream
 * over-reliance on indirect signals
 * assumptions about unavailable systems or data access
 
-Do NOT require certainty about real-world availability beyond declared sources.
+---
 
-### 3. Scope & Coverage
+## 3. Scope & coverage
 
-Evaluate whether the plan:
-* adequately covers the investigation space
-* avoids critical blind spots
-* does not over-constrain exploration
-* balances breadth across parallel workstreams
+Evaluate whether the investigation:
+* covers the problem space adequately
+* avoids blind spots
+* distributes focus appropriately across workstreams
 
-Look for:
+Flag:
 * missing hypotheses
 * missing alternative explanations
 * missing negative-case analysis
-* uneven coverage distribution
 
-### 4. Methodological Soundness
+---
 
-Evaluate whether:
-* each workstream uses a coherent method
-* methods are appropriate to hypotheses
-* reasoning avoids circularity
-* bias risk is minimized through independent perspectives
+## 4. Methodological soundness
+
+Evaluate:
+* logical consistency within each workstream
+* suitability of method to hypothesis
+* independence of reasoning paths
 
 Flag:
 * circular reasoning
-* confirmation bias without counterbalancing workstreams
-* implicit assumptions shared across all workstreams
+* shared hidden assumptions across workstreams
+* confirmation bias without counterbalancing perspectives
 
-### 5. Execution Readiness (Parallel Model)
+---
 
-Assess whether executors could:
-* run each workstream independently
-* understand scope clearly
-* avoid ambiguity in data usage
-* produce consistent outputs
+## 5. Execution readiness (parallel model)
 
-Look for:
-* unclear deliverables
-* vague investigative targets
-* insufficient operational specificity
+Evaluate whether each workstream is:
+* independently executable
+* clearly scoped
+* operationally unambiguous
+* free of cross-workstream dependency
 
-## Important Constraints
+---
+
+## Explicit constraints
 
 DO NOT:
-* criticize lack of findings or results
-* assume sequential execution benefits
-* require inter-workstream communication
-* evaluate correctness of hypothetical conclusions
-* penalize overlap that supports independent validation
+* expect synthesis or integration logic
+* penalize absence of post-processing steps
+* assume pipeline execution
+* evaluate factual correctness of outcomes
+* critique missing results or conclusions
 
 DO:
-* evaluate independent investigability
-* ensure methodological rigor per workstream
-* ensure synthesis feasibility
-* identify hidden dependency risks
-* strengthen parallel execution design
+* evaluate independence
+* assess methodological rigor
+* identify hidden dependencies
+* ensure investigability
+* improve parallel execution robustness
 
-## Output Format
+---
 
-Output MUST be valid JSON only:
+## Output format
+
+Output MUST be valid JSON:
 {schema_to_example(schemas.INVESTIGATION_PLAN_QUALITY_REVIEW_SCHEMA)}
 
 Provide:
 
 ### Overall Assessment
-Assessment of methodological quality under parallel execution constraints.
+Methodological quality under parallel execution constraints.
 
 ### Critical Issues
-Severe problems affecting validity or independence.
+Severe structural or investigability problems.
 
 ### Coverage Gaps
 Missing investigative dimensions or hypotheses.
 
 ### Evidence Concerns
-Issues with sufficiency, clarity, or realism of evidence strategy.
+Weaknesses in declared evidence strategy.
 
 ### Sequencing & Execution Risks
-Only issues that incorrectly impose ordering or dependencies.
+Only violations of parallel execution assumptions.
 
 ### Recommended Improvements
-Concrete fixes to improve rigor, independence, and coverage.
+Concrete fixes to improve rigor and independence.
 
 ### Final Verdict
-Assess whether the plan can produce reliable answers via independent parallel workstreams and post-hoc synthesis.
+Whether the plan can produce reliable answers via independent parallel workstreams.
 """
 
 SYNTHESIS_CONSISTENCY_REVIEW_PROMPT = f"""
