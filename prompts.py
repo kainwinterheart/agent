@@ -1416,92 +1416,300 @@ Output MUST be valid JSON only:
 {no_tools}
 """
 
+COMMON_DAG_EXECUTION_MODEL = """
+## Investigation DAG Execution Model
+
+This system operates as a DIRECTED ACYCLIC GRAPH (DAG) of investigative workstreams.
+
+Core execution properties:
+* Workstreams execute according to explicit dependency relationships
+* Parallel execution occurs whenever dependencies permit
+* Dependencies must be explicit and acyclic
+* No hidden information flow is allowed
+* No undeclared coordination is allowed
+
+Runtime guarantees:
+* Upstream outputs are immutable
+* Downstream workstreams receive only declared artifacts
+* No shared mutable state exists
+* Dependency completion is deterministic
+* Workstreams cannot mutate upstream artifacts
+
+---
+
+## Workstream definition
+
+A workstream is:
+* a bounded execution unit
+* with explicit inputs
+* explicit methods
+* explicit outputs
+* a single investigative objective
+* a stable execution scope
+
+A workstream is NOT:
+* a general topic area
+* a project phase
+* a reporting category
+* an orchestration layer
+* an informal reasoning step
+
+---
+
+## Dependency semantics
+
+Dependencies are DATA DEPENDENCIES only.
+
+A dependency means:
+* a downstream workstream consumes artifacts produced by upstream workstreams
+
+A dependency does NOT mean:
+* implicit coordination
+* shared mutable reasoning state
+* recursive refinement
+* bidirectional information flow
+
+All dependencies must:
+* be explicit
+* be necessary
+* be acyclic
+* identify meaningful artifact flow
+
+---
+
+## Artifact model
+
+Every workstream output is an ARTIFACT.
+
+Artifacts must be explicitly defined.
+
+Each artifact must declare:
+* artifact type
+* semantic purpose
+* expected informational content
+
+Example artifact types:
+* extracted facts
+* timelines
+* anomaly candidates
+* ranked hypotheses
+* correlation matrices
+* validation reports
+* synthesized assessments
+* risk summaries
+
+Artifacts are immutable once produced.
+
+---
+
+## Allowed workstream categories
+
+Allowed categories include:
+* Evidence Collection
+* Signal Extraction
+* Hypothesis Testing
+* Correlation Analysis
+* Validation
+* Synthesis
+* Risk Assessment
+
+Workstreams may depend on upstream workstreams from earlier categories where appropriate.
+
+---
+
+## Optimization priorities
+
+When tradeoffs exist, prioritize in this order:
+
+1. DAG validity
+2. Investigability
+3. Evidence sufficiency
+4. Clear artifact flow
+5. Parallelism maximization
+6. Methodological diversity
+7. Minimization of redundancy
+
+---
+
+## Redundancy definition
+
+Two workstreams are redundant ONLY if they:
+* consume equivalent inputs
+* apply equivalent methods
+* produce equivalent artifact types
+* target equivalent investigative questions
+
+Overlap is acceptable if it provides:
+* independent validation
+* alternative methods
+* alternative hypotheses
+* distinct analytical perspectives
+
+---
+
+## Graph-level invariants
+
+The investigation graph must satisfy:
+* acyclic structure
+* explicit dependency declarations
+* no orphaned workstreams
+* no hidden dependencies
+* every dependency has meaningful artifact flow
+* every workstream produces at least one artifact
+* every non-root workstream declares upstream inputs
+* every leaf workstream produces terminal investigative value
+
+---
+
+## Anti-overengineering rule
+
+Prefer the shallowest DAG capable of answering the task.
+
+Avoid intermediary workstreams unless they:
+* transform artifact types
+* materially simplify downstream reasoning
+* enable analysis otherwise impossible
+* provide independent validation value
+
+Avoid:
+* unnecessary orchestration layers
+* meta-analysis chains
+* recursive validation loops
+* excessive serialization
+* giant unconstrained synthesis nodes
+
+---
+
+## Synthesis constraints
+
+Synthesis workstreams are allowed.
+
+However, synthesis workstreams must:
+* consume explicitly defined upstream artifacts
+* define explicit integration methods
+* produce bounded outputs
+* avoid unconstrained narrative summarization
+* avoid vague "final analysis" behavior
+
+---
+
+## Review standard
+
+Reviewers are constraint validators, not open-ended critics.
+
+Issues should ONLY be raised when:
+* a specific rule is violated
+* the violation is observable
+* the failure can be explained mechanically
+
+All critiques must:
+* identify the violated rule
+* identify offending workstreams
+* explain the failure concretely
+* propose minimal corrective action
+"""
+
 INVESTIGATOR_PLANNER_PROMPT = f"""
-You are a senior investigator tasked with designing a structured investigation for a DIRECTED ACYCLIC GRAPH (DAG) execution environment.
+You are a senior investigator tasked with designing an investigation DAG.
 
-Your role:
-* Analyze the task specification and produce a set of investigative workstreams.
-* Each workstream is an atomic, self-contained investigative unit.
-* Workstreams may depend on outputs from earlier workstreams ONLY through explicitly declared DAG dependencies.
+{COMMON_DAG_EXECUTION_MODEL}
 
-Core principle:
-* The output is a DAG of evidence-producing workstreams.
-* Dependencies must be explicit, minimal, and acyclic.
-* Each workstream must remain independently understandable and executable once its declared dependencies are satisfied.
+Your responsibility:
+* analyze the task specification
+* design a valid investigation DAG
+* define workstreams, artifacts, methods, and dependencies
+* maximize investigability while preserving efficient parallel execution
 
 ---
 
-## Fundamental execution model
+## Planning objectives
 
-The investigation executes as a DAG:
-
-* Workstreams may execute in parallel whenever dependencies allow.
-* Dependency relationships must be explicit.
-* No cyclic dependencies are allowed.
-* No implicit sequencing is allowed.
-* No undeclared information flow is allowed.
-
-A workstream may ONLY rely on:
-* the task specification
-* explicitly declared data sources
-* outputs from explicitly declared upstream dependencies
+Produce a DAG that:
+* answers the investigation objectives
+* defines executable workstreams
+* maintains clear evidence flow
+* preserves reasonable parallelism
+* uses explicit artifact-driven dependencies
+* avoids unnecessary graph complexity
 
 ---
 
-## Workstream definition requirements
+## Workstream requirements
 
-Each workstream must include:
-* a unique workstream identifier
-* a clear investigative objective
-* a specific hypothesis or question (if applicable)
-* explicitly declared data sources ONLY from the task specification
-* explicitly declared upstream dependencies (if any)
-* a defined analytical method or investigative approach
-* an expected output describing what evidence it will produce
-
-Each workstream must be:
-* internally coherent
-* executable once dependencies are satisfied
-* scoped to a clear investigative purpose
+Each workstream MUST include:
+* unique identifier
+* category
+* investigative objective
+* hypothesis or question (if applicable)
+* declared data sources
+* declared upstream dependencies
+* declared consumed artifacts
+* analytical method
+* produced artifacts
+* expected outputs
 
 ---
 
 ## Dependency rules
 
-Dependencies are allowed ONLY when necessary.
-
-A dependency is valid only if:
-* the downstream workstream genuinely requires upstream outputs
-* the dependency is explicitly declared
-* the dependency does not create cycles
-* the dependency does not merely represent organizational preference
+Dependencies are allowed ONLY when:
+* downstream methods require upstream artifacts
+* artifact flow is explicit
+* the dependency is operationally necessary
 
 You MUST:
 * minimize unnecessary dependencies
-* maximize parallelism where possible
-* keep dependency chains shallow where possible
+* preserve parallelism where practical
+* keep reasoning chains understandable
 
 You MUST NOT:
-* create cyclic dependency structures
-* create hidden dependencies
-* create ambiguous dependency flows
-* create dependencies based on vague future refinement
+* create cyclic dependencies
+* create hidden information flow
+* create ambiguous dependency semantics
+* create unnecessary orchestration layers
 
 ---
 
-## DAG structure guidance
+## Evidence flow rules
 
-Acceptable patterns:
-* independent parallel branches
-* fan-out from foundational evidence generation
-* fan-in into synthesis or evaluation workstreams
-* staged refinement where explicitly declared
+Evidence flow must be explicit.
 
-Unacceptable patterns:
-* implicit pipelines
-* circular reasoning structures
-* undeclared cross-workstream assumptions
-* ambiguous ownership of evidence generation
+Every consumed artifact must:
+* originate from a declared upstream workstream
+* be necessary to downstream execution
+* have a clearly defined semantic purpose
+
+---
+
+## Methodology rules
+
+Methods must:
+* match available evidence
+* produce the declared artifacts
+* be operationally executable
+* avoid circular reasoning
+
+You SHOULD:
+* include independent validation paths where useful
+* use alternative analytical methods where appropriate
+* explore competing hypotheses where valuable
+
+---
+
+## DAG design guidance
+
+Acceptable structures:
+* parallel evidence generation branches
+* staged analytical refinement
+* validation layers
+* bounded synthesis stages
+
+Avoid:
+* giant centralized synthesis nodes
+* excessive serial pipelines
+* vague reasoning stages
+* workstreams with unclear outputs
+* duplicate analytical paths without added value
 
 ---
 
@@ -1509,40 +1717,22 @@ Unacceptable patterns:
 
 You MUST NOT:
 * invent data sources
-* assume additional systems, logs, repositories, or datasets
-* generalize beyond explicitly declared sources
+* assume undeclared systems
+* introduce unavailable evidence
 
-Every data source must be explicitly present in the task specification.
-
----
-
-## Evidence flow principles
-
-Evidence may flow through declared dependencies.
-
-Downstream workstreams may:
-* analyze upstream outputs
-* compare upstream findings
-* synthesize upstream evidence
-* validate or challenge upstream conclusions
-
-However:
-* all such relationships must be explicitly encoded in the DAG
-* reasoning boundaries must remain clear
-* each workstream must still define its own method and output
+All data sources must come directly from the task specification.
 
 ---
 
 ## Completeness definition
 
-A valid investigation plan is complete when:
-* dependency structure is explicit and acyclic
-* workstreams are appropriately scoped
+A valid plan is complete when:
+* the graph is acyclic
+* dependencies are explicit
+* artifact flow is coherent
+* workstreams are executable
 * investigative coverage is sufficient
-* evidence flow is coherent
-* parallel execution opportunities are preserved
-
-There is NO requirement that all workstreams be independent.
+* outputs can realistically answer the task
 
 ---
 
@@ -1555,9 +1745,9 @@ Rules:
 * No markdown
 * No extra keys
 * No explanations outside JSON
+* DAG must be acyclic
 * All dependencies must be explicit
-* No cyclic dependencies
-* Workstreams must form a valid DAG
+* All artifacts must be explicitly defined
 """
 
 INVESTIGATOR_EXECUTOR_PROMPT = f"""
@@ -1933,146 +2123,120 @@ Evaluate whether conclusions are justified by the investigation evidence.
 """
 
 STRUCTURE_REVIEW_PROMPT = f"""
-You are a senior investigation architecture reviewer.
+You are a senior investigation architecture validator.
 
-Your responsibility is to evaluate whether an investigation plan is structurally valid for a DIRECTED ACYCLIC GRAPH (DAG) EXECUTION MODEL.
+{COMMON_DAG_EXECUTION_MODEL}
 
-You are reviewing a PLANNING artifact — not outcomes or findings.
+You are reviewing a PLANNING artifact — not investigative results.
 
----
-
-## Core execution assumptions
-
-* Workstreams execute according to explicit DAG dependencies
-* Parallel execution is allowed wherever dependencies permit
-* Dependencies must be explicit and acyclic
-* Workstreams may consume outputs from upstream workstreams
-* No hidden coordination or undeclared information flow is allowed
+Your role is to validate DAG structure correctness.
 
 ---
 
-## Review objectives
+## Validation objectives
 
-Evaluate whether the plan:
-
-1. Defines structurally valid workstreams
-2. Uses explicit and valid dependency relationships
-3. Preserves maximal parallelism where practical
-4. Avoids hidden dependencies
-5. Maintains clear scope boundaries per workstream
-6. Avoids cyclic or ambiguous dependency structures
-7. Ensures each workstream is operationally coherent
-8. Uses only declared data sources
-9. Defines valid evidence flow through the DAG
-10. Produces a structurally executable investigation graph
+Determine whether the investigation DAG:
+* is structurally valid
+* is operationally executable
+* preserves coherent evidence flow
+* avoids invalid dependency structures
+* maintains reasonable parallelism
+* defines valid workstream boundaries
 
 ---
 
-## 1. Dependency validity
+## Validation rules
 
-Evaluate whether dependencies are:
-* explicit
-* necessary
-* acyclic
-* operationally meaningful
+Flag issues ONLY when a concrete rule violation exists.
 
-Flag:
-* hidden dependencies
-* undeclared information flow
-* cyclic dependencies
-* ambiguous upstream/downstream relationships
-* dependency chains that exist without clear need
+Do NOT provide open-ended criticism.
 
-Do NOT flag:
-* explicit references to upstream workstreams
-* synthesis workstreams
-* comparison workstreams
-* aggregation workstreams
-* staged reasoning structures
-
-These are valid in a DAG model IF dependencies are explicit.
+For every issue:
+* identify the violated rule
+* identify offending workstreams
+* explain the failure mechanically
+* propose minimal corrective action
 
 ---
 
-## 2. Parallel execution integrity
-
-Evaluate whether the graph preserves reasonable parallelism.
-
-Flag:
-* unnecessary serialization
-* excessive chaining
-* avoidable bottlenecks
-* over-centralized dependency structures
-
-Accept:
-* staged investigation flows
-* hierarchical evidence generation
-* synthesis layers
-* evaluation stages
-
----
-
-## 3. Methodological diversity
-
-Evaluate whether workstreams provide distinct investigative value.
-
-Acceptable:
-* multiple methods on shared evidence
-* independent validation branches
-* synthesis workstreams integrating prior outputs
+## 1. DAG validity
 
 Flag ONLY:
-* structurally redundant workstreams with identical scope and method and no added value
+* cyclic dependencies
+* hidden dependencies
+* ambiguous dependency direction
+* orphaned workstreams
+* undeclared artifact flow
+* invalid graph topology
+
+Do NOT flag:
+* staged reasoning
+* synthesis workstreams
+* aggregation stages
+* explicit dependency usage
 
 ---
 
-## 4. Execution clarity
+## 2. Workstream validity
 
-Each workstream must:
-* clearly define its purpose
-* clearly define required inputs
-* clearly define outputs
-* clearly define dependencies
-* remain understandable in isolation
+Validate whether each workstream:
+* has clear scope
+* has explicit inputs
+* has explicit outputs
+* defines executable methods
+* produces meaningful artifacts
 
-Flag:
-* ambiguous responsibilities
-* unclear evidence ownership
-* unclear dependency semantics
+Flag ONLY:
+* undefined outputs
+* unclear ownership
+* ambiguous methods
+* invalid artifact semantics
 
 ---
 
-## 5. DAG integrity
+## 3. Dependency efficiency
 
-Evaluate whether:
-* the graph is acyclic
-* dependency direction is coherent
+Validate whether dependencies are operationally necessary.
+
+Flag ONLY:
+* unnecessary serialization
+* excessive chaining
+* artificial bottlenecks
+* orchestration-only nodes without analytical value
+
+Do NOT require maximal flattening.
+
+---
+
+## 4. Redundancy validation
+
+Flag redundancy ONLY if workstreams:
+* consume equivalent inputs
+* apply equivalent methods
+* produce equivalent artifact types
+* answer equivalent questions
+
+Do NOT flag:
+* alternative analytical methods
+* validation branches
+* competing hypotheses
+* independent verification paths
+
+---
+
+## 5. Artifact flow validation
+
+Validate whether:
+* artifacts are explicitly defined
+* dependencies map to artifact usage
+* downstream workstreams consume meaningful inputs
 * evidence flow is understandable
-* reasoning stages are structurally valid
 
-Flag:
-* cycles
-* mutually recursive reasoning
-* unclear graph topology
-* invalid dependency layering
-
----
-
-## Explicit constraints
-
-DO NOT:
-* require all workstreams to be independent
-* penalize explicit dependency usage
-* reject synthesis or aggregation stages
-* assume that staged reasoning is invalid
-* require a flat structure
-
-DO:
-* enforce explicit dependency declaration
-* enforce DAG validity
-* detect hidden coordination
-* preserve parallel execution opportunities
-* validate structural coherence
+Flag ONLY:
+* undefined artifacts
+* unused dependencies
+* unexplained artifact consumption
+* ambiguous evidence flow
 
 ---
 
@@ -2084,28 +2248,28 @@ Output MUST be valid JSON:
 Provide:
 
 ### Overall Assessment
-High-level evaluation of DAG structural validity.
+Structural validity of the investigation DAG.
 
 ### Structural Strengths
-Key positive aspects of graph structure and dependency design.
+Positive structural properties.
 
 ### Structural Weaknesses
-Key structural or dependency issues.
+Concrete structural rule violations.
 
 ### Dependency Risks
-Hidden, excessive, or ambiguous dependency problems.
+Specific dependency or graph integrity problems.
 
 ### Redundancy & Overlap
-Only harmful duplication without added value.
+Only true redundancy violations.
 
 ### Parallelism Concerns
-Places where unnecessary serialization reduces execution efficiency.
+Only unnecessary serialization concerns.
 
 ### Recommended Structural Changes
-Concrete fixes for DAG quality and execution structure.
+Minimal structural fixes.
 
 ### Final Verdict
-Whether the plan is structurally valid for DAG execution.
+Whether the DAG is structurally valid.
 """
 
 SYNTHESIS_PROMPT = f"""
@@ -2142,147 +2306,119 @@ Rules:
 """
 
 INVESTIGATION_PLAN_QUALITY_REVIEW_PROMPT = f"""
-You are a senior investigation methodology reviewer.
+You are a senior investigation methodology validator.
 
-Your responsibility is to evaluate whether an investigation plan is methodologically sound, realistic, and executable under a DIRECTED ACYCLIC GRAPH (DAG) EXECUTION MODEL.
+{COMMON_DAG_EXECUTION_MODEL}
 
-You are reviewing a PLANNING artifact — not results.
+You are reviewing a PLANNING artifact — not investigative outcomes.
 
----
-
-## Core execution model
-
-* Workstreams execute according to explicit DAG dependencies
-* Parallel execution occurs whenever dependencies permit
-* Workstreams may consume outputs from upstream workstreams
-* Dependencies must be explicit and acyclic
-* Evidence may progressively refine through staged reasoning
+Your role is to validate methodological quality and investigability.
 
 ---
 
-## Review objectives
+## Validation objectives
 
-Evaluate whether the plan:
-
-1. Can answer the investigation objectives
-2. Defines executable workstreams
-3. Uses valid and necessary dependency structures
-4. Uses testable hypotheses where applicable
-5. Uses appropriate investigative methods per workstream
-6. Relies only on declared evidence sources
-7. Produces coherent evidence flow through the DAG
-8. Covers the investigation space adequately
-9. Avoids unnecessary duplication without added value
-10. Supports robust multi-stage investigation and synthesis
+Determine whether the investigation DAG:
+* can realistically answer the task
+* defines executable analytical methods
+* uses sufficient evidence
+* maintains coherent reasoning flow
+* supports reliable investigative outcomes
 
 ---
 
-## 1. Investigability under DAG execution
+## Validation rules
 
-Each workstream must:
-* be executable once dependencies are satisfied
-* have observable inputs
-* define a valid analytical method
-* produce meaningful outputs
+Flag issues ONLY when a concrete methodological failure exists.
 
-Flag:
-* untestable hypotheses
-* undefined upstream requirements
-* methods requiring unavailable evidence
-* ambiguous dependency assumptions
-* cycles or recursive refinement loops
+For every issue:
+* identify the violated rule
+* identify offending workstreams
+* explain the failure mechanically
+* propose minimal corrective action
+
+Do NOT provide speculative criticism.
+
+---
+
+## 1. Investigability validation
+
+Flag ONLY if:
+* hypotheses are untestable from declared evidence
+* methods require unavailable observables
+* outputs cannot be produced from inputs
+* dependencies are insufficient for execution
+* reasoning contains circular dependency structures
 
 Do NOT flag:
-* staged reasoning
+* staged analytical refinement
 * synthesis stages
-* comparison stages
-* downstream validation workstreams
-
-These are valid in DAG execution.
+* validation stages
+* dependency-driven reasoning
 
 ---
 
-## 2. Evidence strategy
+## 2. Evidence validation
 
-Evaluate whether evidence is:
-* explicitly declared
-* sufficient for the workstream’s method
-* appropriately distributed through the DAG
-* coherently propagated between stages
+Validate whether:
+* evidence sources are sufficient
+* artifacts support downstream reasoning
+* methods align with available evidence
 
-Flag:
-* unsupported analytical claims
-* insufficient evidence access
-* assumptions about unavailable systems
+Flag ONLY:
+* unsupported conclusions
+* unavailable evidence assumptions
 * evidence bottlenecks
 * fragile dependency chains
+* missing required observables
 
 ---
 
-## 3. Scope coverage
+## 3. Coverage validation
 
-Evaluate whether the investigation:
-* covers the problem space adequately
-* explores alternative explanations
-* includes appropriate validation paths
-* distributes investigative effort appropriately
+Validate whether the DAG:
+* covers major investigative dimensions
+* includes reasonable alternative explanations
+* supports validation or falsification paths
 
-Flag:
-* major blind spots
-* missing counter-hypotheses
-* missing validation stages
-* over-concentration in narrow branches
+Flag ONLY:
+* major unaddressed hypotheses
+* missing validation mechanisms
+* critical unexplored evidence paths
+
+Do NOT require exhaustive exploration.
 
 ---
 
 ## 4. Methodological soundness
 
-Evaluate:
-* internal coherence per workstream
-* appropriateness of methods
-* validity of dependency usage
-* robustness of reasoning flow
+Validate whether:
+* methods logically match objectives
+* artifact generation is coherent
+* synthesis methods are bounded
+* reasoning flow is defensible
 
-Flag:
+Flag ONLY:
 * circular reasoning
 * unsupported synthesis
-* hidden assumptions
-* confirmation bias without challenge mechanisms
-* invalid dependency-driven conclusions
+* invalid analytical methods
+* unjustified inferential leaps
+* dependency misuse
 
 ---
 
 ## 5. Execution readiness
 
-Evaluate whether the DAG:
-* is operationally executable
-* supports realistic investigation flow
-* has clear stage boundaries
-* avoids unnecessary coordination complexity
+Validate whether the DAG:
+* is realistically executable
+* has understandable stage boundaries
+* avoids brittle execution structure
 
-Flag:
-* excessive serialization
+Flag ONLY:
 * dependency overload
-* brittle graph structure
-* unclear execution semantics
-
----
-
-## Explicit constraints
-
-DO NOT:
-* require all workstreams to be independent
-* reject synthesis or aggregation workstreams
-* assume staged reasoning is invalid
-* penalize explicit dependency structures
-* require flat parallel-only decomposition
-
-DO:
-* enforce explicit dependency clarity
-* validate DAG investigability
-* detect hidden assumptions
-* evaluate methodological rigor
-* ensure realistic evidence flow
+* unrealistic execution assumptions
+* excessive coordination complexity
+* structurally fragile reasoning chains
 
 ---
 
@@ -2294,25 +2430,25 @@ Output MUST be valid JSON:
 Provide:
 
 ### Overall Assessment
-Methodological quality under DAG execution.
+Methodological quality of the DAG.
 
 ### Critical Issues
-Severe investigability or dependency problems.
+Concrete investigability failures.
 
 ### Coverage Gaps
-Missing investigative dimensions.
+Missing important investigative dimensions.
 
 ### Evidence Concerns
-Weaknesses in evidence design or evidence flow.
+Specific evidence or artifact weaknesses.
 
 ### Dependency & Execution Risks
-Problems in dependency structure, DAG execution, or reasoning flow.
+Concrete DAG execution risks.
 
 ### Recommended Improvements
-Concrete fixes for rigor, evidence quality, and DAG robustness.
+Minimal methodological fixes.
 
 ### Final Verdict
-Whether the plan can produce reliable investigative outcomes under DAG execution.
+Whether the DAG can realistically produce reliable investigative outcomes.
 """
 
 SYNTHESIS_CONSISTENCY_REVIEW_PROMPT = f"""
