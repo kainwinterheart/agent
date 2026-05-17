@@ -1475,6 +1475,16 @@ All dependencies must:
 * be acyclic
 * identify meaningful artifact flow
 
+Dependencies impose execution cost by:
+* reducing parallelism
+* increasing coordination complexity
+* increasing graph fragility
+* increasing serialization pressure
+
+Therefore every dependency requires strict operational justification.
+
+A dependency is valid ONLY if downstream execution would be impossible, undefined, or semantically invalid without the upstream artifact.
+
 ---
 
 ## Artifact model
@@ -1514,6 +1524,27 @@ Allowed categories include:
 * Risk Assessment
 
 Workstreams may depend on upstream workstreams from earlier categories where appropriate.
+
+### Validation workstream rules
+
+Validation workstreams must validate specific claims, hypotheses, or artifacts.
+
+Validation workstreams MUST NOT:
+* consume unrelated branches
+* aggregate all available evidence by default
+* act as global coordination nodes
+* require universal upstream visibility
+
+Validation scope must remain explicitly bounded.
+
+### Synthesis workstream rules
+
+Synthesis workstreams should consume the MINIMAL artifact set necessary to produce their outputs.
+
+Synthesis workstreams MUST NOT:
+* depend on all upstream workstreams by default
+* aggregate branches without explicit need
+* act as universal graph sinks
 
 ---
 
@@ -1690,9 +1721,12 @@ Methods must:
 * avoid circular reasoning
 
 You SHOULD:
-* include independent validation paths where useful
 * use alternative analytical methods where appropriate
 * explore competing hypotheses where valuable
+
+Independent validation paths SHOULD remain structurally independent whenever possible.
+
+Validation dependencies should be introduced only when validation execution explicitly requires upstream artifacts.
 
 ---
 
@@ -2157,6 +2191,16 @@ For every issue:
 * explain the failure mechanically
 * propose minimal corrective action
 
+Unnecessary dependency introduction is itself a DAG quality failure.
+
+Reviewers MUST preserve existing valid parallelism unless execution correctness requires serialization.
+
+Adding unnecessary dependencies that reduce parallelism constitutes overconstraint.
+
+Independent analytical perspectives SHOULD remain independent unless explicit artifact requirements necessitate coordination.
+
+Methodological overlap alone does NOT justify dependencies.
+
 ---
 
 ## 1. DAG validity
@@ -2324,6 +2368,16 @@ Determine whether the investigation DAG:
 * uses sufficient evidence
 * maintains coherent reasoning flow
 * supports reliable investigative outcomes
+
+Unnecessary dependency introduction is itself a DAG quality failure.
+
+Reviewers MUST preserve existing valid parallelism unless execution correctness requires serialization.
+
+Adding unnecessary dependencies that reduce parallelism constitutes overconstraint.
+
+Independent analytical perspectives SHOULD remain independent unless explicit artifact requirements necessitate coordination.
+
+Methodological overlap alone does NOT justify dependencies.
 
 ---
 
