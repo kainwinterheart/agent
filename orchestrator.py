@@ -706,74 +706,108 @@ IMPORTANT:
             return "## Executive Summary\n\nNo investigation plan was produced."
 
         # ========== PHASE 2: Workstream Execution ==========
-        findings_list = []
+        completed_workstreams = {}
+        have_work = True
+        made_progress = True
 
-        for N, workstream in enumerate(workstreams, 1):
-            self.domain_id = N
-            session_suffix = f"d{self.domain_id}-start"
-            self.investigator_executor.reset(session_suffix)
-            if not workstream.get("hypotheses") or not workstream.get("data_sources"):
-                continue
-
-            findings = run_json_agent(
-                self.investigator_executor,
-                f"WORKSTREAM:\n{json.dumps(workstream)}",
-                f"investigation-workstream-{N}",
-                [*subdir, str(self.domain_id)],
-            )
-
-            for i in range(MAX_PLAN_ITERS):
-                gap_review = run_json_agent(
-                    self.gap_analysis_reviewer,
-                    f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
-                    f"investigation-gap-review-ws-{N}-{i}",
-                    [*subdir, str(self.domain_id)],
-                )
-                fact_review = run_json_agent(
-                    self.fact_checking_reviewer,
-                    f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
-                    f"investigation-fact-review-ws-{N}-{i}",
-                    [*subdir, str(self.domain_id)],
-                )
-
-                if self.review_ok(gap_review) and self.review_ok(fact_review):
-                    break
-
-                combined_review = {"gap_review": gap_review, "fact_review": fact_review}
-
-                if self.should_reset(gap_review) or self.should_reset(fact_review):
-                    log(
-                        "SYSTEM",
-                        f"Resetting investigator executor context: {combined_review.get('reset_reason', '')}",
-                    )
-                    self.investigator_executor.reset(
-                        f"investigation-workstream-{N}-{i}"
-                    )
-
-                    revision_prompt = (
-                        f"WORKSTREAM:\n{json.dumps(workstream)}\n"
-                        f"PREVIOUS FINDINGS:\n{json.dumps(findings)}\n"
-                        f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
-                        "Revise the investigation findings for this workstream."
-                    )
+        while have_work:
+            have_work = False
+            completed_before = len(completed_workstreams)
+            for N, workstream in enumerate(workstreams, 1):
+                workstream = dict(workstream)
+                workstream["id"] = workstream["id"].strip().lower()
+                # TODO: validate uniqueness of identifiers
+                if workstream["id"] in completed_workstreams:
+                    continue
+                have_work = True
+                can_run = True
+                inputs = []
+                for dep in workstream["dependencies"]:
+                    dep = dep.strip().lower()
+                    if dep in completed_workstreams:
+                        res = completed_workstreams[dep]
+                        if res:
+                            inputs.append(res)
+                    else:
+                        can_run = False
+                if not can_run:
+                    if made_progress:
+                        continue
+                    else:
+                        # We seem to be in a cycle, ignore dependencies and move on
+                        made_progress = True
+                if inputs:
+                    workstream["dependencies"] = inputs
                 else:
-                    revision_prompt = f"REVISE INVESTIGATION FINDINGS based on feedback:\n{json.dumps(combined_review)}"
+                    del workstream["dependencies"]
+                self.domain_id = N
+                session_suffix = f"d{self.domain_id}-start"
+                self.investigator_executor.reset(session_suffix)
+                if not workstream.get("hypotheses") or not workstream.get("data_sources"):
+                    completed_workstreams[workstream["id"]] = None
+                    continue
 
                 findings = run_json_agent(
                     self.investigator_executor,
-                    revision_prompt,
-                    f"investigation-workstream-{N}-{i + 1}",
+                    f"WORKSTREAM:\n{json.dumps(workstream)}",
+                    f"investigation-workstream-{N}",
                     [*subdir, str(self.domain_id)],
                 )
 
-            markdown_document_generator(
-                findings,
-                f"investigation_workstream_{N}",
-                [*subdir, str(self.domain_id)],
-            )
-            findings_list.append(findings)
+                for i in range(MAX_PLAN_ITERS):
+                    gap_review = run_json_agent(
+                        self.gap_analysis_reviewer,
+                        f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
+                        f"investigation-gap-review-ws-{N}-{i}",
+                        [*subdir, str(self.domain_id)],
+                    )
+                    fact_review = run_json_agent(
+                        self.fact_checking_reviewer,
+                        f"WORKSTREAM:\n{json.dumps(workstream)}\nFINDINGS TO REVIEW:\n{json.dumps(findings)}",
+                        f"investigation-fact-review-ws-{N}-{i}",
+                        [*subdir, str(self.domain_id)],
+                    )
+
+                    if self.review_ok(gap_review) and self.review_ok(fact_review):
+                        break
+
+                    combined_review = {"gap_review": gap_review, "fact_review": fact_review}
+
+                    if self.should_reset(gap_review) or self.should_reset(fact_review):
+                        log(
+                            "SYSTEM",
+                            f"Resetting investigator executor context: {combined_review.get('reset_reason', '')}",
+                        )
+                        self.investigator_executor.reset(
+                            f"investigation-workstream-{N}-{i}"
+                        )
+
+                        revision_prompt = (
+                            f"WORKSTREAM:\n{json.dumps(workstream)}\n"
+                            f"PREVIOUS FINDINGS:\n{json.dumps(findings)}\n"
+                            f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n\n"
+                            "Revise the investigation findings for this workstream."
+                        )
+                    else:
+                        revision_prompt = f"REVISE INVESTIGATION FINDINGS based on feedback:\n{json.dumps(combined_review)}"
+
+                    findings = run_json_agent(
+                        self.investigator_executor,
+                        revision_prompt,
+                        f"investigation-workstream-{N}-{i + 1}",
+                        [*subdir, str(self.domain_id)],
+                    )
+
+                markdown_document_generator(
+                    findings,
+                    f"investigation_workstream_{N}",
+                    [*subdir, str(self.domain_id)],
+                )
+                completed_workstreams[workstream["id"]] = findings
+            made_progress = completed_before != len(completed_workstreams)
 
         # ========== PHASE 3: Synthesis ==========
+        findings_list = [completed_workstreams.get(v["id"]) for v in workstreams]
         report = run_json_agent(
             self.synthesis_agent,
             f"FINDINGS:\n{json.dumps(findings_list)}",

@@ -1056,6 +1056,17 @@ INVESTIGATOR_PLAN_SCHEMA = {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "unique-identifier-of-this-workstream",
+                    },
+                    "dependencies": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": "unique-identifier-of-a-dependency-workstream; if the workstream has no dependencies - leave this array blank",
+                        },
+                    },
                     "objective": {
                         "type": "string",
                         "description": "clear statement of what this workstream aims to determine",
@@ -1090,6 +1101,8 @@ INVESTIGATOR_PLAN_SCHEMA = {
                     },
                 },
                 "required": [
+                    "id",
+                    "dependencies",
                     "objective",
                     "data_sources",
                     "hypotheses",
