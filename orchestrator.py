@@ -214,6 +214,24 @@ class Orchestrator:
             timeout="30m",
             resume=prompts.REVIEWER_RESUME_PROMPT,
         )
+        self.investigation_plan_quality_reviewer = Agent(
+            "investigation_plan_quality_reviewer",
+            prompts.INVESTIGATION_PLAN_QUALITY_REVIEW_PROMPT,
+            schemas.INVESTIGATION_PLAN_QUALITY_REVIEW_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
+        )
+        self.synthesis_consistency_reviewer = Agent(
+            "synthesis_consistency_reviewer",
+            prompts.SYNTHESIS_CONSISTENCY_REVIEW_PROMPT,
+            schemas.SYNTHESIS_CONSISTENCY_REVIEW_SCHEMA,
+            self.subdir,
+            ephemeral=True,
+            timeout="30m",
+            resume=prompts.REVIEWER_RESUME_PROMPT,
+        )
 
     def review_ok(self, review: dict) -> bool:
         approved = review.get("approved", False)
@@ -637,16 +655,10 @@ IMPORTANT:
         )
 
         for i in range(MAX_PLAN_ITERS):
-            gap_review = run_json_agent(
-                self.gap_analysis_reviewer,
+            quality_review = run_json_agent(
+                self.investigation_plan_quality_reviewer,
                 f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
-                f"investigation-gap-review-{i}",
-                subdir,
-            )
-            fact_review = run_json_agent(
-                self.fact_checking_reviewer,
-                f"TASK:\n{wrapped_task}\nPLAN TO REVIEW:\n{json.dumps(plan)}",
-                f"investigation-fact-review-{i}",
+                f"investigation-plan_quality-review-{i}",
                 subdir,
             )
             struct_review = run_json_agent(
@@ -656,12 +668,12 @@ IMPORTANT:
                 subdir,
             )
 
-            if self.review_ok(gap_review) and self.review_ok(fact_review) and self.review_ok(struct_review):
+            if self.review_ok(quality_review) and self.review_ok(struct_review):
                 break
 
-            combined_review = {"gap_review": gap_review, "fact_review": fact_review, "struct_review": struct_review}
+            combined_review = {"quality_review": quality_review, "struct_review": struct_review}
 
-            if self.should_reset(gap_review) or self.should_reset(fact_review) or self.should_reset(struct_review):
+            if self.should_reset(quality_review) or self.should_reset(struct_review):
                 log(
                     "SYSTEM",
                     f"Resetting investigator planner context: {combined_review.get('reset_reason', '')}",
@@ -770,30 +782,21 @@ IMPORTANT:
         )
 
         for i in range(MAX_PLAN_ITERS):
-            gap_review = run_json_agent(
-                self.gap_analysis_reviewer,
+            consistency_review = run_json_agent(
+                self.synthesis_consistency_reviewer,
                 f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
-                f"investigation-gap-review-final-{i}",
-                subdir,
-            )
-            fact_review = run_json_agent(
-                MAX_PLAN_ITERS,
-                self.fact_checking_reviewer,
-                f"REPORT TO REVIEW:\n{json.dumps(report)}\nSOURCE FINDINGS:\n{json.dumps(findings_list)}",
-                f"investigation-fact-review-final-{i}",
+                f"investigation-consistency_review-final-{i}",
                 subdir,
             )
 
-            if self.review_ok(gap_review) and self.review_ok(fact_review):
+            if self.review_ok(consistency_review):
                 break
-
-            combined_review = {"gap_review": gap_review, "fact_review": fact_review}
 
             # NOTE: synthesis_agent is ephemeral - do NOT call self.synthesis_agent.reset()
             # Ephemeral agents auto-reset via run_json_agent (utils.py:163-164)
 
             revision_prompt = (
-                f"REVIEW FEEDBACK:\n{json.dumps(combined_review)}\n"
+                f"REVIEW FEEDBACK:\n{json.dumps(consistency_review)}\n"
                 f"FINDINGS:\n{json.dumps(findings_list)}\n"
                 f"PREVIOUS REPORT:\n{json.dumps(report)}\n\n"
                 "Rebuild the investigation report from scratch using the findings and review feedback."
