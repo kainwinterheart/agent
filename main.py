@@ -64,12 +64,22 @@ def main():
     # Print session id to stderr (same prefix as codex/claudex tools)
     print("session id: " + subdir, file=sys.stderr)
 
-    task = read_stdin()
-
-    os.makedirs(subdir, exist_ok=True)
-    task_file = os.path.join(subdir, f"{ts}-task.txt")
-    with open(task_file, "w") as f:
-        f.write(task)
+    task = None
+    if is_resume:
+        for f in os.listdir(subdir):
+            if f.endswith("-task.txt"):
+                with open(os.path.join(subdir, f), "r") as f:
+                    task = f.read()
+                break
+    else:
+        task = read_stdin()
+    if not task:
+        raise AssertionError("Task content must be provided")
+    if not is_resume:
+        os.makedirs(subdir, exist_ok=True)
+        task_file = os.path.join(subdir, f"{ts}-task.txt")
+        with open(task_file, "w") as f:
+            f.write(task)
 
     orch = Orchestrator(task, subdir)
     orch.run()

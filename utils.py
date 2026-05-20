@@ -206,7 +206,14 @@ def markdown_document_generator(
     # Generate timestamp for filename
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"{timestamp}_{stage_name}.md"
-    filepath = os.path.join(build_path(subdir, "document_stores"), filename)
+    target_dir = build_path(subdir, "document_stores")
+    if os.path.exists(target_dir):
+        for f in os.listdir(target_dir):
+            if f.endswith(f"_{stage_name}.md"):
+                filepath = os.path.join(target_dir, f)
+                log("MARKDOWN", f"{filepath} already exists")
+                return filepath
+    filepath = os.path.join(target_dir, filename)
 
     # Build markdown sections based on stage type
     markdown_content = ""
