@@ -147,6 +147,11 @@ program
       process.exit(1);
     }
 
+    options = {...program.opts(), ...options};
+    if (options.cd) {
+      process.chdir(options.cd);
+    }
+
     await runExec({
       resumeThreadId: isResume ? threadId : null,
       outputSchemaPath: options.outputSchema,
