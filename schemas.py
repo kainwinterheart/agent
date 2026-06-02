@@ -854,88 +854,179 @@ SYSTEM_DECOMPOSITION_SCHEMA = {
             "properties": {
                 "summary": {
                     "type": "string",
-                    "description": "high-level explanation of how the request was broken down into implementation domains",
+                    "description": "high-level explanation of the architecture decomposition strategy",
                 },
                 "reviewer_notes": {
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "description": "notes about decomposition decisions, coupling concerns, assumptions, and why certain areas were grouped or separated",
                     },
                 },
                 "domains": {
                     "type": "array",
+                    "description": "architecture domains forming a DAG",
                     "items": {
                         "type": "object",
                         "additionalProperties": False,
                         "properties": {
                             "id": {
-                                "type": "integer",
-                                "description": "numeric domain identifier",
+                                "type": "string",
+                                "description": "unique-identifier-of-this-domain",
                             },
                             "name": {
                                 "type": "string",
-                                "description": "short domain name",
+                            },
+                            "category": {
+                                "type": "string",
+                                "enum": [
+                                    "Foundation",
+                                    "Core Business Logic",
+                                    "Data & Persistence",
+                                    "External Integrations",
+                                    "User Experience",
+                                    "Platform Infrastructure",
+                                    "Cross-Domain Integration",
+                                    "Validation & Acceptance",
+                                ],
+                            },
+                            "responsibility": {
+                                "type": "string",
+                                "description": "single ownership responsibility of this domain",
                             },
                             "scope": {
                                 "type": "string",
-                                "description": "clear description of what belongs in this domain",
+                                "description": "what architecture problem this domain owns",
                             },
-                            "includes": {
+                            "constraints": {
                                 "type": "array",
                                 "items": {
                                     "type": "string",
-                                    "description": "specific responsibility, specific component, specific subsystem",
                                 },
                             },
-                            "excludes": {
+                            "upstream_dependencies": {
                                 "type": "array",
                                 "items": {
                                     "type": "string",
-                                    "description": "related responsibility intentionally handled elsewhere",
+                                },
+                                "description": "unique-identifier-of-a-dependency-domain; ids of domains that produce required artifacts",
+                            },
+                            "consumed_artifacts": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "properties": {
+                                        "artifact_name": {
+                                            "type": "string",
+                                        },
+                                        "producer_domain_id": {
+                                            "type": "string",
+                                            "description": "unique-identifier-of-a-producer-domain; id of a domain that is expected to produce this artifact",
+                                        },
+                                        "purpose": {
+                                            "type": "string",
+                                            "description": "why this artifact is required",
+                                        },
+                                    },
+                                    "required": [
+                                        "artifact_name",
+                                        "producer_domain_id",
+                                        "purpose",
+                                    ],
                                 },
                             },
-                            "dependencies": {
+                            "produced_artifacts": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "properties": {
+                                        "artifact_name": {
+                                            "type": "string",
+                                        },
+                                        "artifact_type": {
+                                            "type": "string",
+                                        },
+                                        "purpose": {
+                                            "type": "string",
+                                        },
+                                        "expected_content": {
+                                            "type": "string",
+                                        },
+                                    },
+                                    "required": [
+                                        "artifact_name",
+                                        "artifact_type",
+                                        "purpose",
+                                        "expected_content",
+                                    ],
+                                },
+                            },
+                            "expected_architecture_outcomes": {
                                 "type": "array",
                                 "items": {
                                     "type": "string",
-                                    "description": "name of prerequisite domain",
                                 },
                             },
-                            "reasoning": {
+                            "domain_specification": {
                                 "type": "string",
-                                "description": "why this domain is separated, why it is cohesive, and why it should be implemented at this stage",
-                            },
-                            "architect_input": {
-                                "type": "string",
-                                "description": "fully scoped architecture request for this domain, written so it can be passed directly to a software architect without additional processing; in case this domain has been confirmed fully complete - set this field to empty string.",
+                                "description": (
+                                    "bounded architecture problem statement describing "
+                                    "responsibility, scope, constraints, available upstream "
+                                    "artifacts, and expected outputs. Must NOT contain "
+                                    "architecture designs, APIs, schemas, algorithms, "
+                                    "implementation steps, or technical mechanisms. "
+                                    "If already completed, set to empty string."
+                                ),
                             },
                         },
                         "required": [
                             "id",
                             "name",
+                            "category",
+                            "responsibility",
                             "scope",
-                            "includes",
-                            "excludes",
-                            "dependencies",
-                            "reasoning",
-                            "architect_input",
+                            "constraints",
+                            "upstream_dependencies",
+                            "consumed_artifacts",
+                            "produced_artifacts",
+                            "expected_architecture_outcomes",
+                            "domain_specification",
                         ],
                     },
-                    "description": "list of decomposition domains",
                 },
-                "integration_order": {
+                "integration_ownership": {
                     "type": "array",
+                    "description": "explicit ownership of cross-domain integration responsibilities",
                     "items": {
-                        "type": "string",
-                        "description": "ordered list of domain names representing recommended execution sequence",
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "capability": {
+                                "type": "string",
+                            },
+                            "owner_domain_id": {
+                                "type": "string",
+                                "description": "unique-identifier-of-an-owner-domain; id of a domain that owns this integration",
+                            },
+                            "integration_artifacts": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                },
+                            },
+                        },
+                        "required": [
+                            "capability",
+                            "owner_domain_id",
+                            "integration_artifacts",
+                        ],
                     },
                 },
                 "global_risks": {
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "description": "cross-domain risk, coupling issue, sequencing concern, or area requiring careful validation",
                     },
                 },
             },
@@ -943,13 +1034,16 @@ SYSTEM_DECOMPOSITION_SCHEMA = {
                 "summary",
                 "reviewer_notes",
                 "domains",
-                "integration_order",
+                "integration_ownership",
                 "global_risks",
             ],
         },
         "next_steps": next_steps,
     },
-    "required": ["decomposition", "next_steps"],
+    "required": [
+        "decomposition",
+        "next_steps",
+    ],
 }
 
 SYSTEM_DECOMPOSITION_REVIEW_SCHEMA = {

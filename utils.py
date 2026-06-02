@@ -12,7 +12,7 @@ import sys
 import time
 from contextlib import ExitStack
 from tempfile import NamedTemporaryFile, TemporaryFile, mkstemp
-from typing import Optional
+from typing import Optional, Tuple
 
 import jsonschema
 
@@ -259,12 +259,13 @@ def markdown_document_generator(
             markdown_content += "## Domains\n\n"
             domains = actual_content["domains"]
             if isinstance(domains, list):
-                for domain_index, domain in enumerate(domains):
+                for domain_index, domain in enumerate(domains, 1):
                     if isinstance(domain, dict):
-                        id_val = domain.get("id", domain_index + 1)
-                        if architect_input := domain.get("architect_input"):
-                            markdown_content += f"### Domain {id_val}\n\n"
-                            markdown_content += f"{architect_input}\n\n"
+                        if architect_input := build_architect_input(
+                            domain, actual_content["integration_ownership"]
+                        ):
+                            markdown_content += f"### Domain {domain_index}\n\n"
+                            markdown_content += f"{''.join(architect_input)}\n\n"
     elif stage_name == "architecture_after_reviews":
         actual_content = content.get("architecture", {})
         # Architecture stage uses overview
@@ -655,3 +656,48 @@ Do not include any explanation or commentary.
             next_prompt += "\n"
             next_prompt += prompts.FOLLOWUP
     return results
+
+
+def build_architect_input(
+    domain: dict, integration_ownership: list
+) -> Optional[Tuple[str, str]]:
+    spec = domain.get("domain_specification")
+    if not spec:
+        return None
+    if not spec.endswith("\n"):
+        spec += "\n"
+    integrations = []
+    domain_id_str = domain["id"].strip().lower()
+    for item in integration_ownership:
+        if item["owner_domain_id"].strip().lower() == domain_id_str:
+            integrations.append(item)
+    if integrations:
+        spec += "\nAdditionally, you are EXPECTED TO HANDLE integration of the following capabilities into the overall system:\n"
+        for i, item in enumerate(integrations, 1):
+            suffix = ":" if item["integration_artifacts"] else ""
+            spec += f"{i}. {item['capability']}{suffix}\n"
+            for j, subitem in enumerate(item["integration_artifacts"], 1):
+                spec += f"\t{j}. {subitem}\n"
+    more = ""
+    if items := domain.get("expected_architecture_outcomes"):
+        more += "\nExpected architecture outcomes:\n"
+        for item in items:
+            more += f"* {item}\n"
+    if items := domain.get("produced_artifacts"):
+        more += "\nDetailed expectations:\n"
+        for item in items:
+            more += f"* {item['artifact_name']}: {item['purpose']}. {item['expected_content']}\n"
+    if items := domain.get("constraints"):
+        more += "\nConstraints:\n"
+        for item in items:
+            more += f"* {item}\n"
+    if items := domain.get("consumed_artifacts"):
+        more += "\nKnowledge REQUIRED to build context:\n"
+        for item in items:
+            more += f"* {item['artifact_name']}: {item['purpose']}\n"
+    more += "\n"
+    if text := domain.get("responsibility"):
+        more += f"Responsibility: {text}\n"
+    if text := domain.get("scope"):
+        more += f"Scope: {text}\n"
+    return (spec, more)

@@ -13,6 +13,7 @@ from config import MAX_CODE_ITERS, MAX_PLAN_ITERS, MAX_TOP_ITERATIONS
 from execution_framework import CodeExecutionFramework, Configuration
 from utils import (
     assert_not_empty,
+    build_architect_input,
     log,
     markdown_document_generator,
     nudge,
@@ -453,107 +454,134 @@ Revise the synthesized specification to address the review feedback while preser
         decomposition = self.decomposition_workflow(root_task)
 
         domains = decomposition.get("decomposition", {}).get("domains", [])
+        completed_workstreams = set()
+        have_work = True
+        made_progress = True
 
-        for domain_index, domain in enumerate(domains):
-            task = domain.get("architect_input")
-            self.domain_id = domain.get("id", domain_index + 1)
-
-            session_suffix = f"d{self.domain_id}-start"
-            self.arch.reset(session_suffix)
-            self.tech_lead.reset(session_suffix)
-            self.coder.reset(session_suffix)
-            final_feedback = None
-
-            if not task:
-                continue
-
-            coder_task = run_json_agent(
-                self.design_cleanup,
-                f"INPUT TEXT:\n{task}",
-                f"d{self.domain_id}-design-cleanup",
-                [self.subdir, str(self.domain_id)],
-            )["text"]
-
-            task = wrap_text(task)
-            coder_task = wrap_text(coder_task)
-
-            for iteration in range(MAX_TOP_ITERATIONS):
-                log(
-                    "ITERATION",
-                    f"Starting iteration {iteration + 1}/{MAX_TOP_ITERATIONS}"
-                    f" for domain {domain_index + 1}/{len(domains)}",
+        while have_work:
+            have_work = False
+            completed_before = len(completed_workstreams)
+            for domain_index, domain in enumerate(domains, 1):
+                domain_id_str = domain["id"].strip().lower()
+                # TODO: validate uniqueness of identifiers
+                if domain_id_str in completed_workstreams:
+                    continue
+                architect_input = build_architect_input(
+                    domain, decomposition["decomposition"]["integration_ownership"]
                 )
+                if not architect_input:
+                    completed_workstreams.add(domain_id_str)
+                    continue
+                have_work = True
+                can_run = True
+                for dep in domain["upstream_dependencies"]:
+                    if dep.strip().lower() not in completed_workstreams:
+                        can_run = False
+                        break
+                if not can_run:
+                    if made_progress:
+                        continue
+                    else:
+                        # We seem to be in a cycle, ignore dependencies and move on
+                        made_progress = True
+                task, arch_extra = architect_input
+                self.domain_id = domain_index
 
-                arch = self.architecture_design_phase(
-                    final_feedback,
-                    task,
-                    f"d{self.domain_id}-arch-{iteration}",
-                    pm_filepath,
-                )
+                session_suffix = f"d{self.domain_id}-start"
+                self.arch.reset(session_suffix)
+                self.tech_lead.reset(session_suffix)
+                self.coder.reset(session_suffix)
+                final_feedback = None
 
-                plan = self.plan_creation_phase(
-                    arch,
-                    coder_task,
-                    f"d{self.domain_id}-plan-{iteration}",
-                    pm_filepath,
-                )
+                coder_task = run_json_agent(
+                    self.design_cleanup,
+                    f"INPUT TEXT:\n{task}",
+                    f"d{self.domain_id}-design-cleanup",
+                    [self.subdir, str(self.domain_id)],
+                )["text"]
 
-                code_summary = self.code_implementation_phase(
-                    plan,
-                    f"d{self.domain_id}-impl-{iteration}",
-                )
+                task = wrap_text(task + arch_extra)
+                coder_task = wrap_text(coder_task)
 
-                code_summaries = [code_summary]
-                tech_lead_final_review = None
+                for iteration in range(MAX_TOP_ITERATIONS):
+                    log(
+                        "ITERATION",
+                        f"Starting iteration {iteration + 1}/{MAX_TOP_ITERATIONS}"
+                        f" for domain {domain_index}/{len(domains)}",
+                    )
 
-                for tl_iteration in range(MAX_TOP_ITERATIONS):
-                    tech_lead_final_review = self.tech_lead_review_phase(
-                        code_summary,
-                        arch,
-                        plan,
-                        coder_task,
-                        tech_lead_final_review,
-                        f"d{self.domain_id}-tl-review-{iteration}-{tl_iteration}",
+                    arch = self.architecture_design_phase(
+                        final_feedback,
+                        task,
+                        f"d{self.domain_id}-arch-{iteration}",
                         pm_filepath,
                     )
 
-                    if self.review_ok(tech_lead_final_review):
-                        break
-
-                    log(
-                        "SYSTEM",
-                        "Tech lead feedback received - revising implementation",
+                    plan = self.plan_creation_phase(
+                        arch,
+                        coder_task,
+                        f"d{self.domain_id}-plan-{iteration}",
+                        pm_filepath,
                     )
 
-                    code_summary = self.revision_loops(
-                        tech_lead_final_review,
+                    code_summary = self.code_implementation_phase(
                         plan,
-                        f"d{self.domain_id}-impl-revision-{iteration}-{tl_iteration}",
-                        reset_coder=self.should_reset(tech_lead_final_review),
+                        f"d{self.domain_id}-impl-{iteration}",
                     )
 
-                    code_summaries.append(code_summary)
+                    code_summaries = [code_summary]
+                    tech_lead_final_review = None
 
-                merged_code_summaries = "\n".join(
-                    map(
-                        lambda v: f"<summary{v[0] + 1}>\n{v[1]}\n</summary{v[0] + 1}>",
-                        enumerate(code_summaries),
+                    for tl_iteration in range(MAX_TOP_ITERATIONS):
+                        tech_lead_final_review = self.tech_lead_review_phase(
+                            code_summary,
+                            arch,
+                            plan,
+                            coder_task,
+                            tech_lead_final_review,
+                            f"d{self.domain_id}-tl-review-{iteration}-{tl_iteration}",
+                            pm_filepath,
+                        )
+
+                        if self.review_ok(tech_lead_final_review):
+                            break
+
+                        log(
+                            "SYSTEM",
+                            "Tech lead feedback received - revising implementation",
+                        )
+
+                        code_summary = self.revision_loops(
+                            tech_lead_final_review,
+                            plan,
+                            f"d{self.domain_id}-impl-revision-{iteration}-{tl_iteration}",
+                            reset_coder=self.should_reset(tech_lead_final_review),
+                        )
+
+                        code_summaries.append(code_summary)
+
+                    merged_code_summaries = "\n".join(
+                        map(
+                            lambda v: f"<summary{v[0] + 1}>\n{v[1]}\n</summary{v[0] + 1}>",
+                            enumerate(code_summaries),
+                        )
                     )
-                )
-                final_feedback = run_json_agent(
-                    self.arch_final,
-                    f"TASK:\n{task}\n"
-                    f"ARCHITECTURE:\n{json.dumps(arch)}\n"
-                    f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
-                    "<aggregate_implementation_summary>\n"
-                    f"{merged_code_summaries}\n"
-                    "</aggregate_implementation_summary>\n",
-                    f"d{self.domain_id}-arch-final-review-{iteration}",
-                    [self.subdir, str(self.domain_id)],
-                )
+                    final_feedback = run_json_agent(
+                        self.arch_final,
+                        f"TASK:\n{task}\n"
+                        f"ARCHITECTURE:\n{json.dumps(arch)}\n"
+                        f"APPROVED IMPLEMENTATION PLAN:\n{json.dumps(plan)}\n"
+                        "<aggregate_implementation_summary>\n"
+                        f"{merged_code_summaries}\n"
+                        "</aggregate_implementation_summary>\n",
+                        f"d{self.domain_id}-arch-final-review-{iteration}",
+                        [self.subdir, str(self.domain_id)],
+                    )
 
-                if self.review_ok(final_feedback):
-                    break
+                    if self.review_ok(final_feedback):
+                        completed_workstreams.add(domain_id_str)
+                        break
+                made_progress = completed_before != len(completed_workstreams)
 
         report = self.investigation_workflow(f"""
 INVESTIGATION OBJECTIVE:
@@ -671,7 +699,10 @@ IMPORTANT:
             if self.review_ok(quality_review) and self.review_ok(struct_review):
                 break
 
-            combined_review = {"quality_review": quality_review, "struct_review": struct_review}
+            combined_review = {
+                "quality_review": quality_review,
+                "struct_review": struct_review,
+            }
 
             if self.should_reset(quality_review) or self.should_reset(struct_review):
                 log(
@@ -743,7 +774,9 @@ IMPORTANT:
                 self.domain_id = N
                 session_suffix = f"d{self.domain_id}-start"
                 self.investigator_executor.reset(session_suffix)
-                if not workstream.get("hypotheses") or not workstream.get("data_sources"):
+                if not workstream.get("hypotheses") or not workstream.get(
+                    "data_sources"
+                ):
                     completed_workstreams[workstream["id"]] = None
                     continue
 
@@ -771,7 +804,10 @@ IMPORTANT:
                     if self.review_ok(gap_review) and self.review_ok(fact_review):
                         break
 
-                    combined_review = {"gap_review": gap_review, "fact_review": fact_review}
+                    combined_review = {
+                        "gap_review": gap_review,
+                        "fact_review": fact_review,
+                    }
 
                     if self.should_reset(gap_review) or self.should_reset(fact_review):
                         log(
