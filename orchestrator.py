@@ -843,7 +843,9 @@ IMPORTANT:
             made_progress = completed_before != len(completed_workstreams)
 
         # ========== PHASE 3: Synthesis ==========
-        findings_list = [completed_workstreams.get(v["id"]) for v in workstreams]
+        findings_list = [
+            completed_workstreams.get(v["id"].strip().lower()) for v in workstreams
+        ]
         report = run_json_agent(
             self.synthesis_agent,
             f"FINDINGS:\n{json.dumps(findings_list)}",
