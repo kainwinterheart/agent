@@ -2,6 +2,7 @@
 
 container="${container:-docker.io/node:25-slim}" # $(podman build -f Dockerfile -q)
 codex_root="${codex_root:-${HOME}/.codex}"
+podman_run="${podman_run:-podman run}"
 
 codex="${codex_interactive}"
 
@@ -24,7 +25,7 @@ if [ ! -z "${AC_AGENT_NAME}" ]; then
 
         spec="${spec} -v $codex_root:$codex_root"
 
-        codex="podman run -e AC_AGENT_NAME=${AC_AGENT_NAME} -e HOME=${HOME} --rm ${spec} -i ${container} ${codex}"
+        codex="${podman_run} -e AC_AGENT_NAME=${AC_AGENT_NAME} -e HOME=${HOME} --rm ${spec} -i ${container} ${codex}"
     fi
 fi
 
