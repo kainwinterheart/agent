@@ -94,9 +94,16 @@ class WatchmanBackgroundWatcher:
         raw_files = result.get("files", [])
         if not isinstance(raw_files, list):
             return
+        state_dir = safe_relative(self.effective_root, self.state_dir)
+        if state_dir:
+            state_dir = os.path.join(self.effective_root, state_dir)
         files = []
         for file in raw_files:
             if relname := safe_relative(self.effective_root, file["name"]):
+                if state_dir and safe_relative(
+                    state_dir, os.path.join(self.effective_root, relname)
+                ):
+                    continue
                 file["name"] = relname
                 files.append(file)
 
