@@ -504,6 +504,7 @@ Revise the synthesized specification to address the review feedback while preser
                 coder_task = wrap_text(coder_task)
 
                 for iteration in range(MAX_TOP_ITERATIONS):
+                    doc_suffix = str(iteration + 1) if iteration > 0 else ""
                     log(
                         "ITERATION",
                         f"Starting iteration {iteration + 1}/{MAX_TOP_ITERATIONS}"
@@ -516,12 +517,22 @@ Revise the synthesized specification to address the review feedback while preser
                         f"d{self.domain_id}-arch-{iteration}",
                         pm_filepath,
                     )
+                    markdown_document_generator(
+                        arch,
+                        f"architecture_after_reviews{doc_suffix}",
+                        [self.subdir, str(self.domain_id)],
+                    )
 
                     plan = self.plan_creation_phase(
                         arch,
                         coder_task,
                         f"d{self.domain_id}-plan-{iteration}",
                         pm_filepath,
+                    )
+                    markdown_document_generator(
+                        plan,
+                        f"tech_plan_after_reviews{doc_suffix}",
+                        [self.subdir, str(self.domain_id)],
                     )
 
                     code_summary = self.code_implementation_phase(
@@ -566,6 +577,11 @@ Revise the synthesized specification to address the review feedback while preser
                             enumerate(code_summaries),
                         )
                     )
+                    markdown_document_generator(
+                        merged_code_summaries,
+                        f"code_summary{doc_suffix}",
+                        [self.subdir, str(self.domain_id)],
+                    )
                     final_feedback = run_json_agent(
                         self.arch_final,
                         f"TASK:\n{task}\n"
@@ -579,9 +595,9 @@ Revise the synthesized specification to address the review feedback while preser
                     )
 
                     if self.review_ok(final_feedback):
-                        completed_workstreams.add(domain_id_str)
                         break
-                made_progress = completed_before != len(completed_workstreams)
+                completed_workstreams.add(domain_id_str)
+            made_progress = completed_before != len(completed_workstreams)
 
         report = self.investigation_workflow(f"""
 INVESTIGATION OBJECTIVE:
@@ -958,9 +974,6 @@ IMPORTANT:
             )[-1]
 
         arch.get("architecture", {}).pop("reviewer_notes", None)
-        markdown_document_generator(
-            arch, "architecture_after_reviews", [self.subdir, str(self.domain_id)]
-        )
 
         return arch
 
@@ -1029,9 +1042,6 @@ IMPORTANT:
             )[-1]
 
         plan.get("plan", {}).pop("reviewer_notes", None)
-        markdown_document_generator(
-            plan, "tech_plan_after_reviews", [self.subdir, str(self.domain_id)]
-        )
 
         return plan
 

@@ -12,7 +12,7 @@ import sys
 import time
 from contextlib import ExitStack
 from tempfile import NamedTemporaryFile, TemporaryFile, mkstemp
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import jsonschema
 
@@ -201,7 +201,7 @@ def assert_not_empty(obj, step):
 
 
 def markdown_document_generator(
-    content: dict, stage_name: str, subdir: list[str]
+    content: Union[dict, str], stage_name: str, subdir: list[str]
 ) -> None:
     # Generate timestamp for filename
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -214,11 +214,15 @@ def markdown_document_generator(
                 log("MARKDOWN", f"{filepath} already exists")
                 return filepath
     filepath = os.path.join(target_dir, filename)
+    stage_name = re.sub(r"[0-9]+$", "", stage_name)
 
     # Build markdown sections based on stage type
     markdown_content = ""
 
-    if stage_name == "product_manager_final":
+    if stage_name == "code_summary":
+        markdown_content = content
+
+    elif stage_name == "product_manager_final":
         actual_content = content
         markdown_content += f"# Task Specification\n\n{actual_content.get('task_specification', 'N/A')}\n\n"
         files = actual_content.get("files")
