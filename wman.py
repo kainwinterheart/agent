@@ -91,9 +91,14 @@ class WatchmanBackgroundWatcher:
         if result.get("subscription") != self.subscription_name:
             return
 
-        files = result.get("files", [])
-        if not isinstance(files, list):
+        raw_files = result.get("files", [])
+        if not isinstance(raw_files, list):
             return
+        files = []
+        for file in raw_files:
+            if relname := safe_relative(self.effective_root, file["name"]):
+                file["name"] = relname
+                files.append(file)
 
         # --------------------------------------------------------
         # SKIP INITIAL SNAPSHOT
