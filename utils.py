@@ -686,7 +686,8 @@ def build_architect_input(
     if items := domain.get("produced_artifacts"):
         more += "\nDetailed expectations:\n"
         for item in items:
-            more += f"* {item['artifact_name']}: {item['purpose']}. {item['expected_content']}\n"
+            dot = "" if item["purpose"].endswith(".") else "."
+            more += f"* {item['artifact_name']}: {item['purpose']}{dot} {item['expected_content']}\n"
     if items := domain.get("constraints"):
         more += "\nConstraints:\n"
         for item in items:
