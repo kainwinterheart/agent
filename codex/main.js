@@ -75,6 +75,8 @@ async function runUntilAnswer(thread, prompt, options) {
   let attempt = 0;
   let currentPrompt = prompt;
   let finalOutput = null;
+  let lastCmd = null;
+  let lastCmdRepeat = 0;
 
   while (true) {
     attempt++;
@@ -85,6 +87,26 @@ async function runUntilAnswer(thread, prompt, options) {
 
     for await (const event of events) {
       logEvent(event);
+
+      if (event.type === "item.started") {
+        const cmd = event.item && event.item.command;
+        if (cmd) {
+          if (lastCmd === cmd) {
+            ++lastCmdRepeat;
+          } else {
+            lastCmdRepeat = 0;
+            lastCmd = cmd;
+          }
+        } else {
+          lastCmdRepeat = 0;
+          lastCmd = null;
+        }
+      }
+
+      if (lastCmdRepeat > 10) {
+        logErr("Last command repeated " + lastCmdRepeat + " times in a row, aborting");
+        process.exit(1);
+      }
 
       if (event.type === "thread.started") {
         process.stderr.write("session id: " + event.thread_id + "\n");
