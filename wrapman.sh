@@ -9,7 +9,7 @@ shift
 wrapman_pause="${wrapman_pause:-10}"
 timeout_cmd=${timeout_cmd:-$(pstree -A -a -s -l $$ |grep -oE "\btimeout\s+(-s\s+[0-9A-Z]+\s+)?[0-9a-zA-Z]+" | tail -1)}
 
-nohup /bin/sh -c "sleep ${wrapman_pause} ; flock ${lockfile} podman stop ${container_name} ; unlink ${lockfile}" >/dev/null &
+setsid -f /bin/sh -c "sleep ${wrapman_pause} ; flock ${lockfile} podman stop ${container_name} ; unlink ${lockfile}" &>/dev/null
 
 if [ -t 1 ]; then
     if [ ! -z "${timeout_cmd}" ]; then
