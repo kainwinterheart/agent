@@ -46,7 +46,7 @@ class WatchmanBackgroundWatcher:
             "allof",
             ["type", "f"],
         ]
-        to_exclude = safe_relative(self.effective_root, self.state_dir)
+        to_exclude = safe_relative(self.watch_root, self.state_dir)
         if to_exclude:
             expr.append(["not", ["match", to_exclude + "/*", "wholename"]])
             expr.append(["not", ["dirname", to_exclude]])
@@ -58,7 +58,7 @@ class WatchmanBackgroundWatcher:
             self.subscription_name,
             {
                 "expression": expr,
-                "fields": ["name", "size"],
+                "fields": ["name", "size", "exists"],
             },
         )
 
@@ -99,6 +99,12 @@ class WatchmanBackgroundWatcher:
             state_dir = os.path.join(self.effective_root, state_dir)
         files = []
         for file in raw_files:
+            if not file.get("exists"):
+                file["size"] = 0
+            if relname := safe_relative(self.watch_root, file["name"]):
+                file["name"] = os.path.join(self.watch_root, relname)
+            else:
+                continue
             if relname := safe_relative(self.effective_root, file["name"]):
                 if state_dir and safe_relative(
                     state_dir, os.path.join(self.effective_root, relname)
