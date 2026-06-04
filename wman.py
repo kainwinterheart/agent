@@ -1,5 +1,7 @@
 import os
+import random
 import threading
+import time
 
 import pywatchman
 
@@ -15,7 +17,8 @@ class WatchmanBackgroundWatcher:
 
         self.watch_root = None
         self.relative_root = None
-        self.subscription_name = "agent-watcher"
+        now = int(time.time())
+        self.subscription_name = f"agent-watcher-{int(random.random() * now)}-{now}"
 
         self.last_known = {}
         self.changed_files = {}
@@ -50,7 +53,7 @@ class WatchmanBackgroundWatcher:
         if to_exclude:
             expr.append(["not", ["match", to_exclude + "/*", "wholename"]])
             expr.append(["not", ["dirname", to_exclude]])
-        log("WATCHMAN", repr(expr))
+        log("WATCHMAN", repr([expr, self.watch_root, self.effective_root]))
         do_it(
             self.client.query,
             "subscribe",
@@ -101,10 +104,8 @@ class WatchmanBackgroundWatcher:
         for file in raw_files:
             if not file.get("exists"):
                 file["size"] = 0
-            if relname := safe_relative(self.watch_root, file["name"]):
-                file["name"] = os.path.join(self.watch_root, relname)
-            else:
-                continue
+            if not os.path.isabs(file["name"]):
+                file["name"] = os.path.join(self.watch_root, file["name"])
             if relname := safe_relative(self.effective_root, file["name"]):
                 if state_dir and safe_relative(
                     state_dir, os.path.join(self.effective_root, relname)
