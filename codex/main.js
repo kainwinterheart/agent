@@ -16,7 +16,12 @@ function logErr(msg) {
 }
 
 function logEvent(event) {
-  logErr(JSON.stringify(event, null, 2).split("\n").map(line => line.slice(0, 80)).join("\n"));
+  const str = JSON.stringify(event, null, 2);
+  if (event.type === 'error') {
+    logErr(str);
+  } else {
+    logErr(str.split("\n").map(line => line.slice(0, 80)).join("\n"));
+  }
 }
 
 async function readStdin() {
