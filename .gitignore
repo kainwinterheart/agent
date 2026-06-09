@@ -3,3 +3,4 @@ document_stores
 document_stores_test
 node_modules
 venv
+.agent*
