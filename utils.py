@@ -18,6 +18,7 @@ import jsonschema
 
 import prompts
 from schema_utils import schema_to_example
+from tracer import trace
 
 
 def log(step, msg):
@@ -70,6 +71,16 @@ async def run_codex_async(
         sess_id = match.group(1)
 
     stdout = stdout.strip()
+    trace(
+        "run_codex",
+        {
+            "agent_name": agent_name,
+            "prompt": prompt,
+            "schema": schema,
+            "timeout": timeout,
+            "stdout": stdout,
+        },
+    )
     if not stdout:
         raise RuntimeError("Empty output, likely timeout issue")
     return stdout, sess_id
@@ -116,6 +127,10 @@ def run_json_agent(
     subdir: list[str],
     return_system_state: bool = False,
 ):
+    trace(
+        "prepare_to_run_agent",
+        {"invocation_id": invocation_id, "agent": agent.name, "prompt": input_text},
+    )
     raw = None
     updated = False
     # Cache check
@@ -529,6 +544,7 @@ def markdown_document_generator(
         os.makedirs(dir_path, exist_ok=True)
     with open(filepath, "w") as f:
         f.write(markdown_content)
+    trace("write_markdown_doc", {"content": markdown_content, "stage_name": stage_name})
     return filepath
 
 

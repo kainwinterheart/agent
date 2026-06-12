@@ -11,6 +11,7 @@ import schemas
 from agent import Agent
 from config import MAX_CODE_ITERS, MAX_PLAN_ITERS, MAX_TOP_ITERATIONS
 from execution_framework import CodeExecutionFramework, Configuration
+from tracer import trace
 from utils import (
     assert_not_empty,
     build_architect_input,
@@ -24,6 +25,7 @@ from wman import WatchmanBackgroundWatcher
 
 class Orchestrator:
     def __init__(self, task: str, subdir: str):
+        trace("user_input", {"text": task})
         self.task = wrap_text(task)
         self.subdir = subdir
 

@@ -1635,7 +1635,7 @@ Definitions:
   * Gathering information
   * Reviewing or studying materials
   * Asking questions or identifying unknowns
-* Hands*on steps include (MUST be removed):
+* Hands-on steps include (MUST be removed):
   * Writing, editing, or modifying code
   * Implementing features
   * Designing systems or architectures

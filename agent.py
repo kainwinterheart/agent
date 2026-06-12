@@ -10,6 +10,7 @@ from typing import Optional
 
 import prompts
 from schema_utils import schema_to_example
+from tracer import trace
 from utils import (
     load_session_id,
     run_codex,
@@ -96,6 +97,7 @@ Output MUST be valid JSON only:
         return out
 
     def reset(self, session_suffix: Optional[str] = None) -> None:
+        trace("reset_agent", {"session_suffix": session_suffix, "agent": self.name})
         if self.ephemeral:
             if session_suffix:
                 raise ValueError(
