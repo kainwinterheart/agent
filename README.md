@@ -1,11 +1,8 @@
 # Multi-Agent Orchestration System
 
-A CLI orchestration system that turns high-level requests into either:
-
-- structured investigative reports, or
-- reviewed, validated code changes
-
-The system uses multiple specialized agents to refine ambiguous requests, plan execution, review outputs, and verify results before completion.
+A Go-based orchestration engine that turns high-level requests into structured
+investigative reports or reviewed, validated code changes using multiple
+specialized AI agents.
 
 ---
 
@@ -16,97 +13,118 @@ You give the orchestrator a task description through stdin.
 The system:
 
 1. Refines the request into a clearer specification
-2. Determines whether the task is:
-   - an investigation task, or
-   - an engineering task
-3. Routes the task through the appropriate workflow
-4. Produces either:
-   - a research/report artifact, or
-   - implemented code changes with review and validation
+2. Classifies the task as **investigation** or **engineering**
+3. Routes it through the appropriate workflow
+4. Coordinates specialized agents to produce a final artifact
 
-The goal is to make vague requests executable without requiring manually written specs or tightly scoped prompts.
+The goal is to make vague, high-level requests executable without requiring
+manually written specs.
 
 ---
 
-## Example
+## Agent Roles
 
-### Input
+The orchestrator coordinates these specialized agents:
+
+| Role | Responsibility |
+|------|----------------|
+| **Product Manager** | Refines ambiguous requests, expands scope |
+| **Architect** | Designs system architecture and integration plan |
+| **Tech Lead** | Creates implementation plans and decomposes domains |
+| **Coder** | Implements code changes |
+| **Arch Review** | Reviews architectural decisions |
+| **Plan Review** | Validates implementation plans |
+| **Code Review** | Reviews and approves code changes |
+
+---
+
+## Workflow Types
+
+### Investigation Workflow
+
+Read-only research and analysis. Agents collect evidence, synthesize findings,
+and produce structured reports. No file modifications are permitted.
+
+### Engineering Workflow
+
+Implementation tasks. Features:
+
+- **Domain decomposition** — work split into independent domains with
+  topological ordering
+- **Iterative coder+review loop** — code is implemented and reviewed
+  iteratively until approved
+- **Automated change detection** — filesystem watcher detects actual changes
+  made by agents
+- **Final validation** — the system verifies the result matches the original
+  intent
+
+---
+
+## Requirements
+
+- **Go 1.26.4** (requires `GOEXPERIMENT=jsonv2`)
+- **An LLM runtime** — configured externally through the agent service
+- **wman script** — `AC_WMAN_PATH` must point to `wman/wman.sh`
+
+Set these environment variables before running:
 
 ```bash
-python main.py exec << 'EOF'
-Build a lightweight job queue with retry support and a Redis backend.
+export GOEXPERIMENT=jsonv2
+export AC_WMAN_PATH=path/to/wman.sh
+```
+
+---
+
+## Usage
+
+### Execute a Task
+
+```bash
+go run ./src/ exec << 'EOF'
+Describe the system you want built or investigated.
 EOF
 ```
 
-### Possible Workflow
+The session ID is printed to stderr.
 
-- The request is clarified and refined
-- The task is classified as engineering work
-- The system decomposes the work into domains
-- Agents design architecture and implementation plans
-- Code is implemented and reviewed iteratively
-- Final output is validated against the refined specification
+### Resume a Session
 
-Artifacts are written to:
+```bash
+go run ./src/ exec resume <session_id>
+```
 
-```text
-.agent-<timestamp>/
+### Tracing
+
+Set `AGENT_TRACE_FILE` to enable structured event logging:
+
+```bash
+AGENT_TRACE_FILE=/tmp/trace.json go run ./src/ exec << 'EOF'
+...
+EOF
 ```
 
 ---
 
-# Workflows
+## Output
 
-## Investigation Workflow
+Each execution creates a session directory:
 
-Used for research, analysis, auditing, or exploratory tasks where no code changes should be made.
+```text
+.agent-2026-06-15_14-30-00/
+├── 2026-06-15_14-30-00-task.txt    # Original task
+├── .state/                         # Agent response cache
+│   ├── ProductManager_xxx.out      # Cached responses
+│   └── ProductManager_xxx.in       # Input prompts
+└── ...                             # Intermediate artifacts
+```
 
-Examples:
-
-- Analyze an existing architecture
-- Investigate performance bottlenecks
-- Compare implementation strategies
-- Produce migration recommendations
-- Review a codebase for risks or inconsistencies
-
-### Characteristics
-
-- Read-only execution
-- Multi-agent investigative planning
-- Evidence collection and synthesis
-- Structured report generation
-- Review and fact-checking passes
-
-Final output is a documentation/report artifact printed to stdout and stored in the session directory.
+Artifacts include refined specifications, plans, architecture documents,
+review outputs, investigation reports, implementation artifacts, and
+validation results.
 
 ---
 
-## Engineering Workflow
-
-Used for implementation tasks that create or modify code.
-
-Examples:
-
-- Build a new subsystem
-- Refactor existing components
-- Add features
-- Fix architectural problems
-- Implement integrations
-
-### Characteristics
-
-- Task decomposition into independent work domains
-- Architecture design and review cycles
-- Implementation planning before coding
-- Automated workspace change detection
-- Iterative review and refinement loops
-- Final semantic validation against the original request
-
-After implementation, a final review pass verifies that the resulting system matches the intent of the original task.
-
----
-
-# Design Goals
+## Design Goals
 
 - Handle ambiguous, high-level requests
 - Separate investigation work from implementation work
@@ -116,91 +134,7 @@ After implementation, a final review pass verifies that the resulting system mat
 
 ---
 
-# Requirements
-
-## Python
-
-- Python 3.12+
-
-Create and activate a virtual environment, then install project dependencies.
-
----
-
-## External Agent Runtime
-
-The orchestrator depends on an external CLI agent runtime available on `PATH`.
-
-This runtime is responsible for executing all agent tasks.
-
----
-
-## Filesystem Watcher
-
-Engineering workflows use a filesystem watcher for automated change detection during implementation and review cycles.
-
-Install and run the required watcher daemon/service on the host system.
-
----
-
-## Optional Container Runtime
-
-- Docker or Podman
-
-Can be used for isolated/containerized agent execution when configured.
-
----
-
-## LLM Credentials
-
-LLM API keys and provider configuration are managed externally through the agent runtime.
-
----
-
-# Usage
-
-## Execute a Task
-
-```bash
-python main.py exec << 'EOF'
-Describe the system you want built or investigated.
-EOF
-```
-
-The session ID is printed to stderr.
-
-Artifacts are stored in:
-
-```text
-.agent-<timestamp>/
-```
-
----
-
-## Resume a Session
-
-```bash
-python main.py exec resume <session_id>
-```
-
----
-
-# Output Structure
-
-Each execution creates a session directory containing orchestration artifacts such as:
-
-- refined specifications
-- plans
-- architecture documents
-- review outputs
-- investigation reports
-- implementation artifacts
-- validation results
-
-This makes execution traceable and resumable.
-
----
-
-# Non-Goals
+## Non-Goals
 
 This project intentionally does not include:
 
@@ -212,17 +146,22 @@ This project intentionally does not include:
 - CI/CD orchestration
 - Managed API key infrastructure
 
-Investigation workflows are strictly read-only and cannot modify source code, databases, or configuration files.
+Investigation workflows are strictly read-only and cannot modify source code,
+databases, or configuration files.
 
 ---
 
-# Philosophy
+## Philosophy
 
-The system is designed around the idea that high-quality autonomous execution requires:
+The system is designed around the idea that high-quality autonomous execution
+requires:
 
-- refinement before implementation
-- specialization of responsibilities
-- iterative review loops
-- explicit validation against intent
+- **Refinement before implementation** — ambiguous requests are clarified
+- **Specialization of responsibilities** — different agents for different tasks
+- **Iterative review loops** — code and plans are reviewed repeatedly
+- **Explicit validation against intent** — final output is checked against the
+  original request
 
-Rather than relying on a single agent operating from a single prompt, the orchestrator treats execution as a staged process with verification at each layer.
+Rather than relying on a single agent operating from a single prompt, the
+orchestrator treats execution as a staged process with verification at each
+layer.
