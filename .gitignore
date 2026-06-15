@@ -1,6 +1,10 @@
 __pycache__
-document_stores
-document_stores_test
 node_modules
 venv
+.venv
 .agent*
+*.bak
+*.swp
+*.orig
+*.rej
+agent

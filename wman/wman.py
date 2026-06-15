@@ -1,11 +1,11 @@
+import json
 import os
 import random
+import sys
 import threading
 import time
 
 import pywatchman
-
-from utils import log
 
 
 class WatchmanBackgroundWatcher:
@@ -23,7 +23,6 @@ class WatchmanBackgroundWatcher:
         self.last_known = {}
         self.changed_files = {}
         self.lock = threading.Lock()
-        self._initialized = False
 
     @property
     def effective_root(self) -> str:
@@ -54,6 +53,11 @@ class WatchmanBackgroundWatcher:
             expr.append(["not", ["match", to_exclude + "/*", "wholename"]])
             expr.append(["not", ["dirname", to_exclude]])
         log("WATCHMAN", repr([expr, self.watch_root, self.effective_root]))
+        clock_resp = do_it(
+            self.client.query,
+            "clock",
+            self.watch_root,
+        )
         do_it(
             self.client.query,
             "subscribe",
@@ -62,6 +66,7 @@ class WatchmanBackgroundWatcher:
             {
                 "expression": expr,
                 "fields": ["name", "size", "exists"],
+                "since": clock_resp["clock"],
             },
         )
 
@@ -115,16 +120,6 @@ class WatchmanBackgroundWatcher:
                 files.append(file)
 
         # --------------------------------------------------------
-        # SKIP INITIAL SNAPSHOT
-        # --------------------------------------------------------
-        with self.lock:
-            if not self._initialized:
-                for file in files:
-                    self.last_known[file.pop("name")] = file
-                self._initialized = True
-                return
-
-        # --------------------------------------------------------
         # NORMAL CHANGE EVENTS
         # --------------------------------------------------------
         with self.lock:
@@ -151,12 +146,6 @@ class WatchmanBackgroundWatcher:
                     if int(prev.get("size", 0)):
                         out[file] = "deleted"
         return out
-
-    def wait(self):
-        while True:
-            with self.lock:
-                if self._initialized:
-                    return
 
     # ------------------------------------------------------------
     # 3. STOP
@@ -203,3 +192,26 @@ def do_it(func, *args, **kwargs):
             raise
         except Exception as e:
             log("WATCHMAN", str(e))
+
+
+def log(step, msg):
+    sys.stderr.write(f">> [{time.strftime('%Y-%m-%d %H:%M:%S')}] [{step}] {msg}\n")
+
+
+def main():
+    workdir, state_dir = sys.argv[1:]
+    os.chdir(workdir)
+    watcher = WatchmanBackgroundWatcher(state_dir)
+    watcher.start(workdir)
+
+    try:
+        for _ in sys.stdin:
+            result = watcher.flush()
+            print(json.dumps(result))
+            sys.stdout.flush()
+    finally:
+        watcher.stop()
+
+
+if __name__ == "__main__":
+    main()
