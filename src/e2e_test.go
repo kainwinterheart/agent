@@ -198,7 +198,23 @@ func expectedMarkdownFiles(actions []ActionDetails) map[string]string {
 }
 
 func TestE2E(t *testing.T) {
-	actions := loadDataActions(t, "../test-data-1.json")
+	files, err := filepath.Glob("../fixtures/*.json")
+	if err != nil {
+		t.Fatalf("Failed to glob fixtures directory: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("No .json files found in ../fixtures/")
+	}
+	for _, f := range files {
+		f := f
+		t.Run(filepath.Base(f), func(t *testing.T) {
+			runFixtureTest(t, f)
+		})
+	}
+}
+
+func runFixtureTest(t *testing.T, filename string) {
+	actions := loadDataActions(t, filename)
 
 	userAction := actions[0]
 	if userAction.Action != "user_input" {
@@ -261,6 +277,9 @@ func TestE2E(t *testing.T) {
 			(*jsonv2text.Value)(&dataSchema).Indent()
 			(*jsonv2text.Value)(&codeSchema).Indent()
 			mr.t.Fatalf("run_codex schema mismatch:\n%s", mr.diff(string(dataSchema), string(codeSchema), "data_schema", "code_schema"))
+		}
+		if action.Stdout == "" {
+			return "", "", fmt.Errorf("Empty output, likely timeout issue")
 		}
 		return action.Stdout, agentName, nil
 	}
