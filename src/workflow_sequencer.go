@@ -162,8 +162,9 @@ func (s *workflowSequencer) executeDomains(pmFilepath string, decomposition map[
 
 				mergedSummaries := ""
 				for i, cs := range codeSummaries {
-					mergedSummaries += fmt.Sprintf("<summary%d>\n%s\n</summary%d>", i+1, cs, i+1)
+					mergedSummaries += fmt.Sprintf("<summary%d>\n%s\n</summary%d>\n", i+1, cs, i+1)
 				}
+				mergedSummaries = strings.TrimSuffix(mergedSummaries, "\n")
 				MarkdownDocumentGenerator(mergedSummaries, fmt.Sprintf("code_summary%s", docSuffix), []string{s.o.Subdir, fmt.Sprintf("%d", s.o.DomainID)})
 				finalFeedback = RunJSONAgent(
 					s.o.ArchFinal,

@@ -511,12 +511,11 @@ func writeMarkdownDocument(stageName, markdownContent string, subdir []string) s
 	return targetFilepath
 }
 
-func MarkdownDocumentGenerator(content interface{}, stageNameRaw string, subdir []string) string {
-	stageName := regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageNameRaw, "")
-	markdownContent := RenderMarkdownContent(content, stageNameRaw)
+func MarkdownDocumentGenerator(content interface{}, stageName string, subdir []string) string {
+	markdownContent := RenderMarkdownContent(content, stageName)
 	trace("write_markdown_doc", map[string]interface{}{
 		"content":    markdownContent,
-		"stage_name": stageName,
+		"stage_name": regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageName, ""),
 	})
 	if markdownDocHook != nil {
 		return markdownDocHook(content, stageName, subdir)

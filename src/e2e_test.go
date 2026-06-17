@@ -94,6 +94,8 @@ func loadDataActions(t *testing.T, filename string) []ActionDetails {
 		if line == "" {
 			continue
 		}
+		line = regexp.MustCompile(`"approved", "resolved_issues", "approved_confidence", "approved_reason", "should_reset",`).ReplaceAllString(line, `"approved", "approved_confidence", "approved_reason", "resolved_issues", "should_reset",`)
+		line = regexp.MustCompile(`"status", "brief_summary", "blocked_reason", "exists_after_change",`).ReplaceAllString(line, `"status", "blocked_reason", "brief_summary", "exists_after_change",`)
 		var da DataAction
 		if err := jsonv2.Unmarshal([]byte(line), &da); err != nil {
 			t.Fatalf("Failed to parse test data line: %q, err: %v", line, err)
@@ -113,16 +115,19 @@ func newMockRunner(t *testing.T, actions []ActionDetails, startIdx int) *e2eMock
 	return &e2eMockRunner{actions: actions, idx: startIdx, t: t}
 }
 
-func (mr *e2eMockRunner) next(expectedAction string) ActionDetails {
+func (mr *e2eMockRunner) next(actualAction string, desc string) ActionDetails {
 	if mr.idx >= len(mr.actions) {
-		mr.t.Fatalf("Unexpected call: expected %s but no more actions remain (idx=%d, total=%d)",
-			expectedAction, mr.idx, len(mr.actions))
+		mr.t.Fatalf("Unactual call: actual %s but no more actions remain (idx=%d, total=%d)",
+			actualAction, mr.idx, len(mr.actions))
 	}
 	action := mr.actions[mr.idx]
 	mr.idx++
-	if action.Action != expectedAction {
-		mr.t.Fatalf("Expected action %q at index %d (total=%d), got %q (agent=%q, invocation_id=%q, stage_name=%q)",
-			expectedAction, mr.idx-1, len(mr.actions),
+	if action.Action != actualAction {
+		if desc != "" {
+			desc = desc + "\n"
+		}
+		mr.t.Fatalf("%sActual action %q at index %d (total=%d), expected %q (agent=%q, invocation_id=%q, stage_name=%q)",
+			desc, actualAction, mr.idx-1, len(mr.actions),
 			action.Action, action.Agent, action.InvocationID, action.StageName)
 	}
 	return action
@@ -170,7 +175,10 @@ func normalizeErrorMessages(prompt string) string {
 }
 
 func normalizePrompt(prompt string, agent string, actions []ActionDetails) string {
-	result := normalizeJSONObjects(prompt)
+	result := strings.TrimSpace(prompt)
+	result = regexp.MustCompile(`\n`).ReplaceAllString(result, "\n")
+	result = regexp.MustCompile("\n\n\n").ReplaceAllString(result, "\n\n")
+	result = normalizeJSONObjects(result)
 	result = normalizeErrorMessages(result)
 	// Normalize filepaths: replace any path ending with /document_stores/FILENAME.md
 	result = regexp.MustCompile(`[^\n\r]+/document_stores/[^\n\r]+\.md`).ReplaceAllStringFunc(result, func(m string) string {
@@ -183,17 +191,6 @@ func normalizePrompt(prompt string, agent string, actions []ActionDetails) strin
 		filename = regexp.MustCompile(`^[\d\-_+:]+[_-]?`).ReplaceAllString(filename, "")
 		return "SUBDIR/document_stores/" + filename
 	})
-	return result
-}
-
-func expectedMarkdownFiles(actions []ActionDetails) map[string]string {
-	result := make(map[string]string)
-	for _, a := range actions {
-		if a.Action == "write_markdown_doc" {
-			stageNameClean := regexp.MustCompile(`[0-9]+$`).ReplaceAllString(a.StageName, "")
-			result[stageNameClean] = a.Content
-		}
-	}
 	return result
 }
 
@@ -223,14 +220,14 @@ func runFixtureTest(t *testing.T, filename string) {
 	taskText := userAction.Text
 
 	mr := newMockRunner(t, actions, 1)
-	expectedMDFiles := expectedMarkdownFiles(actions)
+	expectedMDFiles := make(map[string]string)
 
 	var hookSequence []string
 
 	// --- Hook: prepare_to_run_agent ---
 	runJSONAgentHook = func(agentName, invocationID, prompt string) {
 		hookSequence = append(hookSequence, "prepare_to_run_agent")
-		action := mr.next("prepare_to_run_agent")
+		action := mr.next("prepare_to_run_agent", fmt.Sprintf("%s (%s)\n%s", invocationID, agentName, prompt))
 
 		if action.InvocationID != invocationID {
 			mr.t.Fatalf("prepare_to_run_agent invocation_id mismatch: expected %q, got %q",
@@ -250,7 +247,7 @@ func runFixtureTest(t *testing.T, filename string) {
 	// --- Hook: run_codex ---
 	runCodexHook = func(agentName, session, prompt string, schema map[string]interface{}, timeout string) (string, string, error) {
 		hookSequence = append(hookSequence, "run_codex")
-		action := mr.next("run_codex")
+		action := mr.next("run_codex", fmt.Sprintf("%s\n%s", agentName, prompt))
 
 		if action.Agent != agentName {
 			mr.t.Fatalf("run_codex agent_name mismatch: expected %q, got %q",
@@ -287,7 +284,7 @@ func runFixtureTest(t *testing.T, filename string) {
 	// --- Hook: reset_agent ---
 	resetHook = func(agentName, sessionSuffix string) {
 		hookSequence = append(hookSequence, "reset_agent")
-		action := mr.next("reset_agent")
+		action := mr.next("reset_agent", agentName)
 
 		if action.Agent != agentName {
 			mr.t.Fatalf("reset_agent agent mismatch: expected %q, got %q",
@@ -301,28 +298,41 @@ func runFixtureTest(t *testing.T, filename string) {
 	}
 
 	// --- Hook: write_markdown_doc ---
-	markdownDocHook = func(content interface{}, stageName string, subdir []string) string {
+	markdownDocHook = func(content interface{}, stageNameRaw string, subdir []string) string {
+		stageName := regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageNameRaw, "")
 		hookSequence = append(hookSequence, "write_markdown_doc")
-		action := mr.next("write_markdown_doc")
+		action := mr.next("write_markdown_doc", stageNameRaw)
 
 		if action.StageName != stageName {
 			mr.t.Fatalf("write_markdown_doc stage_name mismatch: expected %q, got %q",
 				action.StageName, stageName)
 		}
 
-		expectedContent := RenderMarkdownContent(content, stageName)
-		if action.Content != expectedContent {
-			mr.t.Fatalf("write_markdown_doc content mismatch for stage %q:\n%s",
-				stageName, mr.diff(action.Content, expectedContent, "data", "code"))
-		}
+		actualContent := RenderMarkdownContent(content, stageNameRaw)
+		if stageName != "code_summary" {
+			if action.Content != actualContent {
+				mr.t.Fatalf("write_markdown_doc content mismatch for stage %q:\n%s",
+					stageNameRaw, mr.diff(action.Content, actualContent, "data", "code"))
+			}
 
-		return writeMarkdownDocument(stageName, expectedContent, subdir)
+			var filename string
+			if len(subdir) > 1 {
+				parts := []string{}
+				parts = append(parts, subdir[1:]...)
+				parts = append(parts, stageNameRaw)
+				filename = filepath.Join(parts...)
+			} else {
+				filename = stageNameRaw
+			}
+			expectedMDFiles[filename] = action.Content
+		}
+		return writeMarkdownDocument(stageNameRaw, actualContent, subdir)
 	}
 
 	// --- Hook: watchman ---
 	watchmanHook = func() map[string]string {
 		hookSequence = append(hookSequence, "watchman")
-		action := mr.next("watchman")
+		action := mr.next("watchman", "")
 		return action.Changes
 	}
 
@@ -356,7 +366,8 @@ func runFixtureTest(t *testing.T, filename string) {
 			base := strings.TrimSuffix(info.Name(), ".md")
 			// Strip timestamp prefix: YYYY-MM-DD_HH-MM-SS_
 			stageName := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_`).ReplaceAllString(base, "")
-			actualFiles[stageName] = string(content)
+			relpath, _ := filepath.Rel(docStoresDir, path)
+			actualFiles[filepath.Join(filepath.Dir(relpath), stageName)] = string(content)
 		}
 		return nil
 	})

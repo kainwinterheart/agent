@@ -55,12 +55,12 @@ func (c *CodeExecutionFramework) Execute(
 			if m, ok := v.(map[string]interface{}); ok {
 				changesArr, _ := m["changes"].([]interface{})
 				allChangesList = append(allChangesList, changesArr)
+				if len(changesArr) > 0 {
+					recentChanges = changesArr
+				} else {
+					recentChanges = m
+				}
 			}
-		}
-		if len(allChangesList) > 0 {
-			recentChanges = allChangesList[len(allChangesList)-1]
-		} else {
-			recentChanges = allOutputs[len(allOutputs)-1]
 		}
 
 		reviewPrompt := fmt.Sprintf(

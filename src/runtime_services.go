@@ -4,6 +4,7 @@
 package main
 
 import (
+	jsonv2text "encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"fmt"
 	"os"
@@ -44,7 +45,7 @@ func runJSONAgent(agent *Agent, inputText string, invocationID string, subdir []
 	} else {
 		if j, err := ExtractJSON(raw); err == nil {
 			var x map[string]interface{}
-			if err := jsonv2.Unmarshal([]byte(j), &x); err == nil {
+			if err := jsonv2.Unmarshal([]byte(j), &x, jsonv2text.AllowDuplicateNames(true)); err == nil {
 				kludged := false
 				if _, ok := x["approved"]; ok {
 					if _, ok2 := x["approved_confidence"]; !ok2 {
@@ -88,7 +89,7 @@ Output MUST be valid JSON only:
 			continue
 		}
 		var out interface{}
-		if err := jsonv2.Unmarshal([]byte(j), &out); err != nil {
+		if err := jsonv2.Unmarshal([]byte(j), &out, jsonv2text.AllowDuplicateNames(true)); err != nil {
 			raw = agent.Run(fmt.Sprintf(`
 %s
 
@@ -191,7 +192,10 @@ func Nudge(
 			nextPrompt = ""
 		}
 		if agent.Ephemeral {
-			nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n", MarshalJSON(currentResult))
+			delete(resultMap, "next_steps")
+			nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n", MarshalJSON(resultMap))
+		} else {
+			delete(agent.LastCorrectResponse, "next_steps")
 		}
 		nextPrompt += fmt.Sprintf("ITERATION: %d/%d\n", i+1, maxIt)
 		nextPrompt += "<feedback>\nADDRESS YOUR NEXT STEPS:\n"

@@ -298,9 +298,9 @@ func (o *Orchestrator) PMTransformationWorkflow() (string, string) {
 			).(map[string]interface{})
 			cleanLines, _ := cleanSpeculative["lines"].([]interface{})
 			if len(cleanLines) == len(speculativeExpansions) {
+				speculativeExpansions = cleanLines
 				break
 			}
-			speculativeExpansions = cleanLines
 		}
 		rephrasedTask["speculative_expansions"] = speculativeExpansions
 	}
@@ -442,12 +442,18 @@ func (o *Orchestrator) DecompositionWorkflow(task string) map[string]interface{}
 		} else {
 			revisionPrompt = fmt.Sprintf("REVISE DECOMPOSITION based on feedback:\n%s", MarshalJSON(decompositionReview))
 		}
-		resultMap = RunJSONAgent(
+		decompositionResultLocal := Nudge(
+			100,
 			o.Decomposition,
 			revisionPrompt,
 			fmt.Sprintf("decomposition-%d", i+1),
 			[]string{o.Subdir},
-		).(map[string]interface{})
+			false,
+			o.NextStepsCleanup,
+		)
+		lastResultLocal := decompositionResultLocal[len(decompositionResultLocal)-1]
+		resultMapLocal, _ := lastResultLocal.(map[string]interface{})
+		resultMap = resultMapLocal
 	}
 
 	if dm, ok := resultMap["decomposition"].(map[string]interface{}); ok {
@@ -847,13 +853,13 @@ func (o *Orchestrator) TechLeadReviewPhase(
 ) map[string]interface{} {
 	extraPrompt := ""
 	if techLeadFinalReview != nil {
-		extraPrompt = fmt.Sprintf("\nPREVIOUS FEEDBACK:\n%s\n", MarshalJSON(techLeadFinalReview))
+		extraPrompt = fmt.Sprintf("PREVIOUS FEEDBACK:\n%s\n", MarshalJSON(techLeadFinalReview))
 	}
 
 	results := Nudge(
 		100,
 		o.TechLeadFinal,
-		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nAPPROVED ARCHITECTURE:\n%s\nAPPROVED IMPLEMENTATION PLAN:\n%s%s\n<aggregate_implementation_summary>\n%s\n</aggregate_implementation_summary>\n",
+		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nAPPROVED ARCHITECTURE:\n%s\nAPPROVED IMPLEMENTATION PLAN:\n%s\n%s<aggregate_implementation_summary>\n%s\n</aggregate_implementation_summary>\n",
 			task, pmFilepath, MarshalJSON(arch), MarshalJSON(plan), extraPrompt, codeSummary),
 		invocationID,
 		[]string{o.Subdir, fmt.Sprintf("%d", o.DomainID)},
