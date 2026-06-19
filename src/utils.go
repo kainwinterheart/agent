@@ -4,9 +4,11 @@
 package main
 
 import (
+	"agent-go/state"
 	jsonv2text "encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	"io"
 	"os"
 	"os/exec"
@@ -24,8 +26,139 @@ func logStep(msg string, step string) {
 	fmt.Fprintf(os.Stderr, ">> [%s] [%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), step, msg)
 }
 
+// convertNestedImmutables recursively converts any nested immutable.Map and immutable.List
+// values inside maps and slices to regular Go types, preventing jsonv2.Marshal from
+// encountering unsupported immutable types within nested structures.
+func convertNestedImmutables(v interface{}) interface{} {
+	switch tv := v.(type) {
+	case map[string]interface{}:
+		for k, val := range tv {
+			tv[k] = convertNestedImmutables(val)
+		}
+		return tv
+	case []interface{}:
+		for i, val := range tv {
+			tv[i] = convertNestedImmutables(val)
+		}
+		return tv
+	case *immutable.Map[string, interface{}]:
+		regular := make(map[string]interface{})
+		itr := tv.Iterator()
+		itr.First()
+		for !itr.Done() {
+			k, val, _ := itr.Next()
+			regular[k] = convertNestedImmutables(val)
+		}
+		return regular
+	case *immutable.List[interface{}]:
+		arr := make([]interface{}, tv.Len())
+		itr := tv.Iterator()
+		itr.First()
+		for i := 0; i < tv.Len(); i++ {
+			_, val := itr.Next()
+			arr[i] = convertNestedImmutables(val)
+		}
+		return arr
+	case *immutable.Map[string, string]:
+		regular := make(map[string]string)
+		itr := tv.Iterator()
+		itr.First()
+		for !itr.Done() {
+			k, s, _ := itr.Next()
+			regular[k] = s
+		}
+		return regular
+	case *immutable.List[string]:
+		arr := make([]string, tv.Len())
+		itr := tv.Iterator()
+		itr.First()
+		for i := 0; i < tv.Len(); i++ {
+			_, val := itr.Next()
+			arr[i] = val
+		}
+		return arr
+	case *immutable.Map[string, *state.DomainState]:
+		regular := make(map[string]*state.DomainState)
+		itr := tv.Iterator()
+		itr.First()
+		for !itr.Done() {
+			k, ds, _ := itr.Next()
+			regular[k] = ds
+		}
+		return regular
+	}
+	return v
+}
+
 // MarshalJSON marshals v to a JSON string with deterministic key ordering.
 func MarshalJSON(v interface{}) string {
+	// Recursively convert any nested immutable types inside maps/slices
+	v = convertNestedImmutables(v)
+	// Convert immutable types to regular Go types for JSON marshaling
+	switch tv := v.(type) {
+	case *immutable.Map[string, interface{}]:
+		v = state.ToRegularInterfaceMap(tv)
+	case *immutable.Map[string, string]:
+		if tv == nil {
+			return "null"
+		}
+		regular := make(map[string]string)
+		itr := tv.Iterator()
+		itr.First()
+		for !itr.Done() {
+			k, s, _ := itr.Next()
+			regular[k] = s
+		}
+		v = regular
+	case *immutable.Map[string, *state.DomainState]:
+		if tv == nil {
+			return "{}"
+		}
+		regular := make(map[string]interface{})
+		itr := tv.Iterator()
+		itr.First()
+		for !itr.Done() {
+			k, ds, _ := itr.Next()
+			regular[k] = ds
+		}
+		v = regular
+	case *immutable.List[interface{}]:
+		if tv == nil || tv.Len() == 0 {
+			return "[]"
+		}
+		arr := make([]interface{}, tv.Len())
+		itr := tv.Iterator()
+		itr.First()
+		for i := 0; i < tv.Len(); i++ {
+			_, val := itr.Next()
+			arr[i] = val
+		}
+		v = arr
+	case *immutable.List[string]:
+		if tv == nil || tv.Len() == 0 {
+			return "[]"
+		}
+		arr := make([]string, tv.Len())
+		itr := tv.Iterator()
+		itr.First()
+		for i := 0; i < tv.Len(); i++ {
+			_, val := itr.Next()
+			arr[i] = val
+		}
+		v = arr
+	case *immutable.List[map[string]interface{}]:
+		if tv == nil || tv.Len() == 0 {
+			return "[]"
+		}
+		arr := make([]map[string]interface{}, tv.Len())
+		itr := tv.Iterator()
+		itr.First()
+		for i := 0; i < tv.Len(); i++ {
+			_, val := itr.Next()
+			arr[i] = val
+		}
+		v = arr
+	}
 	b, err := jsonv2.Marshal(v, jsonv2.Deterministic(true))
 	if err != nil {
 		panic(err)
@@ -194,7 +327,6 @@ func BuildPath(subdir []string, section string) string {
 // reviewOk checks if a review passed all checks.
 func reviewOk(review map[string]interface{}) bool {
 	approved, _ := review["approved"].(bool)
-	logStep(fmt.Sprintf("approved=%v", approved), "REVIEW STATUS")
 	issues, _ := review["issues"].([]interface{})
 	for _, issue := range issues {
 		if m, ok := issue.(map[string]interface{}); ok {

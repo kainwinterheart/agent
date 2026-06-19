@@ -1,4 +1,4 @@
-package ac_wman 
+package wman
 
 import (
     "encoding/json"

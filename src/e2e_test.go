@@ -116,16 +116,20 @@ func newMockRunner(t *testing.T, actions []ActionDetails, startIdx int) *e2eMock
 }
 
 func (mr *e2eMockRunner) next(actualAction string, desc string) ActionDetails {
+	if desc != "" {
+		if os.Getenv("E2E_VERBOSE") != "" {
+			desc = desc + "\n"
+		} else {
+			desc = ""
+		}
+	}
 	if mr.idx >= len(mr.actions) {
-		mr.t.Fatalf("Unactual call: actual %s but no more actions remain (idx=%d, total=%d)",
-			actualAction, mr.idx, len(mr.actions))
+		mr.t.Fatalf("%sUnexpected call: actual %s but no more actions remain (idx=%d, total=%d)",
+			desc, actualAction, mr.idx, len(mr.actions))
 	}
 	action := mr.actions[mr.idx]
 	mr.idx++
 	if action.Action != actualAction {
-		if desc != "" {
-			desc = desc + "\n"
-		}
 		mr.t.Fatalf("%sActual action %q at index %d (total=%d), expected %q (agent=%q, invocation_id=%q, stage_name=%q)",
 			desc, actualAction, mr.idx-1, len(mr.actions),
 			action.Action, action.Agent, action.InvocationID, action.StageName)
@@ -204,7 +208,7 @@ func TestE2E(t *testing.T) {
 	}
 	for _, f := range files {
 		f := f
-		t.Run(filepath.Base(f), func(t *testing.T) {
+		t.Run(fmt.Sprintf("-%s-", strings.TrimSuffix(filepath.Base(f), ".json")), func(t *testing.T) {
 			runFixtureTest(t, f)
 		})
 	}
@@ -240,7 +244,7 @@ func runFixtureTest(t *testing.T, filename string) {
 		normalizedDataPrompt := normalizePrompt(action.Prompt, action.Agent, actions)
 		normalizedCodePrompt := normalizePrompt(prompt, action.Agent, actions)
 		if normalizedDataPrompt != normalizedCodePrompt {
-			mr.t.Fatalf("prepare_to_run_agent prompt mismatch:\n%s", mr.diff(normalizedDataPrompt, normalizedCodePrompt, "data", "code"))
+			mr.t.Fatalf("prepare_to_run_agent(%s, %s) prompt mismatch:\n%s", agentName, invocationID, mr.diff(normalizedDataPrompt, normalizedCodePrompt, "data", "code"))
 		}
 	}
 
@@ -347,7 +351,7 @@ func runFixtureTest(t *testing.T, filename string) {
 
 	subdir := t.TempDir()
 	orch := NewOrchestrator(taskText, subdir)
-	orch.Run()
+	orch.Run(taskText, subdir)
 
 	mr.verifyAllConsumed()
 

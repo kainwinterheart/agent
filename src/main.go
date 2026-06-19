@@ -86,5 +86,5 @@ func main() {
 		os.WriteFile(taskFile, []byte(task), 0o644)
 	}
 	orch := NewOrchestrator(task, subdir)
-	orch.Run()
+	orch.Run(task, subdir)
 }
