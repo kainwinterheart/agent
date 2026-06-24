@@ -1,0 +1,84 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"architecture": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"overview": {
+					"type": "string",
+					"description": "high-level design aligned with existing system"
+				},
+				"reviewer_notes": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"description": "notes about alignment with current system and key tradeoffs; must include: 'Why not reuse existing system?' explanation for any new component"
+					}
+				},
+				"components": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"name": {
+								"type": "string",
+								"description": "component name (existing or new)"
+							},
+							"responsibility": {
+								"type": "string",
+								"description": "what it does"
+							},
+							"background": {
+								"type": "string",
+								"description": "why this fits into the existing system; if the component is new: (1) why existing components cannot be reused, and (2) why introducing a new component is the simplest correct solution"
+							}
+						},
+						"required": [
+							"name",
+							"responsibility",
+							"background"
+						]
+					}
+				},
+				"data_flow": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"description": "how data moves through EXISTING and new components"
+					}
+				},
+				"tech_choices": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"description": "choices that must align with current stack"
+					}
+				},
+				"constraints": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"description": "assumptions, limitations, and known gaps in system understanding"
+					}
+				}
+			},
+			"required": [
+				"overview",
+				"reviewer_notes",
+				"components",
+				"data_flow",
+				"tech_choices",
+				"constraints"
+			]
+		},
+		{{template "shared_next_steps"}}
+	},
+	"required": [
+		"architecture",
+		"next_steps"
+	]
+}

@@ -1,0 +1,1 @@
+{{template "review_base" (makeConfig "implementation" "short explanation of why current severity level was chosen" "issue description" (planNextActionsDesc) true)}}

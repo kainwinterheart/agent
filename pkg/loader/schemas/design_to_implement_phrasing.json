@@ -1,0 +1,9 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"text": {"type": "string", "description": "only the transformed text, with no explanations or commentary"}
+	},
+	"required": ["text"]
+}

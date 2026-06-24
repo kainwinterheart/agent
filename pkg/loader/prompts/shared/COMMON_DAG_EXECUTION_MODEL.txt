@@ -1,0 +1,221 @@
+{{- define "commonDag" -}}## Investigation DAG Execution Model
+
+This system operates as a DIRECTED ACYCLIC GRAPH (DAG) of investigative workstreams.
+
+Core execution properties:
+* Workstreams execute according to explicit dependency relationships
+* Parallel execution occurs whenever dependencies permit
+* Dependencies must be explicit and acyclic
+* No hidden information flow is allowed
+* No undeclared coordination is allowed
+
+Runtime guarantees:
+* Upstream outputs are immutable
+* Downstream workstreams receive only declared artifacts
+* No shared mutable state exists
+* Dependency completion is deterministic
+* Workstreams cannot mutate upstream artifacts
+
+---
+
+## Workstream definition
+
+A workstream is:
+* a bounded execution unit
+* with explicit inputs
+* explicit methods
+* explicit outputs
+* a single investigative objective
+* a stable execution scope
+
+A workstream is NOT:
+* a general topic area
+* a project phase
+* a reporting category
+* an orchestration layer
+* an informal reasoning step
+
+---
+
+## Dependency semantics
+
+Dependencies are DATA DEPENDENCIES only.
+
+A dependency means:
+* a downstream workstream consumes artifacts produced by upstream workstreams
+
+A dependency does NOT mean:
+* implicit coordination
+* shared mutable reasoning state
+* recursive refinement
+* bidirectional information flow
+
+All dependencies must:
+* be explicit
+* be necessary
+* be acyclic
+* identify meaningful artifact flow
+
+Dependencies impose execution cost by:
+* reducing parallelism
+* increasing coordination complexity
+* increasing graph fragility
+* increasing serialization pressure
+
+Therefore every dependency requires strict operational justification.
+
+A dependency is valid ONLY if downstream execution would be impossible, undefined, or semantically invalid without the upstream artifact.
+
+---
+
+## Artifact model
+
+Every workstream output is an ARTIFACT.
+
+Artifacts must be explicitly defined.
+
+Each artifact must declare:
+* artifact type
+* semantic purpose
+* expected informational content
+
+Example artifact types:
+* extracted facts
+* timelines
+* anomaly candidates
+* ranked hypotheses
+* correlation matrices
+* validation reports
+* synthesized assessments
+* risk summaries
+
+Artifacts are immutable once produced.
+
+---
+
+## Allowed workstream categories
+
+Allowed categories include:
+* Evidence Collection
+* Signal Extraction
+* Hypothesis Testing
+* Correlation Analysis
+* Validation
+* Synthesis
+* Risk Assessment
+
+Workstreams may depend on upstream workstreams from earlier categories where appropriate.
+
+### Validation workstream rules
+
+Validation workstreams must validate specific claims, hypotheses, or artifacts.
+
+Validation workstreams MUST NOT:
+* consume unrelated branches
+* aggregate all available evidence by default
+* act as global coordination nodes
+* require universal upstream visibility
+
+Validation scope must remain explicitly bounded.
+
+### Synthesis workstream rules
+
+Synthesis workstreams should consume the MINIMAL artifact set necessary to produce their outputs.
+
+Synthesis workstreams MUST NOT:
+* depend on all upstream workstreams by default
+* aggregate branches without explicit need
+* act as universal graph sinks
+
+---
+
+## Optimization priorities
+
+When tradeoffs exist, prioritize in this order:
+
+1. DAG validity
+2. Investigability
+3. Evidence sufficiency
+4. Clear artifact flow
+5. Parallelism maximization
+6. Methodological diversity
+7. Minimization of redundancy
+
+---
+
+## Redundancy definition
+
+Two workstreams are redundant ONLY if they:
+* consume equivalent inputs
+* apply equivalent methods
+* produce equivalent artifact types
+* target equivalent investigative questions
+
+Overlap is acceptable if it provides:
+* independent validation
+* alternative methods
+* alternative hypotheses
+* distinct analytical perspectives
+
+---
+
+## Graph-level invariants
+
+The investigation graph must satisfy:
+* acyclic structure
+* explicit dependency declarations
+* no orphaned workstreams
+* no hidden dependencies
+* every dependency has meaningful artifact flow
+* every workstream produces at least one artifact
+* every non-root workstream declares upstream inputs
+* every leaf workstream produces terminal investigative value
+
+---
+
+## Anti-overengineering rule
+
+Prefer the shallowest DAG capable of answering the task.
+
+Avoid intermediary workstreams unless they:
+* transform artifact types
+* materially simplify downstream reasoning
+* enable analysis otherwise impossible
+* provide independent validation value
+
+Avoid:
+* unnecessary orchestration layers
+* meta-analysis chains
+* recursive validation loops
+* excessive serialization
+* giant unconstrained synthesis nodes
+
+---
+
+## Synthesis constraints
+
+Synthesis workstreams are allowed.
+
+However, synthesis workstreams must:
+* consume explicitly defined upstream artifacts
+* define explicit integration methods
+* produce bounded outputs
+* avoid unconstrained narrative summarization
+* avoid vague "final analysis" behavior
+
+---
+
+## Review standard
+
+Reviewers are constraint validators, not open-ended critics.
+
+Issues should ONLY be raised when:
+* a specific rule is violated
+* the violation is observable
+* the failure can be explained mechanically
+
+All critiques must:
+* identify the violated rule
+* identify offending workstreams
+* explain the failure concretely
+* propose minimal corrective action{{- end -}}

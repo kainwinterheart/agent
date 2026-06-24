@@ -1,6 +1,3 @@
-// =========================
-// E2E TEST (data-driven)
-// =========================
 package main
 
 import (
@@ -144,33 +141,24 @@ func (mr *e2eMockRunner) verifyAllConsumed() {
 	}
 }
 
-func getTaskText(actions []ActionDetails) string {
-	for _, a := range actions {
-		if a.Action == "user_input" {
-			return a.Text
-		}
-	}
-	return ""
-}
-
 func normalizeErrorMessages(prompt string) string {
 	re := regexp.MustCompile(`<error>\n(.*?)\n</error>`)
 	return re.ReplaceAllStringFunc(prompt, func(match string) string {
 		inner := strings.TrimPrefix(match, "<error>\n")
 		inner = strings.TrimSuffix(inner, "\n</error>")
-		// Normalize Go json.Unmarshal errors (version-dependent)
+
 		if strings.Contains(inner, "invalid character") ||
 			strings.Contains(inner, "Expecting ':' delimiter") ||
 			(strings.Contains(inner, "line ") && strings.Contains(inner, "column ")) {
 			return "<error>\nGO_JSON_UNMARSHAL_ERROR\n</error>"
 		}
-		// Normalize jsonschema validation errors
+
 		if strings.Contains(inner, "Error within") ||
 			strings.Contains(inner, "Additional properties") ||
 			strings.Contains(inner, "doesn't validate with") {
 			return "<error>\nSCHEMA_VALIDATION_ERROR\n</error>"
 		}
-		// Normalize ExtractJSON errors
+
 		if strings.Contains(inner, "does not contain") && strings.Contains(inner, "JSON") {
 			return "<error>\nEXTRACT_JSON_ERROR\n</error>"
 		}
@@ -184,14 +172,14 @@ func normalizePrompt(prompt string, agent string, actions []ActionDetails) strin
 	result = regexp.MustCompile("\n\n\n").ReplaceAllString(result, "\n\n")
 	result = normalizeJSONObjects(result)
 	result = normalizeErrorMessages(result)
-	// Normalize filepaths: replace any path ending with /document_stores/FILENAME.md
+
 	result = regexp.MustCompile(`[^\n\r]+/document_stores/[^\n\r]+\.md`).ReplaceAllStringFunc(result, func(m string) string {
 		idx := strings.Index(m, "/document_stores/")
 		if idx < 0 {
 			return m
 		}
 		filename := m[idx+len("/document_stores/"):]
-		// Remove timestamp-like prefixes: "2026-06-12_09-36-28_", "product_manager_final_", etc.
+
 		filename = regexp.MustCompile(`^[\d\-_+:]+[_-]?`).ReplaceAllString(filename, "")
 		return "SUBDIR/document_stores/" + filename
 	})
@@ -228,7 +216,6 @@ func runFixtureTest(t *testing.T, filename string) {
 
 	var hookSequence []string
 
-	// --- Hook: prepare_to_run_agent ---
 	runJSONAgentHook = func(agentName, invocationID, prompt string) {
 		hookSequence = append(hookSequence, "prepare_to_run_agent")
 		action := mr.next("prepare_to_run_agent", fmt.Sprintf("%s (%s)\n%s", invocationID, agentName, prompt))
@@ -248,7 +235,6 @@ func runFixtureTest(t *testing.T, filename string) {
 		}
 	}
 
-	// --- Hook: run_codex ---
 	runCodexHook = func(agentName, session, prompt string, schema map[string]interface{}, timeout string) (string, string, error) {
 		hookSequence = append(hookSequence, "run_codex")
 		action := mr.next("run_codex", fmt.Sprintf("%s\n%s", agentName, prompt))
@@ -285,7 +271,6 @@ func runFixtureTest(t *testing.T, filename string) {
 		return action.Stdout, agentName, nil
 	}
 
-	// --- Hook: reset_agent ---
 	resetHook = func(agentName, sessionSuffix string) {
 		hookSequence = append(hookSequence, "reset_agent")
 		action := mr.next("reset_agent", agentName)
@@ -301,7 +286,6 @@ func runFixtureTest(t *testing.T, filename string) {
 		}
 	}
 
-	// --- Hook: write_markdown_doc ---
 	markdownDocHook = func(content interface{}, stageNameRaw string, subdir []string) string {
 		stageName := regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageNameRaw, "")
 		hookSequence = append(hookSequence, "write_markdown_doc")
@@ -312,7 +296,7 @@ func runFixtureTest(t *testing.T, filename string) {
 				action.StageName, stageName)
 		}
 
-		actualContent := RenderMarkdownContent(content, stageNameRaw)
+		actualContent := RenderMarkdownContent(content)
 		if stageName != "code_summary" {
 			if action.Content != actualContent {
 				mr.t.Fatalf("write_markdown_doc content mismatch for stage %q:\n%s",
@@ -333,7 +317,6 @@ func runFixtureTest(t *testing.T, filename string) {
 		return writeMarkdownDocument(stageNameRaw, actualContent, subdir)
 	}
 
-	// --- Hook: watchman ---
 	watchmanHook = func() map[string]string {
 		hookSequence = append(hookSequence, "watchman")
 		action := mr.next("watchman", "")
@@ -368,7 +351,7 @@ func runFixtureTest(t *testing.T, filename string) {
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".md") {
 			content, _ := os.ReadFile(path)
 			base := strings.TrimSuffix(info.Name(), ".md")
-			// Strip timestamp prefix: YYYY-MM-DD_HH-MM-SS_
+
 			stageName := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_`).ReplaceAllString(base, "")
 			relpath, _ := filepath.Rel(docStoresDir, path)
 			actualFiles[filepath.Join(filepath.Dir(relpath), stageName)] = string(content)

@@ -1,0 +1,20 @@
+{{- define "shared_approved" }}	"approved": {
+		"type": "boolean",
+		"description": "true/false; \"Approval is only valid if:\\n* All prior high-severity issues are either resolved or downgraded with explicit justification\\n* At least one paragraph explains why the design is now considered sound\\n\\nCRITICAL: If the previous review contained high-severity issues, a transition to zero issues must include explicit justification for each.\""
+	},
+	"approved_confidence": {
+		"type": "string",
+		"enum": ["not_approved", "low", "medium", "high"]
+	},
+	"approved_reason": {
+		"type": "string",
+		"description": "if approved=true - explain in detail why exactly has the approval been given, provide evidence; of approved=false - set this field to empty string"
+	},
+	"resolved_issues": {
+		"type": "array",
+		"items": {
+			"type": "string",
+			"description": "Issues cannot be removed without explanation.\nIf an issue is no longer present - move it here, with justification.\n\nIf no issues were resolved - leave this array empty."
+		}
+	},
+{{- end -}}

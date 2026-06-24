@@ -1,0 +1,82 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"plan": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"summary": {
+					"type": "string",
+					"description": "what will be implemented and how it integrates into the existing system"
+				},
+				"reviewer_notes": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"description": "notes about assumptions on current codebase and structure"
+					}
+				},
+				"files": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"path": {
+								"type": "string",
+								"description": "relative/file.ext"
+							},
+							"purpose": {
+								"type": "string",
+								"description": "what this file or modification does"
+							},
+							"background": {
+								"type": "string",
+								"description": "why this belongs in this location in the existing system"
+							}
+						},
+						"required": [
+							"path",
+							"purpose",
+							"background"
+						]
+					}
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"id": {
+								"type": "integer",
+								"description": "numeric step identifier"
+							},
+							"description": {
+								"type": "string",
+								"description": "specific step tied to real file changes"
+							}
+						},
+						"required": [
+							"id",
+							"description"
+						]
+					}
+				}
+			},
+			"required": [
+				"summary",
+				"reviewer_notes",
+				"files",
+				"steps"
+			]
+		},
+		{{template "shared_next_steps"}}
+	},
+	"required": [
+		"plan",
+		"next_steps"
+	]
+}

@@ -1,0 +1,17 @@
+
+Ordered list of 1–5 concrete, actionable instructions that the system design reviewer is issuing to the software architect agent.
+
+These actions represent **external design work** that should be performed next to improve or complete the system architecture.
+
+Rules:
+* Each action must be something the software architect can directly update or define in the system design
+* Use clear, imperative language (e.g., “Define…”, “Refine…”, “Add…”, “Clarify…”, “Restructure…”)
+* Focus on specific design elements (components, interfaces, data flows, constraints), not broad architectural goals
+* Do not include reasoning, justification, or analysis
+* Do not restate problems — only prescribe actions
+* Do not include internal thinking or validation steps (those belong in `next_steps`)
+* Avoid vague instructions (e.g., “improve scalability”, “make it better”)
+* Do not delegate beyond the software architect or introduce new roles
+* Each action should map to a concrete change or addition in the architecture
+
+If no further design changes are required, return an empty array.

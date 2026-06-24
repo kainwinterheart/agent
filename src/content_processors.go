@@ -1,6 +1,3 @@
-// =========================
-// CONTENT PROCESSORS (Tier 2)
-// =========================
 package main
 
 import (
@@ -10,483 +7,533 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	dt "agent-go/gen"
 )
 
-// markdownDocHook allows overriding MarkdownDocumentGenerator for testing.
 var markdownDocHook func(content interface{}, stageName string, subdir []string) string
 
-// BuildArchitectInput builds architect input from a domain and integration ownership.
-func BuildArchitectInput(domain map[string]interface{}, integrationOwnership []interface{}) (string, string) {
-	spec, ok := domain["domain_specification"].(string)
-	if !ok || spec == "" {
+func BuildArchitectInput(domain dt.SystemDecompositionJsondecompositiondomainsElem, integrationOwnership []dt.SystemDecompositionJsondecompositionintegrationownershipElem) (string, string) {
+	spec := domain.DomainSpecification()
+	if spec == "" {
 		return "", ""
 	}
 	if !strings.HasSuffix(spec, "\n") {
 		spec += "\n"
 	}
-	domainID := strings.ToLower(strings.TrimSpace(domain["id"].(string)))
-	var integrations []interface{}
+	domainID := strings.ToLower(strings.TrimSpace(domain.Id()))
+	var integrations []dt.SystemDecompositionJsondecompositionintegrationownershipElem
 	for _, item := range integrationOwnership {
-		if m, ok := item.(map[string]interface{}); ok {
-			ownerID := strings.ToLower(strings.TrimSpace(m["owner_domain_id"].(string)))
-			if ownerID == domainID {
-				integrations = append(integrations, m)
-			}
+		ownerID := strings.ToLower(strings.TrimSpace(item.OwnerDomainId()))
+		if ownerID == domainID {
+			integrations = append(integrations, item)
 		}
 	}
 	if len(integrations) > 0 {
 		spec += "\nAdditionally, you are EXPECTED TO HANDLE integration of the following capabilities into the overall system:\n"
 		for i, item := range integrations {
-			if m, ok := item.(map[string]interface{}); ok {
-				cap := m["capability"].(string)
-				artifacts, _ := m["integration_artifacts"].([]interface{})
-				suffix := ""
-				if len(artifacts) > 0 {
-					suffix = ":"
-				}
-				spec += fmt.Sprintf("%d. %s%s\n", i+1, cap, suffix)
-				for j, sub := range artifacts {
-					if s, ok := sub.(string); ok {
-						spec += fmt.Sprintf("\t%d. %s\n", j+1, s)
-					}
-				}
+			cap := item.Capability()
+			suffix := ""
+			if len(item.IntegrationArtifacts()) > 0 {
+				suffix = ":"
+			}
+			spec += fmt.Sprintf("%d. %s%s\n", i+1, cap, suffix)
+			for j, sub := range item.IntegrationArtifacts() {
+				spec += fmt.Sprintf("\t%d. %s\n", j+1, sub)
 			}
 		}
 	}
 	more := ""
-	if items, ok := domain["expected_architecture_outcomes"].([]interface{}); ok {
+	if len(domain.ExpectedArchitectureOutcomes()) > 0 {
 		more += "\nExpected architecture outcomes:\n"
-		for _, item := range items {
-			if s, ok := item.(string); ok {
-				more += fmt.Sprintf("* %s\n", s)
-			}
+		for _, s := range domain.ExpectedArchitectureOutcomes() {
+			more += fmt.Sprintf("* %s\n", s)
 		}
 	}
-	if items, ok := domain["produced_artifacts"].([]interface{}); ok {
+	if len(domain.ProducedArtifacts()) > 0 {
 		more += "\nDetailed expectations:\n"
-		for _, item := range items {
-			if m, ok := item.(map[string]interface{}); ok {
-				purpose := m["purpose"].(string)
-				if !strings.HasSuffix(purpose, ".") {
-					purpose += "."
-				}
-				more += fmt.Sprintf("* %s: %s %s\n", m["artifact_name"], purpose, m["expected_content"])
+		for _, item := range domain.ProducedArtifacts() {
+			purpose := item.Purpose()
+			if !strings.HasSuffix(purpose, ".") {
+				purpose += "."
 			}
+			more += fmt.Sprintf("* %s: %s %s\n", item.ArtifactName(), purpose, item.ExpectedContent())
 		}
 	}
-	if items, ok := domain["constraints"].([]interface{}); ok {
+	if len(domain.Constraints()) > 0 {
 		more += "\nConstraints:\n"
-		for _, item := range items {
-			if s, ok := item.(string); ok {
-				more += fmt.Sprintf("* %s\n", s)
-			}
+		for _, s := range domain.Constraints() {
+			more += fmt.Sprintf("* %s\n", s)
 		}
 	}
-	if items, ok := domain["consumed_artifacts"].([]interface{}); ok && len(items) > 0 {
+	if len(domain.ConsumedArtifacts()) > 0 {
 		more += "\nKnowledge REQUIRED to build context:\n"
-		for _, item := range items {
-			if m, ok := item.(map[string]interface{}); ok {
-				more += fmt.Sprintf("* %s: %s\n", m["artifact_name"], m["purpose"])
-			}
+		for _, item := range domain.ConsumedArtifacts() {
+			more += fmt.Sprintf("* %s: %s\n", item.ArtifactName(), item.Purpose())
 		}
 	}
 	more += "\n"
-	if text, ok := domain["responsibility"].(string); ok {
-		more += fmt.Sprintf("Responsibility: %s\n", text)
+	if domain.Responsibility() != "" {
+		more += fmt.Sprintf("Responsibility: %s\n", domain.Responsibility())
 	}
-	if text, ok := domain["scope"].(string); ok {
-		more += fmt.Sprintf("Scope: %s\n", text)
+	if domain.Scope() != "" {
+		more += fmt.Sprintf("Scope: %s\n", domain.Scope())
 	}
 	return spec, more
 }
 
-// RenderMarkdownContent renders markdown content for a given stage and content.
-// Exported so tests can call it without duplicating rendering logic.
-func RenderMarkdownContent(content interface{}, stageNameRaw string) string {
-	stageNameClean := regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageNameRaw, "")
-	markdownContent := ""
+func RenderMarkdownContent(content interface{}) string {
+	switch v := content.(type) {
+	case string:
+		return v
 
-	if stageNameClean == "code_summary" {
-		if s, ok := content.(string); ok {
-			markdownContent = s
+	case *dt.PmSynthesizerJson:
+		return renderPmSynthesizer(v)
+
+	case dt.PmSynthesizerJson:
+		return renderPmSynthesizer(&v)
+
+	case *dt.SystemDecompositionJson:
+		return renderDecomposition(v)
+
+	case dt.SystemDecompositionJson:
+		return renderDecomposition(&v)
+
+	case *dt.ArchJson:
+		return renderArchitecture(v)
+
+	case dt.ArchJson:
+		return renderArchitecture(&v)
+
+	case *dt.PlanJson:
+		return renderPlan(v)
+
+	case dt.PlanJson:
+		return renderPlan(&v)
+
+	case *dt.InvestigatorFindingsJson:
+		return renderInvestigatorFindings(v)
+
+	case dt.InvestigatorFindingsJson:
+		return renderInvestigatorFindings(&v)
+
+	case *dt.InvestigationReportJson:
+		return renderInvestigationReport(v)
+
+	case dt.InvestigationReportJson:
+		return renderInvestigationReport(&v)
+
+	case *dt.InvestigationClassifierJson:
+		return renderInvestigationClassifier(v)
+
+	case dt.InvestigationClassifierJson:
+		return renderInvestigationClassifier(&v)
+
+	case *dt.InvestigatorPlanJson:
+		return renderInvestigatorPlan(v)
+
+	case dt.InvestigatorPlanJson:
+		return renderInvestigatorPlan(&v)
+
+	default:
+		return ""
+	}
+}
+
+func renderPmSynthesizer(ps *dt.PmSynthesizerJson) string {
+	var b strings.Builder
+	b.WriteString("# Task Specification\n\n")
+	if ts := ps.TaskSpecification(); ts != "" {
+		b.WriteString(ts)
+		if !strings.HasSuffix(ts, "\n") {
+			b.WriteString("\n")
 		}
-	} else if stageNameClean == "product_manager_final" {
-		actualContent, _ := content.(map[string]interface{})
-		markdownContent += fmt.Sprintf("# Task Specification\n\n%s\n\n", actualContent["task_specification"])
-		if files, ok := actualContent["files"].([]interface{}); ok && len(files) > 0 {
-			markdownContent += "## Mentioned files\n\n"
-			for _, f := range files {
-				if s, ok := f.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
+		b.WriteString("\n")
+	}
+	if files := ps.Files(); len(files) > 0 {
+		b.WriteString("## Mentioned files\n\n")
+		for _, f := range files {
+			b.WriteString(fmt.Sprintf("- %s\n\n", f))
 		}
-		if pn, ok := actualContent["proper_nouns"].([]interface{}); ok && len(pn) > 0 {
-			markdownContent += "## Mentioned proper nouns\n\n"
-			for _, p := range pn {
-				if s, ok := p.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
+	}
+	if pn := ps.ProperNouns(); len(pn) > 0 {
+		b.WriteString("## Mentioned proper nouns\n\n")
+		for _, p := range pn {
+			b.WriteString(fmt.Sprintf("- %s\n\n", p))
 		}
-		if facts, ok := actualContent["facts"].([]interface{}); ok && len(facts) > 0 {
-			markdownContent += "## Stated facts\n\n"
-			for _, f := range facts {
-				if s, ok := f.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
+	}
+	if facts := ps.Facts(); len(facts) > 0 {
+		b.WriteString("## Stated facts\n\n")
+		for _, f := range facts {
+			b.WriteString(fmt.Sprintf("- %s\n\n", f))
 		}
-		if mbnd, ok := actualContent["missing_but_necessary_details"].([]interface{}); ok && len(mbnd) > 0 {
-			markdownContent += "## Additional considerations\n\n"
-			for _, v := range mbnd {
-				if s, ok := v.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
+	}
+	if mbnd := ps.MissingButNecessaryDetails(); len(mbnd) > 0 {
+		b.WriteString("## Additional considerations\n\n")
+		for _, v := range mbnd {
+			b.WriteString(fmt.Sprintf("- %s\n\n", v))
 		}
-		if se, ok := actualContent["speculative_expansions"].([]interface{}); ok && len(se) > 0 {
-			markdownContent += "## Out of scope\n\n"
-			for _, v := range se {
-				if s, ok := v.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
+	}
+	if se := ps.SpeculativeExpansions(); len(se) > 0 {
+		b.WriteString("## Out of scope\n\n")
+		for _, v := range se {
+			b.WriteString(fmt.Sprintf("- %s\n\n", v))
 		}
-	} else if stageNameClean == "decomposition_final" {
-		actualContent, _ := content.(map[string]interface{})
-		decomp, _ := actualContent["decomposition"].(map[string]interface{})
-		markdownContent += "# Decomposition\n\n"
-		if domains, ok := decomp["domains"].([]interface{}); ok {
-			markdownContent += "## Domains\n\n"
-			for i, domain := range domains {
-				if dm, ok := domain.(map[string]interface{}); ok {
-					integrationOwnership, _ := decomp["integration_ownership"].([]interface{})
-					if spec, extra := BuildArchitectInput(dm, integrationOwnership); spec != "" {
-						markdownContent += fmt.Sprintf("### Domain %d\n\n", i+1)
-						markdownContent += spec + extra + "\n\n"
-					}
+	}
+	return b.String()
+}
+
+func renderDecomposition(decomp *dt.SystemDecompositionJson) string {
+	var b strings.Builder
+	b.WriteString("# Decomposition\n\n")
+	decompVal := decomp.Decomposition()
+	if len(decompVal.Domains()) > 0 {
+		b.WriteString("## Domains\n\n")
+		for i, domain := range decompVal.Domains() {
+			if spec, extra := BuildArchitectInput(domain, decompVal.IntegrationOwnership()); spec != "" {
+				b.WriteString(fmt.Sprintf("### Domain %d\n\n", i+1))
+				b.WriteString(spec)
+				if extra != "" {
+					b.WriteString(extra)
 				}
-			}
-		}
-	} else if stageNameClean == "architecture_after_reviews" {
-		actualContent, _ := content.(map[string]interface{})
-		arch, _ := actualContent["architecture"].(map[string]interface{})
-		markdownContent += "# Architecture\n\n"
-		markdownContent += "## Overview\n\n"
-		markdownContent += fmt.Sprintf("%s\n\n", arch["overview"])
-		if components, ok := arch["components"].([]interface{}); ok {
-			markdownContent += "## Components\n\n"
-			for _, comp := range components {
-				if cm, ok := comp.(map[string]interface{}); ok {
-					name, _ := cm["name"].(string)
-					resp, _ := cm["responsibility"].(string)
-					bg, _ := cm["background"].(string)
-					if resp == "N/A" || bg == "N/A" {
-						logStep("Missing fields in component dict: falling back to defaults", "MARKDOWN")
-					}
-					markdownContent += fmt.Sprintf("### %s\n\n", name)
-					markdownContent += fmt.Sprintf("**Responsibility**: %s\n\n", resp)
-					markdownContent += fmt.Sprintf("**Background**: %s\n\n", bg)
-				}
-			}
-		}
-		if dataFlow, ok := arch["data_flow"].([]interface{}); ok {
-			markdownContent += "## Data Flow\n\n"
-			for _, flow := range dataFlow {
-				if s, ok := flow.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
-		}
-		if techChoices, ok := arch["tech_choices"].([]interface{}); ok {
-			markdownContent += "## Tech Choices\n\n"
-			for _, tc := range techChoices {
-				if s, ok := tc.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
-		}
-		if constraints, ok := arch["constraints"].([]interface{}); ok {
-			markdownContent += "## Constraints\n\n"
-			for _, c := range constraints {
-				if s, ok := c.(string); ok {
-					markdownContent += fmt.Sprintf("- %s\n\n", s)
-				}
-			}
-		}
-	} else if stageNameClean == "tech_plan_after_reviews" {
-		actualContent, _ := content.(map[string]interface{})
-		plan, _ := actualContent["plan"].(map[string]interface{})
-		markdownContent += "# Implementation plan\n\n"
-		markdownContent += "## Summary\n\n"
-		markdownContent += fmt.Sprintf("%s\n\n", plan["summary"])
-		if files, ok := plan["files"].([]interface{}); ok {
-			markdownContent += "## Files\n\n"
-			for _, fi := range files {
-				if fm, ok := fi.(map[string]interface{}); ok {
-					path, _ := fm["path"].(string)
-					purpose, _ := fm["purpose"].(string)
-					background, _ := fm["background"].(string)
-					markdownContent += fmt.Sprintf("### %s\n\n", path)
-					markdownContent += fmt.Sprintf("**Purpose**: %s\n\n", purpose)
-					markdownContent += fmt.Sprintf("**Background**: %s\n\n", background)
-				}
-			}
-		}
-		if steps, ok := plan["steps"].([]interface{}); ok {
-			markdownContent += "## Steps\n\n"
-			for _, step := range steps {
-				if sm, ok := step.(map[string]interface{}); ok {
-					idVal := ""
-					if s, ok := sm["id"].(string); ok {
-						idVal = s
-					} else if f, ok := sm["id"].(float64); ok {
-						idVal = fmt.Sprintf("%.0f", f)
-					}
-					desc, _ := sm["description"].(string)
-					markdownContent += fmt.Sprintf("### Step %s\n\n", idVal)
-					markdownContent += fmt.Sprintf("%s\n\n", desc)
-				}
-			}
-		}
-	} else if stageNameClean == "investigation_plan" {
-		workstreams, _ := content.(map[string]interface{})["workstreams"].([]interface{})
-		markdownContent += "# Investigation Plan\n\n"
-		for i, ws := range workstreams {
-			if wm, ok := ws.(map[string]interface{}); ok {
-				markdownContent += fmt.Sprintf("## Workstream %d\n\n", i+1)
-				if obj, ok := wm["objective"].(string); ok && obj != "" {
-					markdownContent += fmt.Sprintf("%s\n\n", obj)
-				}
-				if ds, ok := wm["data_sources"].([]interface{}); ok && len(ds) > 0 {
-					markdownContent += "Data Sources:\n"
-					for _, d := range ds {
-						if s, ok := d.(string); ok {
-							markdownContent += fmt.Sprintf("* %s\n", s)
-						}
-					}
-					markdownContent += "\n"
-				}
-				if hyp, ok := wm["hypotheses"].([]interface{}); ok && len(hyp) > 0 {
-					markdownContent += "Hypotheses:\n"
-					for _, h := range hyp {
-						if s, ok := h.(string); ok {
-							markdownContent += fmt.Sprintf("* %s\n", s)
-						}
-					}
-					markdownContent += "\n"
-				}
-				if methods, ok := wm["investigation_methods"].([]interface{}); ok && len(methods) > 0 {
-					markdownContent += "Investigation Methods:\n"
-					for _, m := range methods {
-						if s, ok := m.(string); ok {
-							markdownContent += fmt.Sprintf("* %s\n", s)
-						}
-					}
-					markdownContent += "\n"
-				}
-				if deliv, ok := wm["expected_deliverables"].([]interface{}); ok && len(deliv) > 0 {
-					markdownContent += "Expected Deliverables:\n"
-					for _, d := range deliv {
-						if s, ok := d.(string); ok {
-							markdownContent += fmt.Sprintf("* %s\n", s)
-						}
-					}
-					markdownContent += "\n"
-				}
-			}
-		}
-	} else if strings.HasPrefix(stageNameClean, "investigation_workstream_") {
-		markdownContent += "# Investigation Findings\n\n"
-		if wm, ok := content.(map[string]interface{}); ok {
-			if obj, ok := wm["workstream_objective"].(string); ok && obj != "" {
-				markdownContent += fmt.Sprintf("%s\n\n", obj)
-			}
-			if conclusions, ok := wm["conclusions"].([]interface{}); ok && len(conclusions) > 0 {
-				markdownContent += "Conclusions:\n"
-				for _, c := range conclusions {
-					if s, ok := c.(string); ok {
-						markdownContent += fmt.Sprintf("* %s\n", s)
-					}
-				}
-				markdownContent += "\n"
-			}
-			if evidence, ok := wm["supporting_evidence"].([]interface{}); ok && len(evidence) > 0 {
-				markdownContent += "Supporting Evidence:\n"
-				for _, item := range evidence {
-					if em, ok := item.(map[string]interface{}); ok {
-						eype, _ := em["evidence_type"].(string)
-						edesc, _ := em["evidence_description"].(string)
-						sref, _ := em["source_reference"].(string)
-						markdownContent += fmt.Sprintf("* **[%s]** %s (ref: %s)\n", eype, edesc, sref)
-					} else if s, ok := item.(string); ok {
-						markdownContent += fmt.Sprintf("* %s\n", s)
-					}
-				}
-				markdownContent += "\n"
-			}
-			if conf, ok := wm["confidence_level"].(string); ok && conf != "" {
-				markdownContent += fmt.Sprintf("Confidence Level: %s\n\n", conf)
-			}
-			if unanswered, ok := wm["unanswered_questions"].([]interface{}); ok && len(unanswered) > 0 {
-				markdownContent += "Unanswered Questions:\n"
-				for _, q := range unanswered {
-					if s, ok := q.(string); ok {
-						markdownContent += fmt.Sprintf("* %s\n", s)
-					}
-				}
-				markdownContent += "\n"
-			}
-		}
-	} else if stageNameClean == "investigation_report_final" {
-		if report, ok := content.(map[string]interface{}); ok {
-			markdownContent += "# Investigation Report\n\n"
-			if es, ok := report["executive_summary"].(string); ok && es != "" {
-				markdownContent += fmt.Sprintf("%s\n\n", es)
-			}
-			if rca, ok := report["root_cause_analysis"].(map[string]interface{}); ok {
-				markdownContent += "## Root Cause Analysis\n\n"
-				if pc, ok := rca["primary_cause"].(string); ok && pc != "" {
-					markdownContent += fmt.Sprintf("### Primary Cause\n\n%s\n\n", pc)
-				}
-				if cf, ok := rca["contributing_factors"].([]interface{}); ok && len(cf) > 0 {
-					markdownContent += "### Contributing Factors\n\n"
-					for _, f := range cf {
-						if s, ok := f.(string); ok {
-							markdownContent += fmt.Sprintf("* %s\n", s)
-						}
-					}
-					markdownContent += "\n"
-				}
-				if et, ok := rca["evidence_trail"].([]interface{}); ok && len(et) > 0 {
-					markdownContent += "### Evidence Trail\n\n"
-					for _, item := range et {
-						if s, ok := item.(string); ok {
-							markdownContent += fmt.Sprintf("* %s\n", s)
-						}
-					}
-					markdownContent += "\n"
-				}
-			}
-			if tl, ok := report["timeline_reconstruction"].([]interface{}); ok {
-				markdownContent += "## Timeline Reconstruction\n\n"
-				for _, entry := range tl {
-					if em, ok := entry.(map[string]interface{}); ok {
-						ts, _ := em["timestamp"].(string)
-						ev, _ := em["event"].(string)
-						markdownContent += fmt.Sprintf("### %s\n\n%s\n\n", ts, ev)
-					}
-				}
-			}
-			if ci, ok := report["customer_impact_assessment"].(map[string]interface{}); ok {
-				markdownContent += "## Customer Impact Assessment\n\n"
-				if au, ok := ci["affected_users"].(string); ok && au != "" {
-					markdownContent += fmt.Sprintf("### Affected Users\n\n%s\n\n", au)
-				}
-				if sev, ok := ci["severity"].(string); ok && sev != "" {
-					markdownContent += fmt.Sprintf("### Severity\n\n%s\n\n", sev)
-				}
-				if dur, ok := ci["duration"].(string); ok && dur != "" {
-					markdownContent += fmt.Sprintf("### Duration\n\n%s\n\n", dur)
-				}
-				if root, ok := ci["root_cause"].(string); ok && root != "" {
-					markdownContent += fmt.Sprintf("### Root Cause\n\n%s\n\n", root)
-				}
-				if rec, ok := ci["remediation_steps"].([]interface{}); ok && len(rec) > 0 {
-					markdownContent += "### Remediation Steps\n\n"
-					for _, r := range rec {
-						if s, ok := r.(string); ok {
-							markdownContent += fmt.Sprintf("* %s\n", s)
-						}
-					}
-					markdownContent += "\n"
-				}
-			}
-			if corr, ok := report["correlation_findings"].([]interface{}); ok {
-				markdownContent += "## Correlation Findings\n\n"
-				for _, item := range corr {
-					if im, ok := item.(map[string]interface{}); ok {
-						obs, _ := im["observation"].(string)
-						strength, _ := im["correlation_strength"].(string)
-						causal, _ := im["causal_claim"].(string)
-						markdownContent += fmt.Sprintf("* **Observation**: %s\n", obs)
-						if strength != "" {
-							markdownContent += fmt.Sprintf("  **Strength**: %s\n", strength)
-						}
-						if causal != "" {
-							markdownContent += fmt.Sprintf("  **Causal Claim**: %s\n", causal)
-						}
-						markdownContent += "\n"
-					}
-				}
-			}
-			if hr, ok := report["hypothesis_test_results"].([]interface{}); ok {
-				markdownContent += "## Hypothesis Test Results\n\n"
-				for _, item := range hr {
-					if im, ok := item.(map[string]interface{}); ok {
-						hyp, _ := im["hypothesis"].(string)
-						test, _ := im["test_performed"].(string)
-						result, _ := im["result"].(string)
-						conclusion, _ := im["conclusion"].(string)
-						markdownContent += fmt.Sprintf("* **Hypothesis**: %s\n", hyp)
-						if test != "" {
-							markdownContent += fmt.Sprintf("  **Test**: %s\n", test)
-						}
-						if result != "" {
-							markdownContent += fmt.Sprintf("  **Result**: %s\n", result)
-						}
-						if conclusion != "" {
-							markdownContent += fmt.Sprintf("  **Conclusion**: %s\n", conclusion)
-						}
-						markdownContent += "\n"
-					}
-				}
-			}
-			if gaps, ok := report["known_gaps_and_unknowns"].([]interface{}); ok {
-				markdownContent += "## Known Gaps and Unknowns\n\n"
-				for _, g := range gaps {
-					if s, ok := g.(string); ok {
-						markdownContent += fmt.Sprintf("* %s\n", s)
-					}
-				}
-				markdownContent += "\n"
-			}
-			if recs, ok := report["recommendations"].([]interface{}); ok {
-				markdownContent += "## Recommendations\n\n"
-				for _, item := range recs {
-					if im, ok := item.(map[string]interface{}); ok {
-						priority, _ := im["priority"].(string)
-						action, _ := im["action"].(string)
-						rationale, _ := im["rationale"].(string)
-						markdownContent += fmt.Sprintf("* **[%s]** %s", priority, action)
-						if rationale != "" {
-							markdownContent += fmt.Sprintf(" — %s", rationale)
-						}
-						markdownContent += "\n"
-					} else if s, ok := item.(string); ok {
-						markdownContent += fmt.Sprintf("* %s\n", s)
-					}
-				}
-				markdownContent += "\n"
-			}
-		}
-	} else if stageNameClean == "investigation_classification" {
-		if class, ok := content.(map[string]interface{}); ok {
-			markdownContent += "# Investigation Classification\n\n"
-			tt, _ := class["type"].(string)
-			reasoning, _ := class["reasoning"].(string)
-			markdownContent += fmt.Sprintf("**Type**: %s\n\n", tt)
-			if reasoning != "" {
-				markdownContent += fmt.Sprintf("**Reasoning**: %s\n\n", reasoning)
+				b.WriteString("\n\n")
 			}
 		}
 	}
-	return markdownContent
+	return b.String()
 }
 
-// writeMarkdownDocument writes the rendered markdown content to a file in the
-// document_stores directory. It returns the path to the written file.
+func renderArchitecture(arch *dt.ArchJson) string {
+	var b strings.Builder
+	b.WriteString("# Architecture\n\n")
+
+	archInner := arch.Architecture()
+
+	if overview := archInner.Overview(); overview != "" {
+		b.WriteString("## Overview\n\n")
+		b.WriteString(overview)
+		b.WriteString("\n\n")
+	}
+
+	if comps := archInner.Components(); len(comps) > 0 {
+		b.WriteString("## Components\n\n")
+		for _, c := range comps {
+			name := c.Name()
+			b.WriteString(fmt.Sprintf("### %s\n\n", name))
+			if resp := c.Responsibility(); resp != "" {
+				b.WriteString(fmt.Sprintf("**Responsibility**: %s\n\n", resp))
+			}
+			if bg := c.Background(); bg != "" {
+				b.WriteString(fmt.Sprintf("**Background**: %s\n\n", bg))
+			}
+		}
+	}
+
+	if dataFlow := archInner.DataFlow(); len(dataFlow) > 0 {
+		b.WriteString("## Data Flow\n\n")
+		for _, df := range dataFlow {
+			b.WriteString(fmt.Sprintf("- %s\n\n", df))
+		}
+	}
+
+	if techChoices := archInner.TechChoices(); len(techChoices) > 0 {
+		b.WriteString("## Tech Choices\n\n")
+		for _, tc := range techChoices {
+			b.WriteString(fmt.Sprintf("- %s\n\n", tc))
+		}
+	}
+
+	if constraints := archInner.Constraints(); len(constraints) > 0 {
+		b.WriteString("## Constraints\n\n")
+		for _, c := range constraints {
+			b.WriteString(fmt.Sprintf("- %s\n\n", c))
+		}
+	}
+
+	return b.String()
+}
+
+func renderPlan(plan *dt.PlanJson) string {
+	var b strings.Builder
+	b.WriteString("# Implementation plan\n\n")
+
+	planInner := plan.Plan()
+
+	if summary := planInner.Summary(); summary != "" {
+		b.WriteString("## Summary\n\n")
+		b.WriteString(summary)
+		if !strings.HasSuffix(summary, "\n") {
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if files := planInner.Files(); len(files) > 0 {
+		b.WriteString("## Files\n\n")
+		for _, f := range files {
+			b.WriteString(fmt.Sprintf("### %s\n\n", f.Path()))
+			if purpose := f.Purpose(); purpose != "" {
+				b.WriteString(fmt.Sprintf("**Purpose**: %s\n\n", purpose))
+			}
+			if bg := f.Background(); bg != "" {
+				b.WriteString(fmt.Sprintf("**Background**: %s\n\n", bg))
+			}
+		}
+	}
+
+	if steps := planInner.Steps(); len(steps) > 0 {
+		b.WriteString("## Steps\n\n")
+		for _, s := range steps {
+			b.WriteString(fmt.Sprintf("### Step %d\n\n", s.Id()))
+			b.WriteString(s.Description())
+			if !strings.HasSuffix(s.Description(), "\n") {
+				b.WriteString("\n")
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
+}
+
+func renderInvestigatorFindings(findings *dt.InvestigatorFindingsJson) string {
+	var b strings.Builder
+	b.WriteString("# Investigation Findings\n\n")
+
+	if wo := findings.WorkstreamObjective(); wo != "" {
+		b.WriteString(wo)
+		b.WriteString("\n\n")
+	}
+
+	if concs := findings.Conclusions(); len(concs) > 0 {
+		b.WriteString("Conclusions:\n")
+		for _, c := range concs {
+			b.WriteString(fmt.Sprintf("* %s\n", c))
+		}
+		b.WriteString("\n")
+	}
+
+	if evs := findings.SupportingEvidence(); len(evs) > 0 {
+		b.WriteString("Supporting Evidence:\n")
+		for _, e := range evs {
+			et := e.EvidenceType()
+			ed := e.EvidenceDescription()
+			sr := e.SourceReference()
+			b.WriteString(fmt.Sprintf("* **[%s]** %s", et, ed))
+			if sr != "" {
+				b.WriteString(fmt.Sprintf(" (ref: %s)", sr))
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if cl := findings.ConfidenceLevel(); cl != "" {
+		b.WriteString(fmt.Sprintf("Confidence Level: %s\n\n", cl))
+	}
+
+	if uq := findings.UnansweredQuestions(); len(uq) > 0 {
+		b.WriteString("Unanswered Questions:\n")
+		for _, q := range uq {
+			b.WriteString(fmt.Sprintf("* %s\n", q))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func renderInvestigationReport(report *dt.InvestigationReportJson) string {
+	var b strings.Builder
+
+	if es := report.ExecutiveSummary(); es != "" {
+		b.WriteString("# Investigation Report\n\n")
+		b.WriteString(es)
+		if !strings.HasSuffix(es, "\n") {
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if rca := report.RootCauseAnalysis(); true {
+		pc := rca.PrimaryCause()
+		cf := rca.ContributingFactors()
+		et := rca.EvidenceTrail()
+		if pc != "" || len(cf) > 0 || len(et) > 0 {
+			b.WriteString("## Root Cause Analysis\n\n")
+			if pc != "" {
+				b.WriteString("### Primary Cause\n\n")
+				b.WriteString(pc)
+				b.WriteString("\n\n")
+			}
+			if len(cf) > 0 {
+				b.WriteString("### Contributing Factors\n\n")
+				for _, f := range cf {
+					b.WriteString(fmt.Sprintf("* %s\n", f))
+				}
+				b.WriteString("\n")
+			}
+			if len(et) > 0 {
+				b.WriteString("### Evidence Trail\n\n")
+				for _, e := range et {
+					b.WriteString(fmt.Sprintf("* %s\n", e))
+				}
+				b.WriteString("\n")
+			}
+		}
+	}
+
+	if tl := report.TimelineReconstruction(); len(tl) > 0 {
+		b.WriteString("## Timeline Reconstruction\n\n")
+		for _, t := range tl {
+			b.WriteString(fmt.Sprintf("### %s\n\n", t.Timestamp()))
+			b.WriteString(t.Event())
+			if !strings.HasSuffix(t.Event(), "\n") {
+				b.WriteString("\n")
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	if ci := report.CustomerImpactAssessment(); true {
+		affected := ci.AffectedUsers()
+		severity := ci.Severity()
+		duration := ci.Duration()
+		if affected != "" || severity != "" || duration != "" {
+			b.WriteString("## Customer Impact Assessment\n\n")
+			if affected != "" {
+				b.WriteString("### Affected Users\n\n")
+				b.WriteString(affected)
+				b.WriteString("\n\n")
+			}
+			if severity != "" {
+				b.WriteString("### Severity\n\n")
+				b.WriteString(severity)
+				b.WriteString("\n\n")
+			}
+			if duration != "" {
+				b.WriteString("### Duration\n\n")
+				b.WriteString(duration)
+				b.WriteString("\n\n")
+			}
+		}
+	}
+
+	if corr := report.CorrelationFindings(); len(corr) > 0 {
+		b.WriteString("## Correlation Findings\n\n")
+		for _, item := range corr {
+			obs := item.Observation()
+			strength := item.CorrelationStrength()
+			causal := item.CausalClaim()
+			b.WriteString(fmt.Sprintf("* **Observation**: %s\n", obs))
+			if strength != "" {
+				b.WriteString(fmt.Sprintf("  **Strength**: %s\n", strength))
+			}
+			if causal != "" {
+				b.WriteString(fmt.Sprintf("  **Causal Claim**: %s\n", causal))
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	if hr := report.HypothesisTestResults(); len(hr) > 0 {
+		b.WriteString("## Hypothesis Test Results\n\n")
+		for _, item := range hr {
+			hyp := item.Hypothesis()
+			test := item.TestPerformed()
+			result := item.Result()
+			conclusion := item.Conclusion()
+			b.WriteString(fmt.Sprintf("* **Hypothesis**: %s\n", hyp))
+			if test != "" {
+				b.WriteString(fmt.Sprintf("  **Test**: %s\n", test))
+			}
+			if result != "" {
+				b.WriteString(fmt.Sprintf("  **Result**: %s\n", result))
+			}
+			if conclusion != "" {
+				b.WriteString(fmt.Sprintf("  **Conclusion**: %s\n", conclusion))
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	if gaps := report.KnownGapsAndUnknowns(); len(gaps) > 0 {
+		b.WriteString("## Known Gaps and Unknowns\n\n")
+		for _, g := range gaps {
+			b.WriteString(fmt.Sprintf("* %s\n", g))
+		}
+		b.WriteString("\n")
+	}
+
+	if recs := report.Recommendations(); len(recs) > 0 {
+		b.WriteString("## Recommendations\n\n")
+		for _, item := range recs {
+			priority := item.Priority()
+			action := item.Action()
+			rationale := item.Rationale()
+			b.WriteString(fmt.Sprintf("* **[%s]** %s", priority, action))
+			if rationale != "" {
+				b.WriteString(fmt.Sprintf(" — %s", rationale))
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func renderInvestigationClassifier(class *dt.InvestigationClassifierJson) string {
+	var b strings.Builder
+	b.WriteString("# Investigation Classification\n\n")
+	b.WriteString(fmt.Sprintf("**Type**: %s\n\n", class.AType()))
+	if reasoning := class.Reasoning(); reasoning != "" {
+		b.WriteString(fmt.Sprintf("**Reasoning**: %s\n\n", reasoning))
+	}
+	return b.String()
+}
+
+func renderInvestigatorPlan(plan *dt.InvestigatorPlanJson) string {
+	var b strings.Builder
+	b.WriteString("# Investigation Plan\n\n")
+	workstreams := plan.Workstreams()
+	for i, ws := range workstreams {
+		b.WriteString(fmt.Sprintf("## Workstream %d\n\n", i+1))
+		if obj := ws.Objective(); obj != "" {
+			b.WriteString(obj + "\n\n")
+		}
+		if ds := ws.DataSources(); len(ds) > 0 {
+			b.WriteString("Data Sources:\n")
+			for _, s := range ds {
+				b.WriteString(fmt.Sprintf("* %s\n", s))
+			}
+			b.WriteString("\n")
+		}
+		if hyps := ws.Hypotheses(); len(hyps) > 0 {
+			b.WriteString("Hypotheses:\n")
+			for _, h := range hyps {
+				b.WriteString(fmt.Sprintf("* %s\n", h))
+			}
+			b.WriteString("\n")
+		}
+		if methods := ws.InvestigationMethods(); len(methods) > 0 {
+			b.WriteString("Investigation Methods:\n")
+			for _, m := range methods {
+				b.WriteString(fmt.Sprintf("* %s\n", m))
+			}
+			b.WriteString("\n")
+		}
+		if delivs := ws.ExpectedDeliverables(); len(delivs) > 0 {
+			b.WriteString("Expected Deliverables:\n")
+			for _, d := range delivs {
+				b.WriteString(fmt.Sprintf("* %s\n", d))
+			}
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
 func writeMarkdownDocument(stageName, markdownContent string, subdir []string) string {
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	filename := fmt.Sprintf("%s_%s.md", timestamp, stageName)
@@ -512,7 +559,7 @@ func writeMarkdownDocument(stageName, markdownContent string, subdir []string) s
 }
 
 func MarkdownDocumentGenerator(content interface{}, stageName string, subdir []string) string {
-	markdownContent := RenderMarkdownContent(content, stageName)
+	markdownContent := RenderMarkdownContent(content)
 	trace("write_markdown_doc", map[string]interface{}{
 		"content":    markdownContent,
 		"stage_name": regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageName, ""),

@@ -1,0 +1,5 @@
+{{- define "mustVerify" -}}Verification completion requirement:
+* If repository inspection is required and tools are available, you MUST complete the inspection and resolve the question.
+* Do NOT defer verification as a future action if it can be completed during this review.
+* Phrases like “must inspect”, “should verify”, or “needs checking” are NOT allowed when the information is accessible.
+* Every identified verification requirement must result in a concrete conclusion: either confirmed, refuted, or explicitly unavailable.{{- end -}}

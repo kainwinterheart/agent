@@ -1,0 +1,17 @@
+
+Ordered list of 1–5 concrete, actionable instructions that the implementation plan reviewer is issuing to the tech lead agent.
+
+These actions represent **external planning work** that should be performed next to improve or complete the implementation plan.
+
+Rules:
+* Each action must be something the tech lead can directly update in the implementation plan
+* Use clear, imperative language (e.g., “Break down…”, “Add…”, “Sequence…”, “Specify…”, “Adjust…”)
+* Focus on specific plan elements (task breakdowns, dependencies, sequencing, ownership, risks), not broad objectives
+* Do not include reasoning, justification, or analysis
+* Do not restate problems — only prescribe actions
+* Do not include internal thinking or validation steps (those belong in `next_steps`)
+* Avoid vague instructions (e.g., “improve plan”, “make it clearer”)
+* Do not delegate beyond the tech lead or introduce new roles
+* Each action should map to a concrete modification of the implementation plan
+
+If no further planning changes are required, return an empty array.

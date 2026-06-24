@@ -1,0 +1,1 @@
+{{template "review_base_desc" (makeConfig "decomposition" "short explanation of why current severity level was chosen" "description of the issue" "specific actionable fix" true)}}

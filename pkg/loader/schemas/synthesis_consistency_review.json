@@ -1,0 +1,1 @@
+{{template "review_base_desc" (makeConfig "category of the issue (e.g., implementation, design, testing)" "short explanation of why current severity level was chosen" "issue description" "specific actionable fix" true)}}

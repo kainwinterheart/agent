@@ -106,17 +106,13 @@ func TestNormalizeJSONObjects_NoTrimming(t *testing.T) {
 func TestNormalizeJSONObjects_NestedKeysSorted(t *testing.T) {
 	input := `{"z": {"b": 1, "a": 2}, "a": [{"y": 3, "x": 4}]}`
 	got := normalizeJSONObjects(input)
-	// Top-level keys should be sorted: "a" before "z"
-	// Nested object keys should be sorted: "a" before "b"
-	// Array element keys should be sorted: "x" before "y"
+
 	expected := "{\n\t\"a\": [\n\t\t{\n\t\t\t\"x\": 4,\n\t\t\t\"y\": 3\n\t\t}\n\t],\n\t\"z\": {\n\t\t\"a\": 2,\n\t\t\"b\": 1\n\t}\n}"
 	if got != expected {
 		t.Errorf("nested key sort failed:\ngot  %s\nwant %s", got, expected)
 	}
 }
 
-// TestNormalizeJSONObjects_PreservesNonJSONLines verifies that lines
-// not ending with } or [ are passed through unchanged.
 func TestNormalizeJSONObjects_PreservesNonJSONLines(t *testing.T) {
 	input := "line1\nline2\nline3"
 	got := normalizeJSONObjects(input)
@@ -125,13 +121,10 @@ func TestNormalizeJSONObjects_PreservesNonJSONLines(t *testing.T) {
 	}
 }
 
-// TestNormalizeJSONObjects_MultipleJSONObjects verifies that multiple
-// JSON objects on different lines are all normalized.
 func TestNormalizeJSONObjects_MultipleJSONObjects(t *testing.T) {
 	input := `{"z": 1} and {"a": 2}`
 	got := normalizeJSONObjects(input)
-	// The first line ends with "}" so it should be normalized.
-	// The second line also ends with "}" so it should be normalized.
+
 	if !strings.Contains(got, "\"a\": 2") {
 		t.Errorf("expected sorted key \"a\" in output, got %q", got)
 	}

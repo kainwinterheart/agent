@@ -1,14 +1,10 @@
-// =========================
-// UTIL
-// =========================
 package main
 
 import (
-	"agent-go/state"
+	"agent-go/pkg/loader"
 	jsonv2text "encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"fmt"
-	"github.com/benbjohnson/immutable"
 	"io"
 	"os"
 	"os/exec"
@@ -19,155 +15,82 @@ import (
 	"time"
 )
 
-// runCodexHook allows overriding RunCodex for testing.
 var runCodexHook func(agentName, session, prompt string, schema map[string]interface{}, timeout string) (string, string, error)
 
 func logStep(msg string, step string) {
 	fmt.Fprintf(os.Stderr, ">> [%s] [%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), step, msg)
 }
 
-// convertNestedImmutables recursively converts any nested immutable.Map and immutable.List
-// values inside maps and slices to regular Go types, preventing jsonv2.Marshal from
-// encountering unsupported immutable types within nested structures.
-func convertNestedImmutables(v interface{}) interface{} {
-	switch tv := v.(type) {
-	case map[string]interface{}:
-		for k, val := range tv {
-			tv[k] = convertNestedImmutables(val)
-		}
-		return tv
-	case []interface{}:
-		for i, val := range tv {
-			tv[i] = convertNestedImmutables(val)
-		}
-		return tv
-	case *immutable.Map[string, interface{}]:
-		regular := make(map[string]interface{})
-		itr := tv.Iterator()
-		itr.First()
-		for !itr.Done() {
-			k, val, _ := itr.Next()
-			regular[k] = convertNestedImmutables(val)
-		}
-		return regular
-	case *immutable.List[interface{}]:
-		arr := make([]interface{}, tv.Len())
-		itr := tv.Iterator()
-		itr.First()
-		for i := 0; i < tv.Len(); i++ {
-			_, val := itr.Next()
-			arr[i] = convertNestedImmutables(val)
-		}
-		return arr
-	case *immutable.Map[string, string]:
-		regular := make(map[string]string)
-		itr := tv.Iterator()
-		itr.First()
-		for !itr.Done() {
-			k, s, _ := itr.Next()
-			regular[k] = s
-		}
-		return regular
-	case *immutable.List[string]:
-		arr := make([]string, tv.Len())
-		itr := tv.Iterator()
-		itr.First()
-		for i := 0; i < tv.Len(); i++ {
-			_, val := itr.Next()
-			arr[i] = val
-		}
-		return arr
-	case *immutable.Map[string, *state.DomainState]:
-		regular := make(map[string]*state.DomainState)
-		itr := tv.Iterator()
-		itr.First()
-		for !itr.Done() {
-			k, ds, _ := itr.Next()
-			regular[k] = ds
-		}
-		return regular
-	}
-	return v
+func stripNextStepsFromJSON(jsonStr string) string {
+	jsonStr = stripFieldFromJSON(jsonStr, "next_steps")
+	jsonStr = stripFieldFromJSON(jsonStr, "reviewer_notes")
+	return jsonStr
 }
 
-// MarshalJSON marshals v to a JSON string with deterministic key ordering.
-func MarshalJSON(v interface{}) string {
-	// Recursively convert any nested immutable types inside maps/slices
-	v = convertNestedImmutables(v)
-	// Convert immutable types to regular Go types for JSON marshaling
-	switch tv := v.(type) {
-	case *immutable.Map[string, interface{}]:
-		v = state.ToRegularInterfaceMap(tv)
-	case *immutable.Map[string, string]:
-		if tv == nil {
-			return "null"
-		}
-		regular := make(map[string]string)
-		itr := tv.Iterator()
-		itr.First()
-		for !itr.Done() {
-			k, s, _ := itr.Next()
-			regular[k] = s
-		}
-		v = regular
-	case *immutable.Map[string, *state.DomainState]:
-		if tv == nil {
-			return "{}"
-		}
-		regular := make(map[string]interface{})
-		itr := tv.Iterator()
-		itr.First()
-		for !itr.Done() {
-			k, ds, _ := itr.Next()
-			regular[k] = ds
-		}
-		v = regular
-	case *immutable.List[interface{}]:
-		if tv == nil || tv.Len() == 0 {
-			return "[]"
-		}
-		arr := make([]interface{}, tv.Len())
-		itr := tv.Iterator()
-		itr.First()
-		for i := 0; i < tv.Len(); i++ {
-			_, val := itr.Next()
-			arr[i] = val
-		}
-		v = arr
-	case *immutable.List[string]:
-		if tv == nil || tv.Len() == 0 {
-			return "[]"
-		}
-		arr := make([]string, tv.Len())
-		itr := tv.Iterator()
-		itr.First()
-		for i := 0; i < tv.Len(); i++ {
-			_, val := itr.Next()
-			arr[i] = val
-		}
-		v = arr
-	case *immutable.List[map[string]interface{}]:
-		if tv == nil || tv.Len() == 0 {
-			return "[]"
-		}
-		arr := make([]map[string]interface{}, tv.Len())
-		itr := tv.Iterator()
-		itr.First()
-		for i := 0; i < tv.Len(); i++ {
-			_, val := itr.Next()
-			arr[i] = val
-		}
-		v = arr
+func stripFieldFromJSON(jsonStr, fieldName string) string {
+	searchKey := `"` + fieldName + `"`
+	idx := strings.Index(jsonStr, searchKey)
+	if idx == -1 {
+		return jsonStr
 	}
-	b, err := jsonv2.Marshal(v, jsonv2.Deterministic(true))
-	if err != nil {
-		panic(err)
+	start := idx
+	for start > 0 && jsonStr[start-1] != '{' && jsonStr[start-1] != ',' {
+		start--
 	}
-	return string(b)
+	if start > 0 && jsonStr[start-1] == ',' {
+		start--
+	}
+	valueStart := strings.Index(jsonStr[idx:], `:`)
+	if valueStart == -1 {
+		return jsonStr
+	}
+	valueStart += idx
+	for valueStart < len(jsonStr) && (jsonStr[valueStart] == ' ' || jsonStr[valueStart] == ':' || jsonStr[valueStart] == '\t') {
+		valueStart++
+	}
+	end := valueStart
+	if end < len(jsonStr) && jsonStr[end] == '[' {
+		depth := 1
+		end++
+		for end < len(jsonStr) && depth > 0 {
+			if jsonStr[end] == '[' {
+				depth++
+			} else if jsonStr[end] == ']' {
+				depth--
+			}
+			end++
+		}
+	} else if end < len(jsonStr) && jsonStr[end] == '{' {
+		depth := 1
+		end++
+		for end < len(jsonStr) && depth > 0 {
+			if jsonStr[end] == '{' {
+				depth++
+			} else if jsonStr[end] == '}' {
+				depth--
+			}
+			end++
+		}
+	} else {
+		for end < len(jsonStr) && jsonStr[end] != ',' && jsonStr[end] != '}' {
+			end++
+		}
+	}
+	result := jsonStr[:start] + jsonStr[end:]
+	if strings.HasPrefix(result, "{,") {
+		re := regexp.MustCompile(`^{,\s*`)
+		result = re.ReplaceAllString(result, "{")
+	}
+	re := regexp.MustCompile(`,\s*}$`)
+	result = re.ReplaceAllString(result, "}")
+	re2 := regexp.MustCompile(`,{2,}`)
+	return re2.ReplaceAllString(result, ",")
 }
 
-// RunCodex runs the codex exec command synchronously.
-// Returns (output, sessionID, error).
+var MarshalJSON = func(v interface{}) string {
+	return stripNextStepsFromJSON(loader.MarshalJSON(v))
+}
+
 func RunCodex(
 	agentName string,
 	session string,
@@ -192,7 +115,6 @@ func RunCodex(
 	return stdout, result, err
 }
 
-// realRunCodex is the actual implementation that spawns the codex subprocess.
 func realRunCodex(
 	agentName string,
 	session string,
@@ -274,8 +196,6 @@ func realRunCodex(
 	return output, session, nil
 }
 
-// ExtractJSON extracts the JSON object from text.
-// Returns an error if no JSON object is found.
 func ExtractJSON(text string) (string, error) {
 	start := strings.Index(text, "{")
 	end := strings.LastIndex(text, "}")
@@ -285,7 +205,6 @@ func ExtractJSON(text string) (string, error) {
 	return "", fmt.Errorf("text does not contain a JSON object")
 }
 
-// AtomicWrite writes content to a file atomically.
 func AtomicWrite(path string, content string) {
 	dirPath := filepath.Dir(path)
 	if dirPath != "" {
@@ -314,7 +233,6 @@ func AssertNotEmpty(obj interface{}, step string) {
 	}
 }
 
-// BuildPath builds a path from the subdir slice.
 func BuildPath(subdir []string, section string) string {
 	if len(subdir) == 0 {
 		panic("`subdir` must be set")
@@ -324,34 +242,6 @@ func BuildPath(subdir []string, section string) string {
 	return filepath.Join(append([]string{rootDir, section}, nested...)...)
 }
 
-// reviewOk checks if a review passed all checks.
-func reviewOk(review map[string]interface{}) bool {
-	approved, _ := review["approved"].(bool)
-	issues, _ := review["issues"].([]interface{})
-	for _, issue := range issues {
-		if m, ok := issue.(map[string]interface{}); ok {
-			if sev, ok := m["severity"].(string); ok && sev == "high" {
-				return false
-			}
-		}
-	}
-	return approved
-}
-
-// shouldReset checks whether the review recommends resetting coder context.
-func shouldReset(review map[string]interface{}) bool {
-	val, _ := review["should_reset"].(bool)
-	return val
-}
-
-// normalizeJSONObjects normalizes embedded JSON objects and arrays in each line
-// of the prompt. Iterates raw lines (no trimming): if a line ends with `}`
-// it finds the leftmost `{` and tries to round-trip the JSON; same for `]`/`[`.
-// Successful round-trips are serialized with encoding/json/v2 Deterministic,
-// then written back into the line.
-//
-// Before serializing, sortJSONKeys recursively sorts all map keys so that
-// nested structures are also deterministically ordered.
 func normalizeJSONObjects(prompt string) string {
 	lines := strings.Split(prompt, "\n")
 	for i, line := range lines {
@@ -383,7 +273,6 @@ func normalizeJSONObjects(prompt string) string {
 	return strings.Join(lines, "\n")
 }
 
-// sortJSONKeys recursively sorts all map keys in a decoded JSON value.
 func sortJSONKeys(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
@@ -403,4 +292,8 @@ func sortJSONKeys(v any) any {
 		}
 	}
 	return v
+}
+
+func MarshalWorkstreamElement(elem interface{}) string {
+	return stripFieldFromJSON(MarshalJSON(elem), "dependencies")
 }

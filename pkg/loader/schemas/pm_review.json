@@ -1,0 +1,1 @@
+{{template "review_base_no_ns" (dict "ConfigName" "pm" "CategoryDesc" "product" "SevReasonDesc" "short explanation of why current severity level was chosen" "MessageDesc" "issue description" "NextActionsDesc" "specific actionable fix" "IncludeCategory" true "ShouldResetDesc" "False" "ResetReasonDesc" "")}}

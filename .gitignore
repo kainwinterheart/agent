@@ -9,3 +9,5 @@ venv
 *.rej
 agent
 src/src
+schema_exporter
+gen

@@ -1,0 +1,9 @@
+{{- define "shared_issue_item" -}}
+						"severity": {"type": "string", "enum": ["low", "medium", "high"]},
+						"severity_reason": {"type": "string", "description": "{{.SevReasonDesc}}"},
+						{{- if .IncludeCategory }}
+						"category": {"type": "string", "description": "{{.CategoryDesc}}"},
+						{{- end }}
+						"message": {"type": "string", "description": "{{.MessageDesc}}"},
+						"next_actions": {"type": "array", "items": {"type": "string", "description": "{{escapeJSON .NextActionsDesc}}"}}
+{{- end -}}

@@ -1,9 +1,8 @@
-// =========================
-// RUNTIME SERVICES (Tier 3)
-// =========================
 package main
 
 import (
+	dt "agent-go/gen"
+	"agent-go/pkg/loader"
 	jsonv2text "encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"fmt"
@@ -11,15 +10,18 @@ import (
 	"path/filepath"
 )
 
-// runJSONAgentHook allows overriding runJSONAgent for testing.
-var runJSONAgentHook func(agentName, invocationID, prompt string)
-
-// RunJSONAgent runs an agent and returns the parsed JSON result.
-func RunJSONAgent(agent *Agent, inputText string, invocationID string, subdir []string) interface{} {
-	return runJSONAgent(agent, inputText, invocationID, subdir, false)
+type CacheResult[T any] struct {
+	Out       T
+	FromCache bool
 }
 
-func runJSONAgent(agent *Agent, inputText string, invocationID string, subdir []string, returnSystemState bool) interface{} {
+var runJSONAgentHook func(agentName, invocationID, prompt string)
+
+func RunJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string) T {
+	return runJSONAgent[T](agent, inputText, invocationID, subdir).Out
+}
+
+func runJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string) CacheResult[T] {
 	if runJSONAgentHook != nil {
 		runJSONAgentHook(agent.Name, invocationID, inputText)
 	}
@@ -84,11 +86,30 @@ Your previous output failed JSON validation:
 Output MUST be valid JSON only:
 %s
 </feedback>
-`, agent.ResumePrompt, err, SchemaToExample(agent.Schema)))
+`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)))
 			updated = true
 			continue
 		}
-		var out interface{}
+		if agent.Schema != nil {
+			if valErr := loader.ValidateJSONBytes([]byte(j), agent.Schema); valErr != nil {
+				raw = agent.Run(fmt.Sprintf(`
+%s
+
+<feedback>
+Your previous output failed JSON validation:
+<error>
+%v
+</error>
+
+Output MUST be valid JSON only:
+%s
+</feedback>
+`, agent.ResumePrompt, valErr, loader.SchemaToExample(agent.Schema)))
+				updated = true
+				continue
+			}
+		}
+		var out T
 		if err := jsonv2.Unmarshal([]byte(j), &out, jsonv2text.AllowDuplicateNames(true)); err != nil {
 			raw = agent.Run(fmt.Sprintf(`
 %s
@@ -102,85 +123,46 @@ Your previous output failed JSON validation:
 Output MUST be valid JSON only:
 %s
 </feedback>
-`, agent.ResumePrompt, err, SchemaToExample(agent.Schema)))
+`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)))
 			updated = true
 			continue
 		}
-		if outMap, ok := out.(map[string]interface{}); ok {
-			if err := ValidateSchema(outMap, agent.Schema); err != nil {
-				errMsg := err.Error()
-				raw = agent.Run(fmt.Sprintf(`
-%s
-
-<feedback>
-Your previous output failed JSON validation:
-<error>
-%v
-</error>
-
-Output MUST be valid JSON only:
-%s
-</feedback>
-`, agent.ResumePrompt, errMsg, SchemaToExample(agent.Schema)))
-				updated = true
-				continue
-			}
-			if agent.Ephemeral {
-				agent.Reset()
-			} else {
-				agent.LastCorrectResponse = outMap
-			}
-			if returnSystemState {
-				return map[string]interface{}{"out": outMap, "from_cache": !updated}
-			}
-			return outMap
+		if agent.Ephemeral {
+			agent.Reset()
 		} else {
-			raw = agent.Run(fmt.Sprintf(`
-%s
-
-<feedback>
-Your previous output was not a JSON object (map). It was a %T with value: %v
-
-Output MUST be a JSON object only:
-%s
-</feedback>
-`, agent.ResumePrompt, out, out, SchemaToExample(agent.Schema)))
-			updated = true
-			continue
+			agent.LastCorrectResponse = &out
 		}
+		return CacheResult[T]{Out: out, FromCache: !updated}
 	}
 }
 
-// Nudge runs an agent with iterative next-steps prompting.
-func Nudge(
+func Nudge[T any](
 	maxIt int,
-	agent *Agent,
+	agent *Agent[T],
 	prompt string,
 	invocationIDPrefix string,
 	subdir []string,
-	returnSystemState bool,
-	nsc *Agent,
-) []interface{} {
+	nsc *Agent[dt.NonCoderNextStepsCleanupJson],
+) []CacheResult[T] {
 	nextPrompt := prompt
-	results := []interface{}{}
+	results := []CacheResult[T]{}
 	for i := 0; i < maxIt; i++ {
-		result := runJSONAgent(agent, nextPrompt, fmt.Sprintf("%s-nudge%d", invocationIDPrefix, i), subdir, returnSystemState)
+		result := runJSONAgent[T](agent, nextPrompt, fmt.Sprintf("%s-nudge%d", invocationIDPrefix, i), subdir)
 		results = append(results, result)
-		currentResult := result
-		if returnSystemState {
-			if m, ok := result.(map[string]interface{}); ok {
-				currentResult = m["out"]
-			}
+		var nextSteps []string
+		type nextStepper interface{ NextSteps() []string }
+		if ns, ok := any(&result.Out).(nextStepper); ok {
+			nextSteps = ns.NextSteps()
+		} else {
+			panic("Nudge: result type does not implement NextSteps")
 		}
-		resultMap, _ := currentResult.(map[string]interface{})
-		nextSteps, _ := resultMap["next_steps"].([]interface{})
 
 		if nextSteps == nil || len(nextSteps) == 0 {
 			break
 		}
 		if nsc != nil {
-			nscResult := runJSONAgent(nsc, fmt.Sprintf("INPUT:\n%s\n\nReturn the filtered list of steps, exactly as written.\nDo not include any explanation or commentary.", MarshalJSON(map[string]interface{}{"next_steps": nextSteps})), fmt.Sprintf("%s-nudge%d-nsc", invocationIDPrefix, i), subdir, false)
-			filtered, _ := nscResult.(map[string]interface{})["lines"].([]interface{})
+			nscResult := runJSONAgent(nsc, fmt.Sprintf("INPUT:\n%s\n\nReturn the filtered list of steps, exactly as written.\nDo not include any explanation or commentary.", MarshalJSON(map[string]interface{}{"next_steps": nextSteps})), fmt.Sprintf("%s-nudge%d-nsc", invocationIDPrefix, i), subdir)
+			filtered := nscResult.Out.Lines()
 			if len(filtered) == 0 {
 				break
 			}
@@ -192,34 +174,18 @@ func Nudge(
 			nextPrompt = ""
 		}
 		if agent.Ephemeral {
-			delete(resultMap, "next_steps")
-			nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n", MarshalJSON(resultMap))
+			nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n", MarshalJSON(result.Out))
 		} else {
-			delete(agent.LastCorrectResponse, "next_steps")
+			agent.LastCorrectResponse = &result.Out
 		}
 		nextPrompt += fmt.Sprintf("ITERATION: %d/%d\n", i+1, maxIt)
 		nextPrompt += "<feedback>\nADDRESS YOUR NEXT STEPS:\n"
-		for _, ns := range nextSteps {
-			if s, ok := ns.(string); ok {
-				nextPrompt += fmt.Sprintf("* %s\n", s)
-			}
+		for _, s := range nextSteps {
+			nextPrompt += fmt.Sprintf("* %s\n", s)
 		}
 		nextPrompt += "</feedback>\n"
 		if agent.Ephemeral {
-			nextPrompt += "\n" + FOLLOWUP
-		}
-	}
-	for i := range results {
-		r, ok := results[i].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if returnSystemState {
-			if out, ok := r["out"].(map[string]interface{}); ok {
-				delete(out, "next_steps")
-			}
-		} else {
-			delete(r, "next_steps")
+			nextPrompt += "\n" + loader.Followup
 		}
 	}
 	return results

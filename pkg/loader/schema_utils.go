@@ -1,10 +1,8 @@
-// =========================
-// SCHEMA UTILS
-// =========================
-package main
+package loader
 
 import (
 	"context"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"strings"
 
@@ -23,7 +21,6 @@ func SchemaToExample(schema map[string]interface{}) string {
 func buildValue(node map[string]interface{}, level int) string {
 	nodeType, _ := node["type"].(string)
 
-	// Handle enum arrays - check both []interface{} (from JSON) and []string (from Go code)
 	if enums, ok := node["enum"].([]interface{}); ok && len(enums) > 0 {
 		return buildEnum(enums, node)
 	}
@@ -62,13 +59,13 @@ func buildValue(node map[string]interface{}, level int) string {
 		return desc
 	case "array":
 		items, _ := node["items"].(map[string]interface{})
-		// Do NOT increment level for array items - items inherit the array's level
+
 		return "[" + buildValue(items, level) + "]"
 	case "object":
 		props, _ := node["properties"].(map[string]interface{})
 		var sb strings.Builder
 		sb.WriteString("{\n")
-		// Use required array order for deterministic output
+
 		requiredKeys := []string{}
 		if req, ok := node["required"].([]interface{}); ok {
 			for _, rk := range req {
@@ -88,14 +85,14 @@ func buildValue(node map[string]interface{}, level int) string {
 		for _, key := range keys {
 			prop := props[key]
 			propMap, _ := prop.(map[string]interface{})
-			// Property key at level+1, property VALUE at level+2 for nested structures
+
 			line := pad(
 				MarshalJSON(key)+": "+buildValue(propMap, level+2)+",",
 				level+1,
 			)
 			sb.WriteString(line + "\n")
 		}
-		// Remove trailing comma from last property line
+
 		lastLineIdx := strings.LastIndex(sb.String(), "\n")
 		if lastLineIdx > 0 {
 			content := sb.String()[:lastLineIdx]
@@ -115,7 +112,7 @@ func buildValue(node map[string]interface{}, level int) string {
 }
 
 func buildEnum(enums []interface{}, node map[string]interface{}) string {
-	// If a non-empty description exists, use it as the example
+
 	if desc, ok := node["description"].(string); ok && desc != "" {
 		return desc
 	}
@@ -126,7 +123,6 @@ func buildEnum(enums []interface{}, node map[string]interface{}) string {
 	return strings.Join(strs, "/")
 }
 
-// CompileSchema compiles a schema from a map[string]interface{} into a *jsonschema.Schema.
 func CompileSchema(schema map[string]interface{}) *jsonschema.Schema {
 	data := []byte(MarshalJSON(schema))
 	s := &jsonschema.Schema{}
@@ -136,38 +132,51 @@ func CompileSchema(schema map[string]interface{}) *jsonschema.Schema {
 	return s
 }
 
-// ValidateSchema validates data (as a map) against the given schema.
-// Returns a descriptive error if validation fails, nil otherwise.
-func ValidateSchema(data map[string]interface{}, schema map[string]interface{}) error {
+func MarshalJSON(v interface{}) string {
+	v = convertNestedImmutables(v)
+
+	b, err := jsonv2.Marshal(v, jsonv2.Deterministic(true))
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+func convertNestedImmutables(v interface{}) interface{} {
+	switch tv := v.(type) {
+	case map[string]interface{}:
+		for k, val := range tv {
+			tv[k] = convertNestedImmutables(val)
+		}
+		return tv
+	case []interface{}:
+		for i, val := range tv {
+			tv[i] = convertNestedImmutables(val)
+		}
+		return tv
+	}
+	return v
+}
+
+func ValidateJSONBytes(jsonBytes []byte, schema map[string]interface{}) error {
 	s := CompileSchema(schema)
-	vs := s.Validate(context.Background(), data)
-	if vs.IsValid() {
+	errs, err := s.ValidateBytes(context.Background(), jsonBytes)
+	if err != nil {
+		return err
+	}
+	if len(errs) == 0 {
 		return nil
 	}
-	// Build a combined error message from all validation errors
 	var parts []string
-	if vs.Errs != nil {
-		for _, ke := range *vs.Errs {
-			if ke.PropertyPath != "" {
-				parts = append(parts, fmt.Sprintf("Error within %s: %s", ke.PropertyPath, ke.Message))
-			} else {
-				parts = append(parts, ke.Message)
-			}
+	for _, ke := range errs {
+		if ke.PropertyPath != "" {
+			parts = append(parts, fmt.Sprintf("Error within %s: %s", ke.PropertyPath, ke.Message))
+		} else {
+			parts = append(parts, ke.Message)
 		}
 	}
 	if len(parts) == 0 {
 		return fmt.Errorf("validation failed")
 	}
 	return fmt.Errorf("%s", strings.Join(parts, "; "))
-}
-
-func mergeMaps(base, extra map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	for k, v := range base {
-		result[k] = v
-	}
-	for k, v := range extra {
-		result[k] = v
-	}
-	return result
 }

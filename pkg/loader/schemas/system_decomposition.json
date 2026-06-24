@@ -1,0 +1,195 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"decomposition": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"summary": {
+					"type": "string",
+					"description": "high-level explanation of the architecture decomposition strategy"
+				},
+				"reviewer_notes": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"domains": {
+					"type": "array",
+					"description": "architecture domains forming a DAG",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "unique-identifier-of-this-domain"
+							},
+							"name": {
+								"type": "string"
+							},
+							"category": {
+								"type": "string",
+								"enum": [
+									"Foundation",
+									"Core Business Logic",
+									"Data & Persistence",
+									"External Integrations",
+									"User Experience",
+									"Platform Infrastructure",
+									"Cross-Domain Integration",
+									"Validation & Acceptance"
+								]
+							},
+							"responsibility": {
+								"type": "string",
+								"description": "single ownership responsibility of this domain"
+							},
+							"scope": {
+								"type": "string",
+								"description": "what architecture problem this domain owns"
+							},
+							"constraints": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"upstream_dependencies": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "unique-identifier-of-a-dependency-domain; ids of domains that produce required artifacts"
+							},
+							"consumed_artifacts": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"additionalProperties": false,
+									"properties": {
+										"artifact_name": {
+											"type": "string"
+										},
+										"producer_domain_id": {
+											"type": "string",
+											"description": "unique-identifier-of-a-producer-domain; id of a domain that is expected to produce this artifact"
+										},
+										"purpose": {
+											"type": "string",
+											"description": "why this artifact is required"
+										}
+									},
+									"required": [
+										"artifact_name",
+										"producer_domain_id",
+										"purpose"
+									]
+								}
+							},
+							"produced_artifacts": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"additionalProperties": false,
+									"properties": {
+										"artifact_name": {
+											"type": "string"
+										},
+										"artifact_type": {
+											"type": "string"
+										},
+										"purpose": {
+											"type": "string"
+										},
+										"expected_content": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"artifact_name",
+										"artifact_type",
+										"purpose",
+										"expected_content"
+									]
+								}
+							},
+							"expected_architecture_outcomes": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"domain_specification": {
+								"type": "string",
+								"description": "bounded architecture problem statement describing responsibility, scope, constraints, available upstream artifacts, and expected outputs. Must NOT contain architecture designs, APIs, schemas, algorithms, implementation steps, or technical mechanisms. If already completed, set to empty string."
+							}
+						},
+						"required": [
+							"id",
+							"name",
+							"category",
+							"responsibility",
+							"scope",
+							"constraints",
+							"upstream_dependencies",
+							"consumed_artifacts",
+							"produced_artifacts",
+							"expected_architecture_outcomes",
+							"domain_specification"
+						]
+					}
+				},
+				"integration_ownership": {
+					"type": "array",
+					"description": "explicit ownership of cross-domain integration responsibilities",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"capability": {
+								"type": "string"
+							},
+							"owner_domain_id": {
+								"type": "string",
+								"description": "unique-identifier-of-an-owner-domain; id of a domain that owns this integration"
+							},
+							"integration_artifacts": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							}
+						},
+						"required": [
+							"capability",
+							"owner_domain_id",
+							"integration_artifacts"
+						]
+					}
+				},
+				"global_risks": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			},
+			"required": [
+				"summary",
+				"reviewer_notes",
+				"domains",
+				"integration_ownership",
+				"global_risks"
+			]
+		},
+		{{template "shared_next_steps"}}
+	},
+	"required": [
+		"decomposition",
+		"next_steps"
+	]
+}

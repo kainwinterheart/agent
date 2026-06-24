@@ -1,0 +1,1 @@
+{{template "review_base_no_ns" (dict "CategoryDesc" "design" "SevReasonDesc" "short explanation of why current severity level was chosen" "MessageDesc" "issue description" "NextActionsDesc" "actionable fixes" "IncludeCategory" true "ShouldResetDesc" "" "ResetReasonDesc" "short explanation of why prior context is no longer trustworthy")}}

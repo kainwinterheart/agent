@@ -1,0 +1,47 @@
+{{- define "review_base_no_ns" -}}
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		{{template "shared_approved"}}
+		"should_reset": {
+			"type": "boolean"
+			{{- if .ShouldResetDesc -}}
+			,
+			"description": "{{.ShouldResetDesc}}"
+			{{- end -}}
+		},
+		"reset_reason": {
+			"type": "string",
+			"description": "{{.ResetReasonDesc}}"
+		},
+		"issues": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					{{- template "shared_issue_item" . -}}
+				},
+				"required": [
+					"severity",
+					"severity_reason",
+					"category",
+					"message",
+					"next_actions"
+				]
+			}
+		}
+	},
+	"required": [
+		"approved",
+		"approved_confidence",
+		"approved_reason",
+		"resolved_issues",
+		"should_reset",
+		"reset_reason",
+		"issues"
+	]
+}
+{{- end -}}

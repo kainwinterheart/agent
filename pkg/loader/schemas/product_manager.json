@@ -1,0 +1,17 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"task_specification": {"type": "string", "description": "fully refined and engineering-ready task description"},
+		"original_input_preserved": {"type": "boolean", "description": "true"},
+		"clarifications_made": {
+			"type": "array",
+			"items": {"type": "string", "description": "explicit assumptions, refinements, missing requirements filled in, and interpretation decisions"}
+		},
+		"files": {"type": "array", "items": {"type": "string", "description": "if user request refers to any files - extract file names/pathes, and put them here as is"}},
+		"proper_nouns": {"type": "array", "items": {"type": "string", "description": "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"}},
+		"facts": {"type": "array", "items": {"type": "string", "description": "if user request states specific facts - extract them, and put them here"}}
+	},
+	"required": ["task_specification", "original_input_preserved", "clarifications_made", "files", "proper_nouns", "facts"]
+}

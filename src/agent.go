@@ -1,20 +1,16 @@
-// =========================
-// AGENT
-// =========================
 package main
 
 import (
+	"agent-go/pkg/loader"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
 )
 
-// resetHook allows overriding Agent.Reset for testing.
 var resetHook func(agentName, sessionSuffix string)
 
-// Agent represents a single AI agent with session management.
-type Agent struct {
+type Agent[T any] struct {
 	Name                string
 	Subdir              string
 	Session             string
@@ -23,19 +19,18 @@ type Agent struct {
 	Schema              map[string]interface{}
 	Ephemeral           bool
 	Timeout             string
-	LastCorrectResponse map[string]interface{}
+	LastCorrectResponse *T
 	ResumePrompt        string
 }
 
-// NewAgent creates a new Agent with the given parameters.
-func NewAgent(
+func NewAgent[T any](
 	name string,
 	rolePrompt string,
 	schema map[string]interface{},
 	subdir string,
-	opts ...AgentOption,
-) *Agent {
-	a := &Agent{
+	opts ...AgentOption[T],
+) *Agent[T] {
+	a := &Agent[T]{
 		Name:         name,
 		Subdir:       subdir,
 		RolePrompt:   fmt.Sprintf("<role>\n\n%s\n\n</role>", rolePrompt),
@@ -50,26 +45,21 @@ func NewAgent(
 	return a
 }
 
-// AgentOption is a functional option for configuring an Agent.
-type AgentOption func(*Agent)
+type AgentOption[T any] func(*Agent[T])
 
-// WithEphemeral sets the agent as ephemeral.
-func WithEphemeral(v bool) AgentOption {
-	return func(a *Agent) { a.Ephemeral = v }
+func WithEphemeral[T any](v bool) AgentOption[T] {
+	return func(a *Agent[T]) { a.Ephemeral = v }
 }
 
-// WithTimeout sets the agent timeout.
-func WithTimeout(t string) AgentOption {
-	return func(a *Agent) { a.Timeout = t }
+func WithTimeout[T any](t string) AgentOption[T] {
+	return func(a *Agent[T]) { a.Timeout = t }
 }
 
-// WithResume sets the resume prompt.
-func WithResume(r string) AgentOption {
-	return func(a *Agent) { a.ResumePrompt = r }
+func WithResume[T any](r string) AgentOption[T] {
+	return func(a *Agent[T]) { a.ResumePrompt = r }
 }
 
-// SessionKey returns the session key, potentially resetting if ephemeral.
-func (a *Agent) SessionKey() string {
+func (a *Agent[T]) SessionKey() string {
 	if a.Ephemeral && a.SessionSuffix == "" {
 		a.resetInternal()
 	}
@@ -80,8 +70,7 @@ func (a *Agent) SessionKey() string {
 	return key
 }
 
-// Run executes the agent with the given input text and returns the output string.
-func (a *Agent) Run(inputText string) string {
+func (a *Agent[T]) Run(inputText string) string {
 	if !a.Ephemeral && a.Session == "" {
 		sess := LoadSessionId(a.SessionKey(), a.Subdir)
 		if sess != "" {
@@ -99,11 +88,11 @@ func (a *Agent) Run(inputText string) string {
 		if a.Session != "" || a.LastCorrectResponse != nil {
 			if a.LastCorrectResponse != nil {
 				nextPrompt += "\n\n"
-				nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n\n\n", MarshalJSON(a.LastCorrectResponse))
+				nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n\n\n", MarshalJSON(*a.LastCorrectResponse))
 			} else {
 				nextPrompt += "\n\n\n"
 			}
-			nextPrompt += FOLLOWUP
+			nextPrompt += loader.Followup
 			nextPrompt += "\n"
 		}
 		out, newSession, err := RunCodex(
@@ -118,7 +107,7 @@ func (a *Agent) Run(inputText string) string {
 			lastError = fmt.Sprintf("\n%s\n\n<feedback>\nPrevious attempt to read your new response FAILED:\n<error>\n%v\n</error>\n\nOutput MUST be valid JSON only:\n%s\n</feedback>\n\n",
 				a.ResumePrompt,
 				err,
-				SchemaToExample(a.Schema),
+				loader.SchemaToExample(a.Schema),
 			)
 			continue
 		}
@@ -130,8 +119,7 @@ func (a *Agent) Run(inputText string) string {
 	}
 }
 
-// Reset resets the agent's session state.
-func (a *Agent) Reset(sessionSuffix ...string) {
+func (a *Agent[T]) Reset(sessionSuffix ...string) {
 	var suffix string
 	if len(sessionSuffix) > 0 {
 		suffix = sessionSuffix[0]
@@ -151,7 +139,7 @@ func (a *Agent) Reset(sessionSuffix ...string) {
 	a.resetInternal(sessionSuffix...)
 }
 
-func (a *Agent) resetInternal(sessionSuffix ...string) {
+func (a *Agent[T]) resetInternal(sessionSuffix ...string) {
 	var suffix string
 	if len(sessionSuffix) > 0 {
 		suffix = sessionSuffix[0]
@@ -171,7 +159,6 @@ func (a *Agent) resetInternal(sessionSuffix ...string) {
 	a.LastCorrectResponse = nil
 }
 
-// LoadSessionId loads the session ID from the agent's session file.
 func LoadSessionId(agentName string, subdir string) string {
 	filepath := fmt.Sprintf("%s/.state/.sessions/%s.session", subdir, agentName)
 	if _, err := os.Stat(filepath); err == nil {
@@ -184,7 +171,6 @@ func LoadSessionId(agentName string, subdir string) string {
 	return ""
 }
 
-// SaveSessionId persists the session ID to the agent's session file.
 func SaveSessionId(agentName string, sessionId string, subdir string) {
 	filepath := fmt.Sprintf("%s/.state/.sessions/%s.session", subdir, agentName)
 	AtomicWrite(filepath, sessionId)

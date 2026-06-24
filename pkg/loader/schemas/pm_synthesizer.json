@@ -1,0 +1,31 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"task_specification": {"type": "string", "description": "final refined engineering-ready task description"},
+		"selected_candidate": {"type": "integer", "description": "1"},
+		"selection_reason": {"type": "string", "description": "why this candidate was closest to the correct interpretation"},
+		"rejected_candidates": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"candidate": {"type": "integer", "description": "candidate number"},
+					"reason": {"type": "string", "description": "why this interpretation was rejected"}
+				},
+				"required": ["candidate", "reason"]
+			}
+		},
+		"common_requirements": {"type": "array", "items": {"type": "string", "description": "requirements most candidates agree on"}},
+		"candidate_disagreements": {"type": "array", "items": {"type": "string", "description": "common points of disagreement between most candidates"}},
+		"speculative_expansions": {"type": "array", "items": {"type": "string", "description": "what candidates clearly speculate on"}},
+		"missing_but_necessary_details": {"type": "array", "items": {"type": "string", "description": "details not commonly found in candidate interpretations that are clearly required"}},
+		"clarifications_made": {"type": "array", "items": {"type": "string", "description": "final assumptions and interpretation decisions"}},
+		"files": {"type": "array", "items": {"type": "string", "description": "if user request refers to any files - extract file names/pathes, and put them here as is"}},
+		"proper_nouns": {"type": "array", "items": {"type": "string", "description": "if user request refers to any proper nouns which are *not* file names/pathes - extract them, and put them here as is"}},
+		"facts": {"type": "array", "items": {"type": "string", "description": "if user request states specific facts - extract them, and put them here"}}
+	},
+	"required": ["task_specification", "selected_candidate", "selection_reason", "rejected_candidates", "common_requirements", "candidate_disagreements", "speculative_expansions", "missing_but_necessary_details", "clarifications_made", "files", "proper_nouns", "facts"]
+}

@@ -1,6 +1,3 @@
-// =========================
-// MAIN
-// =========================
 package main
 
 import (
@@ -8,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"agent-go/pkg/loader"
 )
 
 func readStdin() string {
@@ -26,6 +25,10 @@ func readStdin() string {
 }
 
 func main() {
+	loader.InitSchemas()
+	loader.InitPromptLoader()
+	loader.InitPrompts()
+
 	ts := time.Now().Format("2006-01-02_15-04-05")
 
 	args := os.Args[1:]
