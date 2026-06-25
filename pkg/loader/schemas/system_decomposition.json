@@ -124,6 +124,7 @@
 								}
 							},
 							"domain_specification": {
+								"minLength": 1,
 								"type": "string",
 								"description": "bounded architecture problem statement describing responsibility, scope, constraints, available upstream artifacts, and expected outputs. Must NOT contain architecture designs, APIs, schemas, algorithms, implementation steps, or technical mechanisms. If already completed, set to empty string."
 							}

@@ -40,17 +40,17 @@ func parseDetails(raw jsonv2text.Value, action string) ActionDetails {
 	switch action {
 	case "user_input":
 		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m)
+		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
 		d.Text = m["text"].(string)
 	case "prepare_to_run_agent":
 		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m)
+		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
 		d.InvocationID = m["invocation_id"].(string)
 		d.Agent = m["agent"].(string)
 		d.Prompt = m["prompt"].(string)
 	case "run_codex":
 		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m)
+		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
 		d.Agent = m["agent_name"].(string)
 		d.Prompt = m["prompt"].(string)
 		d.Timeout = m["timeout"].(string)
@@ -60,17 +60,17 @@ func parseDetails(raw jsonv2text.Value, action string) ActionDetails {
 		}
 	case "reset_agent":
 		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m)
+		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
 		d.Agent = m["agent"].(string)
 		d.SessionSuffix = m["session_suffix"]
 	case "write_markdown_doc":
 		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m)
+		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
 		d.StageName = m["stage_name"].(string)
 		d.Content = m["content"].(string)
 	case "watchman":
 		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m)
+		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
 		if changes, ok := m["changes"].(map[string]interface{}); ok {
 			d.Changes = make(map[string]string)
 			for k, v := range changes {
@@ -97,8 +97,9 @@ func loadDataActions(t *testing.T, filename string) []ActionDetails {
 		line = regexp.MustCompile(`"reviewer_notes": {"type": "array",`).ReplaceAllString(line, `"reviewer_notes": {"type": ["array", "null"],`)
 		line = regexp.MustCompile(`"next_steps": {"type": "array",`).ReplaceAllString(line, `"next_steps": {"type": ["array", "null"],`)
 		line = regexp.MustCompile(`"dependencies": {"type": "array",`).ReplaceAllString(line, `"dependencies": {"type": ["array", "null"],`)
+		line = regexp.MustCompile(`"domain_specification": {`).ReplaceAllString(line, `"domain_specification": {"minLength": 1,`)
 		var da DataAction
-		if err := jsonv2.Unmarshal([]byte(line), &da); err != nil {
+		if err := jsonv2.Unmarshal([]byte(line), &da, jsonv2text.AllowDuplicateNames(true)); err != nil {
 			t.Fatalf("Failed to parse test data line: %q, err: %v", line, err)
 		}
 		actions = append(actions, parseDetails(da.Details, da.Action))
@@ -418,7 +419,7 @@ func normalizeJSONObjects(prompt string) string {
 
 		extracted := line[startIdx:]
 		var v any
-		if err := jsonv2.Unmarshal([]byte(extracted), &v); err != nil {
+		if err := jsonv2.Unmarshal([]byte(extracted), &v, jsonv2text.AllowDuplicateNames(true)); err != nil {
 			continue
 		}
 		v = sortJSONKeys(v)
