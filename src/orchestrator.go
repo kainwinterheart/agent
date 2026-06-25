@@ -1015,6 +1015,8 @@ func (o *Orchestrator) executeDomainStart(step *state.WorkflowStep) {
 				Build()
 			domains := step.State().Domains()
 			domains = domains.Set(domainID, ds)
+			modState := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).WithDomainCurrentStage("final_review").Build()
+			o.Stack.NewStep(state.StepBoundary, modState).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(0).Push()
 			return
 		}
 
@@ -1051,6 +1053,8 @@ func (o *Orchestrator) executeDomainStart(step *state.WorkflowStep) {
 		Build()
 	domainStates := step.State().Domains()
 	domainStates = domainStates.Set(domainID, ds)
+	modState := state.NewWorkflowStateBuilder(step.State()).WithDomains(domainStates).WithDomainCurrentStage("final_review").Build()
+	o.Stack.NewStep(state.StepBoundary, modState).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(0).Push()
 }
 
 func (o *Orchestrator) executeArchitecture(step *state.WorkflowStep) {
