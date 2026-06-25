@@ -3,14 +3,12 @@ package main
 import (
 	"agent-go/pkg/loader"
 	jsonv2text "encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 )
@@ -21,74 +19,47 @@ func logStep(msg string, step string) {
 	fmt.Fprintf(os.Stderr, ">> [%s] [%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), step, msg)
 }
 
-func stripNextStepsFromJSON(jsonStr string) string {
-	jsonStr = stripFieldFromJSON(jsonStr, "next_steps")
-	jsonStr = stripFieldFromJSON(jsonStr, "reviewer_notes")
-	return jsonStr
+var MarshalJSON = loader.MarshalJSON
+
+type IWithReviewerNotesBuilder[
+	TReviewerNotes any,
+	TObject any,
+	TBuilder any,
+] interface {
+	WithReviewerNotes(*TReviewerNotes) TBuilder
+	Build() TObject
 }
 
-func stripFieldFromJSON(jsonStr, fieldName string) string {
-	searchKey := `"` + fieldName + `"`
-	idx := strings.Index(jsonStr, searchKey)
-	if idx == -1 {
-		return jsonStr
-	}
-	start := idx
-	for start > 0 && jsonStr[start-1] != '{' && jsonStr[start-1] != ',' {
-		start--
-	}
-	if start > 0 && jsonStr[start-1] == ',' {
-		start--
-	}
-	valueStart := strings.Index(jsonStr[idx:], `:`)
-	if valueStart == -1 {
-		return jsonStr
-	}
-	valueStart += idx
-	for valueStart < len(jsonStr) && (jsonStr[valueStart] == ' ' || jsonStr[valueStart] == ':' || jsonStr[valueStart] == '\t') {
-		valueStart++
-	}
-	end := valueStart
-	if end < len(jsonStr) && jsonStr[end] == '[' {
-		depth := 1
-		end++
-		for end < len(jsonStr) && depth > 0 {
-			if jsonStr[end] == '[' {
-				depth++
-			} else if jsonStr[end] == ']' {
-				depth--
-			}
-			end++
-		}
-	} else if end < len(jsonStr) && jsonStr[end] == '{' {
-		depth := 1
-		end++
-		for end < len(jsonStr) && depth > 0 {
-			if jsonStr[end] == '{' {
-				depth++
-			} else if jsonStr[end] == '}' {
-				depth--
-			}
-			end++
-		}
-	} else {
-		for end < len(jsonStr) && jsonStr[end] != ',' && jsonStr[end] != '}' {
-			end++
-		}
-	}
-	result := jsonStr[:start] + jsonStr[end:]
-	if strings.HasPrefix(result, "{,") {
-		re := regexp.MustCompile(`^{,\s*`)
-		result = re.ReplaceAllString(result, "{")
-	}
-	re := regexp.MustCompile(`,\s*}$`)
-	result = re.ReplaceAllString(result, "}")
-	re2 := regexp.MustCompile(`,{2,}`)
-	return re2.ReplaceAllString(result, ",")
+type IWithReviewerNotes[
+	TReviewerNotes any,
+	TObject any,
+	TBuilder IWithReviewerNotesBuilder[
+		TReviewerNotes,
+		TObject,
+		TBuilder,
+	],
+] interface {
+	ReviewerNotes() *TReviewerNotes
+	Clone() TBuilder
 }
 
-var MarshalJSON = func(v interface{}) string {
-	return stripNextStepsFromJSON(loader.MarshalJSON(v))
+func RemoveReviewerNotes[
+	TReviewerNotes ~[]string,
+	TObject IWithReviewerNotes[
+		TReviewerNotes,
+		TObject,
+		TBuilder,
+	],
+	TBuilder IWithReviewerNotesBuilder[
+		TReviewerNotes,
+		TObject,
+		TBuilder,
+	],
+](obj TObject) TObject {
+	if obj.ReviewerNotes() == nil {
+		return obj
+	}
+	return obj.Clone().WithReviewerNotes(nil).Build()
 }
 
 func RunCodex(
@@ -240,60 +211,4 @@ func BuildPath(subdir []string, section string) string {
 	rootDir := subdir[0]
 	nested := subdir[1:]
 	return filepath.Join(append([]string{rootDir, section}, nested...)...)
-}
-
-func normalizeJSONObjects(prompt string) string {
-	lines := strings.Split(prompt, "\n")
-	for i, line := range lines {
-		var startIdx int
-		switch {
-		case strings.HasSuffix(line, "}"):
-			startIdx = strings.Index(line, "{")
-		case strings.HasSuffix(line, "]"):
-			startIdx = strings.Index(line, "[")
-		default:
-			continue
-		}
-		if startIdx < 0 {
-			continue
-		}
-
-		extracted := line[startIdx:]
-		var v any
-		if err := jsonv2.Unmarshal([]byte(extracted), &v); err != nil {
-			continue
-		}
-		v = sortJSONKeys(v)
-		b := []byte(MarshalJSON(v))
-		(*jsonv2text.Value)(&b).Indent()
-
-		prefix := line[:startIdx]
-		lines[i] = prefix + string(b)
-	}
-	return strings.Join(lines, "\n")
-}
-
-func sortJSONKeys(v any) any {
-	switch val := v.(type) {
-	case map[string]any:
-		sorted := make(map[string]any, len(val))
-		keys := make([]string, 0, len(val))
-		for k := range val {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			sorted[k] = sortJSONKeys(val[k])
-		}
-		return sorted
-	case []any:
-		for i, elem := range val {
-			val[i] = sortJSONKeys(elem)
-		}
-	}
-	return v
-}
-
-func MarshalWorkstreamElement(elem interface{}) string {
-	return stripFieldFromJSON(MarshalJSON(elem), "dependencies")
 }

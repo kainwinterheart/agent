@@ -12,7 +12,7 @@
 					"description": "high-level design aligned with existing system"
 				},
 				"reviewer_notes": {
-					"type": "array",
+					"type": ["array", "null"],
 					"items": {
 						"type": "string",
 						"description": "notes about alignment with current system and key tradeoffs; must include: 'Why not reuse existing system?' explanation for any new component"

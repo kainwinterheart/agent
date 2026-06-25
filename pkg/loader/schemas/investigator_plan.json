@@ -10,7 +10,7 @@
 				"additionalProperties": false,
 				"properties": {
 					"id": {"type": "string", "description": "unique-identifier-of-this-workstream"},
-					"dependencies": {"type": "array", "items": {"type": "string", "description": "unique-identifier-of-a-dependency-workstream; if the workstream has no dependencies - leave this array blank"}},
+					"dependencies": {"type": ["array", "null"], "items": {"type": "string", "description": "unique-identifier-of-a-dependency-workstream; if the workstream has no dependencies - leave this array blank"}},
 					"objective": {"type": "string", "description": "clear statement of what this workstream aims to determine"},
 					"data_sources": {"type": "array", "items": {"type": "string", "description": "specific logs, metrics, files, or systems to examine"}},
 					"hypotheses": {"type": "array", "items": {"type": "string", "description": "testable hypotheses to investigate"}},

@@ -12,7 +12,7 @@
 					"description": "what will be implemented and how it integrates into the existing system"
 				},
 				"reviewer_notes": {
-					"type": "array",
+					"type": ["array", "null"],
 					"items": {
 						"type": "string",
 						"description": "notes about assumptions on current codebase and structure"

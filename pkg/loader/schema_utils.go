@@ -18,9 +18,32 @@ func SchemaToExample(schema map[string]interface{}) string {
 	return buildValue(schema, 0)
 }
 
-func buildValue(node map[string]interface{}, level int) string {
-	nodeType, _ := node["type"].(string)
+func MainNodeType(node map[string]interface{}) (string, bool, error) {
+	if nodeType, ok := node["type"].(string); ok {
+		return nodeType, false, nil
+	}
+	if nodeTypes, ok := node["type"].([]interface{}); ok {
+		mainNodeType := ""
+		nullable := false
+		for _, v := range nodeTypes {
+			nodeType, _ := v.(string)
+			if nodeType == "null" {
+				nullable = true
+			} else {
+				if mainNodeType != "" {
+					return "", false, fmt.Errorf("Unsupported object type in %v", node)
+				}
+				mainNodeType = nodeType
+			}
+		}
+		if mainNodeType != "" {
+			return mainNodeType, nullable, nil
+		}
+	}
+	return "", false, fmt.Errorf("Unsupported object type in %v", node)
+}
 
+func buildValue(node map[string]interface{}, level int) string {
 	if enums, ok := node["enum"].([]interface{}); ok && len(enums) > 0 {
 		return buildEnum(enums, node)
 	}
@@ -32,6 +55,10 @@ func buildValue(node map[string]interface{}, level int) string {
 		return buildEnum(enums, node)
 	}
 
+	nodeType, _, err := MainNodeType(node)
+	if err != nil {
+		panic(err)
+	}
 	switch nodeType {
 	case "string":
 		desc, exists := node["description"].(string)
@@ -133,29 +160,11 @@ func CompileSchema(schema map[string]interface{}) *jsonschema.Schema {
 }
 
 func MarshalJSON(v interface{}) string {
-	v = convertNestedImmutables(v)
-
 	b, err := jsonv2.Marshal(v, jsonv2.Deterministic(true))
 	if err != nil {
 		panic(err)
 	}
 	return string(b)
-}
-
-func convertNestedImmutables(v interface{}) interface{} {
-	switch tv := v.(type) {
-	case map[string]interface{}:
-		for k, val := range tv {
-			tv[k] = convertNestedImmutables(val)
-		}
-		return tv
-	case []interface{}:
-		for i, val := range tv {
-			tv[i] = convertNestedImmutables(val)
-		}
-		return tv
-	}
-	return v
 }
 
 func ValidateJSONBytes(jsonBytes []byte, schema map[string]interface{}) error {

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"testing"
@@ -93,6 +94,9 @@ func loadDataActions(t *testing.T, filename string) []ActionDetails {
 		}
 		line = regexp.MustCompile(`"approved", "resolved_issues", "approved_confidence", "approved_reason", "should_reset",`).ReplaceAllString(line, `"approved", "approved_confidence", "approved_reason", "resolved_issues", "should_reset",`)
 		line = regexp.MustCompile(`"status", "brief_summary", "blocked_reason", "exists_after_change",`).ReplaceAllString(line, `"status", "blocked_reason", "brief_summary", "exists_after_change",`)
+		line = regexp.MustCompile(`"reviewer_notes": {"type": "array",`).ReplaceAllString(line, `"reviewer_notes": {"type": ["array", "null"],`)
+		line = regexp.MustCompile(`"next_steps": {"type": "array",`).ReplaceAllString(line, `"next_steps": {"type": ["array", "null"],`)
+		line = regexp.MustCompile(`"dependencies": {"type": "array",`).ReplaceAllString(line, `"dependencies": {"type": ["array", "null"],`)
 		var da DataAction
 		if err := jsonv2.Unmarshal([]byte(line), &da); err != nil {
 			t.Fatalf("Failed to parse test data line: %q, err: %v", line, err)
@@ -250,7 +254,11 @@ func runFixtureTest(t *testing.T, filename string) {
 		normalizedDataPrompt := normalizePrompt(action.Prompt, action.Agent, actions)
 		normalizedCodePrompt := normalizePrompt(prompt, action.Agent, actions)
 		if normalizedDataPrompt != normalizedCodePrompt {
-			mr.t.Fatalf("run_codex prompt mismatch:\n%s", mr.diff(normalizedDataPrompt, normalizedCodePrompt, "data", "code"))
+			desc := ""
+			if os.Getenv("E2E_VERBOSE") != "" {
+				desc = fmt.Sprintf("%s\n%s\n", agentName, normalizedCodePrompt)
+			}
+			mr.t.Fatalf("%srun_codex prompt mismatch:\n%s", desc, mr.diff(normalizedDataPrompt, normalizedCodePrompt, "data", "code"))
 		}
 		if action.Schema == nil {
 			mr.t.Fatal("run_codex schema is nil in data file")
@@ -263,7 +271,11 @@ func runFixtureTest(t *testing.T, filename string) {
 		if string(dataSchema) != string(codeSchema) {
 			(*jsonv2text.Value)(&dataSchema).Indent()
 			(*jsonv2text.Value)(&codeSchema).Indent()
-			mr.t.Fatalf("run_codex schema mismatch:\n%s", mr.diff(string(dataSchema), string(codeSchema), "data_schema", "code_schema"))
+			desc := ""
+			if os.Getenv("E2E_VERBOSE") != "" {
+				desc = fmt.Sprintf("%s\n", agentName)
+			}
+			mr.t.Fatalf("%srun_codex schema mismatch:\n%s", desc, mr.diff(string(dataSchema), string(codeSchema), "data_schema", "code_schema"))
 		}
 		if action.Stdout == "" {
 			return "", "", fmt.Errorf("Empty output, likely timeout issue")
@@ -386,4 +398,56 @@ func (mr *e2eMockRunner) diff(left, right, leftLabel, rightLabel string) string 
 	cmd := exec.Command("diff", "-u", "--label", leftLabel, "--label", rightLabel, f1.Name(), f2.Name())
 	output, _ := cmd.CombinedOutput()
 	return string(output)
+}
+
+func normalizeJSONObjects(prompt string) string {
+	lines := strings.Split(prompt, "\n")
+	for i, line := range lines {
+		var startIdx int
+		switch {
+		case strings.HasSuffix(line, "}"):
+			startIdx = strings.Index(line, "{")
+		case strings.HasSuffix(line, "]"):
+			startIdx = strings.Index(line, "[")
+		default:
+			continue
+		}
+		if startIdx < 0 {
+			continue
+		}
+
+		extracted := line[startIdx:]
+		var v any
+		if err := jsonv2.Unmarshal([]byte(extracted), &v); err != nil {
+			continue
+		}
+		v = sortJSONKeys(v)
+		b := []byte(MarshalJSON(v))
+		(*jsonv2text.Value)(&b).Indent()
+
+		prefix := line[:startIdx]
+		lines[i] = prefix + string(b)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func sortJSONKeys(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		sorted := make(map[string]any, len(val))
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sorted[k] = sortJSONKeys(val[k])
+		}
+		return sorted
+	case []any:
+		for i, elem := range val {
+			val[i] = sortJSONKeys(elem)
+		}
+	}
+	return v
 }

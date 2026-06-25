@@ -15,7 +15,7 @@ for f in ${gen_dir}/*.go; do
     unlink "${f}" ||:
 done
 
-go install github.com/kainwinterheart/go-jsonschema@e6b713ed30e4f0882c175345aedb6fe3fe1ee29f
+go install github.com/kainwinterheart/go-jsonschema@aacf440d95c0b80e126ccd8a845ec6ff3c9b9c14
 
 go build -o "${exporter_bin}" ./cmd/schema_exporter/
 

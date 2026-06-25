@@ -53,7 +53,7 @@
 			"description": "summary of all completed changes and how they fit into the existing system"
 		},
 		"reviewer_notes": {
-			"type": "array",
+            "type": ["array", "null"],
 			"items": {
 				"type": "string",
 				"description": "notes about assumptions, blocked work, incomplete areas, missing context, or areas needing attention"

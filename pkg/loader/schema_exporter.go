@@ -12,21 +12,40 @@ func patchSchema(schema map[string]interface{}) {
 	if !ok {
 		return
 	}
-	for _, val := range properties {
+	nullables := map[string]bool{}
+	for key, val := range properties {
 		obj, ok := val.(map[string]interface{})
 		if !ok {
-			continue
+			panic(fmt.Errorf("Invalid `properties` object in schema: %v", val))
 		}
-		if obj["type"] == "object" {
+		nodeType, nullable, typeErr := MainNodeType(obj)
+		if typeErr != nil {
+			panic(typeErr)
+		}
+		if nullable {
+			nullables[key] = true
+		}
+		if nodeType == "object" {
 			obj["goJSONSchema"] = map[string]interface{}{"pointer": true}
 			patchSchema(obj)
-		} else if obj["type"] == "array" {
+		} else if nodeType == "array" {
 			items, ok := obj["items"].(map[string]interface{})
 			if !ok {
 				continue
 			}
 			patchSchema(items)
 		}
+	}
+	required, requiredOk := schema["required"].([]interface{})
+	if requiredOk {
+		newRequired := []interface{}{}
+		for _, key := range required {
+			keyStr, _ := key.(string)
+			if _, nullable := nullables[keyStr]; !nullable {
+				newRequired = append(newRequired, key)
+			}
+		}
+		schema["required"] = newRequired
 	}
 }
 

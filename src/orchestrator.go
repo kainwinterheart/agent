@@ -3,7 +3,6 @@ package main
 import (
 	dt "agent-go/gen"
 	"agent-go/pkg/loader"
-	jsonv2 "encoding/json/v2"
 	"fmt"
 	"slices"
 	"sort"
@@ -39,15 +38,15 @@ type AgentRegistry struct {
 	NextStepsCleanup           *Agent[dt.NonCoderNextStepsCleanupJson]
 	PMReview                   *Agent[dt.PmReviewJson]
 	DesignCleanup              *Agent[dt.DesignToImplementPhrasingJson]
-	Arch                       *Agent[dt.ArchJson]
-	TechLead                   *Agent[dt.PlanJson]
-	Coder                      *Agent[dt.CoderJson]
-	ArchReview                 *Agent[dt.ArchReviewJson]
-	PlanReview                 *Agent[dt.PlanReviewJson]
-	CodeReview                 *Agent[dt.CodeReviewJson]
-	TechLeadFinal              *Agent[dt.TechLeadFinalJson]
+	Arch                       *Agent[*dt.ArchJson]
+	TechLead                   *Agent[*dt.PlanJson]
+	Coder                      *Agent[*dt.CoderJson]
+	ArchReview                 *Agent[*dt.ArchReviewJson]
+	PlanReview                 *Agent[*dt.PlanReviewJson]
+	CodeReview                 *Agent[*dt.CodeReviewJson]
+	TechLeadFinal              *Agent[*dt.TechLeadFinalJson]
 	ArchFinal                  *Agent[dt.ArchFinalJson]
-	Decomposition              *Agent[dt.SystemDecompositionJson]
+	Decomposition              *Agent[*dt.SystemDecompositionJson]
 	DecompositionReview        *Agent[dt.SystemDecompositionReviewJson]
 	InvestigationClassifier    *Agent[dt.InvestigationClassifierJson]
 	InvestigatorPlanner        *Agent[dt.InvestigatorPlanJson]
@@ -122,38 +121,38 @@ func NewAgentRegistry(subdir string) *AgentRegistry {
 		WithTimeout[dt.DesignToImplementPhrasingJson]("10m"),
 	)
 
-	ar.Arch = NewAgent[dt.ArchJson](
-		"arch", loader.ARCH_PROMPT, loader.ARCH_SCHEMA, subdir, WithTimeout[dt.ArchJson]("40m"),
+	ar.Arch = NewAgent[*dt.ArchJson](
+		"arch", loader.ARCH_PROMPT, loader.ARCH_SCHEMA, subdir, WithTimeout[*dt.ArchJson]("40m"),
 	)
-	ar.TechLead = NewAgent[dt.PlanJson](
-		"tech_lead", loader.PLAN_PROMPT, loader.PLAN_SCHEMA, subdir, WithTimeout[dt.PlanJson]("60m"),
+	ar.TechLead = NewAgent[*dt.PlanJson](
+		"tech_lead", loader.PLAN_PROMPT, loader.PLAN_SCHEMA, subdir, WithTimeout[*dt.PlanJson]("60m"),
 	)
-	ar.Coder = NewAgent[dt.CoderJson](
-		"coder", loader.CODER_PROMPT, loader.CODER_SCHEMA, subdir, WithTimeout[dt.CoderJson]("180m"),
+	ar.Coder = NewAgent[*dt.CoderJson](
+		"coder", loader.CODER_PROMPT, loader.CODER_SCHEMA, subdir, WithTimeout[*dt.CoderJson]("180m"),
 	)
 
-	ar.ArchReview = NewAgent[dt.ArchReviewJson](
+	ar.ArchReview = NewAgent[*dt.ArchReviewJson](
 		"arch_review", loader.ARCH_REVIEW_PROMPT, loader.ARCH_REVIEW_SCHEMA, subdir,
-		WithEphemeral[dt.ArchReviewJson](true), WithTimeout[dt.ArchReviewJson]("30m"),
-		WithResume[dt.ArchReviewJson](loader.ReviewerResume),
+		WithEphemeral[*dt.ArchReviewJson](true), WithTimeout[*dt.ArchReviewJson]("30m"),
+		WithResume[*dt.ArchReviewJson](loader.ReviewerResume),
 	)
 
-	ar.PlanReview = NewAgent[dt.PlanReviewJson](
+	ar.PlanReview = NewAgent[*dt.PlanReviewJson](
 		"plan_review", loader.PLAN_REVIEW_PROMPT, loader.PLAN_REVIEW_SCHEMA, subdir,
-		WithEphemeral[dt.PlanReviewJson](true), WithTimeout[dt.PlanReviewJson]("30m"),
-		WithResume[dt.PlanReviewJson](loader.ReviewerResume),
+		WithEphemeral[*dt.PlanReviewJson](true), WithTimeout[*dt.PlanReviewJson]("30m"),
+		WithResume[*dt.PlanReviewJson](loader.ReviewerResume),
 	)
 
-	ar.CodeReview = NewAgent[dt.CodeReviewJson](
+	ar.CodeReview = NewAgent[*dt.CodeReviewJson](
 		"code_review", loader.CODE_REVIEW_PROMPT, loader.CODE_REVIEW_SCHEMA, subdir,
-		WithEphemeral[dt.CodeReviewJson](true), WithTimeout[dt.CodeReviewJson]("60m"),
-		WithResume[dt.CodeReviewJson](loader.ReviewerResume),
+		WithEphemeral[*dt.CodeReviewJson](true), WithTimeout[*dt.CodeReviewJson]("60m"),
+		WithResume[*dt.CodeReviewJson](loader.ReviewerResume),
 	)
 
-	ar.TechLeadFinal = NewAgent[dt.TechLeadFinalJson](
+	ar.TechLeadFinal = NewAgent[*dt.TechLeadFinalJson](
 		"tech_lead_final", loader.TECH_LEAD_FINAL_PROMPT, loader.TECH_LEAD_FINAL_SCHEMA, subdir,
-		WithEphemeral[dt.TechLeadFinalJson](true), WithTimeout[dt.TechLeadFinalJson]("60m"),
-		WithResume[dt.TechLeadFinalJson](loader.ReviewerResume),
+		WithEphemeral[*dt.TechLeadFinalJson](true), WithTimeout[*dt.TechLeadFinalJson]("60m"),
+		WithResume[*dt.TechLeadFinalJson](loader.ReviewerResume),
 	)
 
 	ar.ArchFinal = NewAgent[dt.ArchFinalJson](
@@ -162,9 +161,9 @@ func NewAgentRegistry(subdir string) *AgentRegistry {
 		WithResume[dt.ArchFinalJson](loader.ReviewerResume),
 	)
 
-	ar.Decomposition = NewAgent[dt.SystemDecompositionJson](
+	ar.Decomposition = NewAgent[*dt.SystemDecompositionJson](
 		"decomposition", loader.SYSTEM_DECOMPOSITION_PROMPT, loader.SYSTEM_DECOMPOSITION_SCHEMA,
-		subdir, WithTimeout[dt.SystemDecompositionJson]("40m"),
+		subdir, WithTimeout[*dt.SystemDecompositionJson]("40m"),
 	)
 	ar.DecompositionReview = NewAgent[dt.SystemDecompositionReviewJson](
 		"decomposition_review", loader.SYSTEM_DECOMPOSITION_REVIEW_PROMPT,
@@ -417,7 +416,7 @@ func (o *Orchestrator) executePMCandidateGenerate(step *state.WorkflowStep) {
 	}
 
 	for idx, bias := range biases {
-		candidate := RunJSONAgent[dt.ProductManagerJson](
+		candidate := RunJSONAgent(
 			o.Agents.ProductManager,
 			fmt.Sprintf("USER REQUEST:\n%s\n\nTASK:\nProduce a focused engineering-ready specification.\n%s", step.State().Task(), bias),
 			fmt.Sprintf("pm-spec-candidate-%d", idx),
@@ -450,16 +449,16 @@ func (o *Orchestrator) executePMSynthesize(step *state.WorkflowStep) {
 		prompt = payload
 		invocationID = fmt.Sprintf("pm-spec-synthesis-%d", step.Iteration())
 	}
-	rephrasedTask := RunJSONAgent[dt.PmSynthesizerJson](
+	rephrasedTask := RunJSONAgent(
 		o.Agents.PMSynth, prompt, invocationID, []string{step.State().Subdir()})
 	modState := state.NewWorkflowStateBuilder(step.State()).WithRephrasedTask(&rephrasedTask).Build()
-	o.Stack.NewStep(state.StepPMReview, modState).WithIteration(0).Push()
+	o.Stack.NewStep(state.StepPMReview, modState).WithIteration(step.Iteration()).Push()
 }
 
 func (o *Orchestrator) executePMReview(step *state.WorkflowStep) {
 	iteration := step.Iteration()
 	rephrasedTask := step.State().RephrasedTask()
-	review := RunJSONAgent[dt.PmReviewJson](
+	review := RunJSONAgent(
 		o.Agents.PMReview,
 		fmt.Sprintf("ORIGINAL USER REQUEST:\n%s\n\nSYNTHESIZED SPECIFICATION:\n%s\n\nATTEMPT: %d/%d\n\nTASK:\nReview whether the synthesized specification correctly preserves the original user intent.Reject only if the specification is ambiguous, speculative, internally inconsistent, or over-expanded.",
 			step.State().Task(),
@@ -501,7 +500,6 @@ func (o *Orchestrator) executePMReview(step *state.WorkflowStep) {
 		revisionPrompt = fmt.Sprintf("REVISE SYNTHESIZED SPECIFICATION based on feedback:\n%s", MarshalJSON(review))
 	}
 
-	o.Stack.NewStep(state.StepPMReview, step.State()).WithIteration(iteration + 1).Push()
 	o.Stack.NewStep(state.StepPMSynthesize, step.State()).WithPayload(state.SimpleStringPayload(revisionPrompt)).WithIteration(iteration + 1).Push()
 }
 
@@ -516,7 +514,7 @@ func (o *Orchestrator) executePMExpansionCleanup(step *state.WorkflowStep) {
 		expSlice[i] = v
 	}
 	for {
-		cleanSpeculative := RunJSONAgent[dt.PmExpansionCleanupJson](
+		cleanSpeculative := RunJSONAgent(
 			o.Agents.PMExpansionCleanup,
 			fmt.Sprintf("INPUT JSON:\n%s", MarshalJSON(map[string]interface{}{"lines": expSlice})),
 			"pm-expansion-cleanup",
@@ -591,7 +589,7 @@ func buildPMtask(rephrasedTask dt.PmSynthesizerJson) string {
 }
 
 func (o *Orchestrator) executeClassification(step *state.WorkflowStep) {
-	classification := RunJSONAgent[dt.InvestigationClassifierJson](
+	classification := RunJSONAgent(
 		o.Agents.InvestigationClassifier,
 		fmt.Sprintf("REFINED TASK SPECIFICATION:\n%s", wrapText(step.State().Out())),
 		"investigation-classifier",
@@ -632,18 +630,18 @@ func (o *Orchestrator) executeDecomposition(step *state.WorkflowStep) {
 		}
 		invocationID = fmt.Sprintf("decomposition-%d", iteration)
 	}
-	decompositionResult := Nudge[dt.SystemDecompositionJson](
+	decompositionResult := Nudge(
 		100,
 		o.Agents.Decomposition, prompt, invocationID, []string{step.State().Subdir()}, o.Agents.NextStepsCleanup)
 	lastResult := decompositionResult[len(decompositionResult)-1].Out
 	AssertNotEmpty(lastResult, "DECOMPOSITION")
-	o.Stack.NewStep(state.StepDecompositionReview, state.NewWorkflowStateBuilder(step.State()).WithDecompositionResult(&lastResult).Build()).WithReviewIteration(iteration).Push()
+	o.Stack.NewStep(state.StepDecompositionReview, state.NewWorkflowStateBuilder(step.State()).WithDecompositionResult(lastResult).Build()).WithReviewIteration(iteration).Push()
 }
 
 func (o *Orchestrator) executeDecompositionReview(step *state.WorkflowStep) {
 	iteration := step.ReviewIteration()
 	resultMap := step.State().DecompositionResult()
-	decompositionReview := RunJSONAgent[dt.SystemDecompositionReviewJson](
+	decompositionReview := RunJSONAgent(
 		o.Agents.DecompositionReview,
 		fmt.Sprintf("TASK:\n%s\nATTEMPT: %d/%d\nDECOMPOSITION TO REVIEW:\n%s",
 			wrapText(step.State().Out()), iteration+1, MAXPlanIters, MarshalJSON(resultMap)),
@@ -663,7 +661,7 @@ func (o *Orchestrator) executeInvestigationPlanGenerate(step *state.WorkflowStep
 	}
 	if iteration == 0 {
 
-		plan = RunJSONAgent[dt.InvestigatorPlanJson](
+		plan = RunJSONAgent(
 			o.Agents.InvestigatorPlanner,
 			fmt.Sprintf("TASK:\n%s", wrappedTask),
 			"investigation-plan",
@@ -672,7 +670,7 @@ func (o *Orchestrator) executeInvestigationPlanGenerate(step *state.WorkflowStep
 	} else {
 
 		payload := step.Payload().RevisionPrompt()
-		plan = RunJSONAgent[dt.InvestigatorPlanJson](
+		plan = RunJSONAgent(
 			o.Agents.InvestigatorPlanner,
 			payload,
 			fmt.Sprintf("investigation-plan-%d", iteration),
@@ -693,7 +691,7 @@ func (o *Orchestrator) executeInvestigationPlanReview(step *state.WorkflowStep) 
 		wrappedTask = wrapText(step.State().Out())
 	}
 
-	qualityReview := RunJSONAgent[dt.InvestigationPlanQualityReviewJson](
+	qualityReview := RunJSONAgent(
 		o.Agents.InvestigationPlanQuality,
 		fmt.Sprintf("TASK:\n%s\nPLAN TO REVIEW:\n%s", wrappedTask, MarshalJSON(plan)),
 		fmt.Sprintf("investigation-plan_quality-review-%d", iteration),
@@ -715,7 +713,7 @@ func (o *Orchestrator) executeInvestigationPlanStructuralReview(step *state.Work
 		wrappedTask = wrapText(step.State().Out())
 	}
 
-	structReview := RunJSONAgent[dt.StructuralReviewJson](
+	structReview := RunJSONAgent(
 		o.Agents.StructuralReviewer,
 		fmt.Sprintf("TASK:\n%s\nPLAN TO REVIEW:\n%s", wrappedTask, MarshalJSON(plan)),
 		fmt.Sprintf("investigation-struct-review-%d", iteration),
@@ -755,41 +753,30 @@ func (o *Orchestrator) executeInvestigationPlanStructuralReview(step *state.Work
 }
 
 func buildInvestigationWorkstreamPrompt(wsElem dt.InvestigatorPlanJsonworkstreamsElem, completedWorkstreams *immutable.Map[string, dt.InvestigatorFindingsJson]) string {
-	jsonBytes := []byte(MarshalJSON(wsElem))
-
-	var m map[string]interface{}
-	if err := jsonv2.Unmarshal(jsonBytes, &m); err != nil {
-		return MarshalWorkstreamElement(wsElem)
-	}
-
-	if deps, ok := m["dependencies"].([]interface{}); ok && len(deps) > 0 {
-		resolvedDeps := make([]interface{}, 0, len(deps))
-		for _, depID := range deps {
-			if depStr, ok := depID.(string); ok {
-				depIDClean := strings.ToLower(strings.TrimSpace(depStr))
-				if findings, exists := completedWorkstreams.Get(depIDClean); exists {
-					findingsJSON := MarshalJSON(findings)
-					var findingsMap map[string]interface{}
-					if err := jsonv2.Unmarshal([]byte(findingsJSON), &findingsMap); err == nil {
-						if !isEmptyInvestigationFindings(findingsMap) {
-							resolvedDeps = append(resolvedDeps, findingsMap)
-						}
-					} else {
-						resolvedDeps = append(resolvedDeps, depStr)
-					}
-				} else {
-					resolvedDeps = append(resolvedDeps, depStr)
+	resolvedDeps := []dt.InvestigatorFindingsJson{}
+	if deps := wsElem.Dependencies(); deps != nil {
+		for _, depID := range *deps {
+			depIDClean := strings.ToLower(strings.TrimSpace(depID))
+			if findings, exists := completedWorkstreams.Get(depIDClean); exists {
+				if !isEmptyFindings(findings) {
+					resolvedDeps = append(resolvedDeps, findings)
 				}
-			} else {
-				resolvedDeps = append(resolvedDeps, depID)
 			}
 		}
-		m["dependencies"] = resolvedDeps
-	} else {
-		delete(m, "dependencies")
 	}
 
-	return MarshalJSON(m)
+	out := map[string]interface{}{ // XXX
+		"data_sources":          wsElem.DataSources(),
+		"expected_deliverables": wsElem.ExpectedDeliverables(),
+		"hypotheses":            wsElem.Hypotheses(),
+		"id":                    wsElem.Id(),
+		"investigation_methods": wsElem.InvestigationMethods(),
+		"objective":             wsElem.Objective(),
+	}
+	if len(resolvedDeps) > 0 {
+		out["dependencies"] = resolvedDeps
+	}
+	return MarshalJSON(out)
 }
 
 func (o *Orchestrator) executeInvestigationWorkstream(step *state.WorkflowStep) {
@@ -809,10 +796,9 @@ func (o *Orchestrator) executeInvestigationWorkstream(step *state.WorkflowStep) 
 	workstreams := step.State().Workstreams()
 	wsElem := workstreams.Get(workstreamIndex)
 
-	deps := wsElem.Dependencies()
-	if len(deps) > 0 {
+	if wsElem.Dependencies() != nil && len(*wsElem.Dependencies()) > 0 {
 		canRun := true
-		for _, depStr := range deps {
+		for _, depStr := range *wsElem.Dependencies() {
 			depID := strings.ToLower(strings.TrimSpace(depStr))
 			if _, exists := step.State().CompletedWorkstreams().Get(depID); !exists {
 				canRun = false
@@ -865,7 +851,7 @@ func (o *Orchestrator) executeInvestigationWorkstream(step *state.WorkflowStep) 
 	if iteration > 0 || revisionPrompt != "" {
 		workstreamInvID = fmt.Sprintf("investigation-workstream-%d-%d", domainIntID, iteration)
 	}
-	findings := RunJSONAgent[dt.InvestigatorFindingsJson](
+	findings := RunJSONAgent(
 		o.Agents.InvestigatorExecutor,
 		prompt,
 		workstreamInvID,
@@ -888,7 +874,7 @@ func (o *Orchestrator) executeInvestigationWorkstreamReview(step *state.Workflow
 	}
 	wsElem := step.State().Workstreams().Get(workstreamIndex)
 
-	gapReview := RunJSONAgent[dt.GapAnalysisReviewJson](
+	gapReview := RunJSONAgent(
 		o.Agents.GapAnalysisReviewer,
 		fmt.Sprintf("WORKSTREAM:\n%s\nFINDINGS TO REVIEW:\n%s", buildInvestigationWorkstreamPrompt(wsElem, step.State().CompletedWorkstreams()), MarshalJSON(findingsVal)),
 		fmt.Sprintf("investigation-gap-review-ws-%d-%d", domainIntID, iteration),
@@ -909,7 +895,7 @@ func (o *Orchestrator) executeInvestigationFactReview(step *state.WorkflowStep) 
 	}
 	wsElem := step.State().Workstreams().Get(workstreamIndex)
 
-	factReview := RunJSONAgent[dt.FactCheckingReviewJson](
+	factReview := RunJSONAgent(
 		o.Agents.FactCheckingReviewer,
 		fmt.Sprintf("WORKSTREAM:\n%s\nFINDINGS TO REVIEW:\n%s", buildInvestigationWorkstreamPrompt(wsElem, step.State().CompletedWorkstreams()), MarshalJSON(findingsVal)),
 		fmt.Sprintf("investigation-fact-review-ws-%d-%d", workstreamIndex+1, iteration),
@@ -963,7 +949,7 @@ func (o *Orchestrator) executeInvestigationSynthesis(step *state.WorkflowStep) {
 	if iteration > 0 || revisionPrompt != "" {
 		synthesisInvID = fmt.Sprintf("investigation-synthesis-%d", iteration)
 	}
-	report := RunJSONAgent[dt.InvestigationReportJson](
+	report := RunJSONAgent(
 		o.Agents.SynthesisAgent,
 		prompt,
 		synthesisInvID,
@@ -992,7 +978,7 @@ func (o *Orchestrator) executeInvestigationConsistencyReview(step *state.Workflo
 		}
 	}
 
-	consistencyReview := RunJSONAgent[dt.SynthesisConsistencyReviewJson](
+	consistencyReview := RunJSONAgent(
 		o.Agents.SynthesisConsistencyReview,
 		fmt.Sprintf("REPORT TO REVIEW:\n%s\nSOURCE FINDINGS:\n%s", MarshalJSON(reportVal), MarshalJSON(findingsList)),
 		fmt.Sprintf("investigation-consistency_review-final-%d", iteration),
@@ -1036,7 +1022,7 @@ func (o *Orchestrator) executeDomainStart(step *state.WorkflowStep) {
 		o.Agents.TechLead.Reset(sessionSuffix)
 		o.Agents.Coder.Reset(sessionSuffix)
 
-		coderTask := RunJSONAgent[dt.DesignToImplementPhrasingJson](
+		coderTask := RunJSONAgent(
 			o.Agents.DesignCleanup,
 			fmt.Sprintf("INPUT TEXT:\n%s", spec),
 			fmt.Sprintf("d%d-design-cleanup", domainIntID),
@@ -1109,7 +1095,7 @@ func (o *Orchestrator) executeArchitecture(step *state.WorkflowStep) {
 		}
 	}
 
-	archResults := Nudge[dt.ArchJson](
+	archResults := Nudge(
 		100,
 		o.Agents.Arch,
 		initialPrompt+reviewPrompt+extraPrompt,
@@ -1118,7 +1104,7 @@ func (o *Orchestrator) executeArchitecture(step *state.WorkflowStep) {
 		o.Agents.NextStepsCleanup,
 	)
 	arch := archResults[len(archResults)-1].Out
-	ds = state.NewDomainStateBuilder(ds).WithArchitecture(&arch).Build()
+	ds = state.NewDomainStateBuilder(ds).WithArchitecture(arch).Build()
 	domains := step.State().Domains().Set(domainID, ds)
 	newWs := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
 	o.Stack.NewStep(state.StepArchitectureReview, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithReviewIteration(revIterForNudge).Push()
@@ -1132,7 +1118,7 @@ func (o *Orchestrator) executeArchitectureReview(step *state.WorkflowStep) {
 	ds, _ := step.State().Domains().Get(domainID)
 	arch := ds.Architecture()
 
-	archReviewResults := Nudge[dt.ArchReviewJson](
+	archReviewResults := Nudge(
 		100,
 		o.Agents.ArchReview,
 		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nATTEMPT: %d/%d\nARCHITECTURE TO REVIEW:\n%s",
@@ -1143,7 +1129,7 @@ func (o *Orchestrator) executeArchitectureReview(step *state.WorkflowStep) {
 	)
 	archReview := archReviewResults[len(archReviewResults)-1].Out
 
-	o.Stack.NewStep(state.StepArchitectureOrchestrator, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithReviewIteration(reviewIter).WithPayload(state.ArchReviewPayload(&archReview)).Push()
+	o.Stack.NewStep(state.StepArchitectureOrchestrator, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithReviewIteration(reviewIter).WithPayload(state.ArchReviewPayload(archReview)).Push()
 }
 
 func (o *Orchestrator) executeDecompositionOrchestrator(step *state.WorkflowStep) {
@@ -1184,7 +1170,9 @@ func (o *Orchestrator) executeArchitectureOrchestrator(step *state.WorkflowStep)
 
 	if reviewOk[dt.ArchReviewJsonissuesElemseverity](archReview) {
 		ds, _ := step.State().Domains().Get(domainID)
-		arch := ds.Architecture()
+		arch := ds.Architecture().Clone().WithArchitecture(RemoveReviewerNotes(ds.Architecture().Architecture())).Build()
+		o.Agents.Arch.LastCorrectResponse = &arch // XXX
+		domains := step.State().Domains().Set(domainID, state.NewDomainStateBuilder(ds).WithArchitecture(arch).Build())
 		domainIntID := step.DomainIndex() + 1
 		docSuffix := ""
 		if iteration > 0 {
@@ -1192,7 +1180,7 @@ func (o *Orchestrator) executeArchitectureOrchestrator(step *state.WorkflowStep)
 		}
 		MarkdownDocumentGenerator(arch, fmt.Sprintf("architecture_after_reviews%s", docSuffix), []string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)})
 
-		modState := state.NewWorkflowStateBuilder(step.State()).WithDomainCurrentStage("architecture").Build()
+		modState := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).WithDomainCurrentStage("architecture").Build()
 		o.Stack.NewStep(state.StepBoundary, modState).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).Push()
 		return
 	}
@@ -1208,7 +1196,8 @@ func (o *Orchestrator) executePlanOrchestrator(step *state.WorkflowStep) {
 
 	if reviewOk[dt.PlanReviewJsonissuesElemseverity](planReview) {
 		ds, _ := step.State().Domains().Get(domainID)
-		plan := ds.Plan()
+		plan := ds.Plan().Clone().WithPlan(RemoveReviewerNotes(ds.Plan().Plan())).Build()
+		o.Agents.TechLead.LastCorrectResponse = &plan // XXX
 		domainIntID := step.DomainIndex() + 1
 		docSuffix := ""
 		if iteration > 0 {
@@ -1217,7 +1206,7 @@ func (o *Orchestrator) executePlanOrchestrator(step *state.WorkflowStep) {
 		MarkdownDocumentGenerator(plan, fmt.Sprintf("tech_plan_after_reviews%s", docSuffix), []string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)})
 
 		ds, _ = step.State().Domains().Get(domainID)
-		ds = state.NewDomainStateBuilder(ds).WithAllChanges(immutable.NewMap[string, string](nil)).WithCodeOutputs(immutable.NewList[dt.CoderJson]()).WithTechLeadReviewResult(nil).Build()
+		ds = state.NewDomainStateBuilder(ds).WithAllChanges(immutable.NewMap[string, string](nil)).WithCodeOutputs(immutable.NewList[dt.CoderJson]()).WithTechLeadReviewResult(nil).WithPlan(plan).Build()
 		domains := step.State().Domains().Set(domainID, ds)
 		newWs := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
 		modState := state.NewWorkflowStateBuilder(newWs).WithDomainCurrentStage("plan").Build()
@@ -1406,7 +1395,7 @@ func (o *Orchestrator) executePlanReview(step *state.WorkflowStep) {
 	arch := ds.Architecture()
 	plan := ds.Plan()
 
-	planReviewResults := Nudge[dt.PlanReviewJson](
+	planReviewResults := Nudge(
 		100,
 		o.Agents.PlanReview,
 		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nATTEMPT: %d/%d\nAPPROVED ARCHITECTURE:\n%s\nPLAN TO REVIEW:\n%s",
@@ -1417,7 +1406,7 @@ func (o *Orchestrator) executePlanReview(step *state.WorkflowStep) {
 	)
 	planReview := planReviewResults[len(planReviewResults)-1].Out
 
-	o.Stack.NewStep(state.StepPlanOrchestrator, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithReviewIteration(reviewIter).WithPayload(state.PlanReviewPayload(&planReview)).Push()
+	o.Stack.NewStep(state.StepPlanOrchestrator, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithReviewIteration(reviewIter).WithPayload(state.PlanReviewPayload(planReview)).Push()
 }
 
 func (o *Orchestrator) executePlan(step *state.WorkflowStep) {
@@ -1451,7 +1440,7 @@ func (o *Orchestrator) executePlan(step *state.WorkflowStep) {
 			ds.WrappedCoderTask(), ds.PMFilepath(), MarshalJSON(arch), planExtraPrompt)
 	}
 
-	planResults := Nudge[dt.PlanJson](
+	planResults := Nudge(
 		100,
 		o.Agents.TechLead,
 		initialPrompt,
@@ -1460,7 +1449,7 @@ func (o *Orchestrator) executePlan(step *state.WorkflowStep) {
 		o.Agents.NextStepsCleanup,
 	)
 	plan := planResults[len(planResults)-1].Out
-	ds = state.NewDomainStateBuilder(ds).WithPlan(&plan).Build()
+	ds = state.NewDomainStateBuilder(ds).WithPlan(plan).Build()
 	domains := step.State().Domains().Set(domainID, ds)
 	newWs := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
 	o.Stack.NewStep(state.StepPlanReview, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithReviewIteration(planReviewIteration).Push()
@@ -1582,7 +1571,7 @@ func (o *Orchestrator) executeCodeImplementation(step *state.WorkflowStep) {
 		coderPrompt = fmt.Sprintf("APPROVED IMPLEMENTATION PLAN:\n%s\n\nImplement the approved plan exactly as written.\nThe plan has already been reviewed and approved.\nDo not question whether planned file creation or modification should occur.", MarshalJSON(plan))
 	}
 	safeFlush(o.Watcher)
-	coderResults := Nudge[dt.CoderJson](
+	coderResults := Nudge(
 		MAXCodeIters,
 		o.Agents.Coder,
 		coderPrompt,
@@ -1593,7 +1582,7 @@ func (o *Orchestrator) executeCodeImplementation(step *state.WorkflowStep) {
 	if len(coderResults) > 0 {
 		lastCache := coderResults[len(coderResults)-1]
 		lastCoder := lastCache.Out
-		coderOutputs = append(coderOutputs, lastCoder)
+		coderOutputs = append(coderOutputs, *lastCoder)
 		if !lastCache.FromCache && watchmanHook == nil {
 			time.Sleep(10 * time.Second)
 		}
@@ -1651,7 +1640,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 	}
 
 	var recentChanges []dt.CoderJsonchangesElem
-	var recentChangesSummary string
+	var recentCoderOutput dt.CoderJson
 	var allChangesList [][]dt.CoderJsonchangesElem
 	coItr := coderOutputs.Iterator()
 	coItr.First()
@@ -1660,7 +1649,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 		changesArr := v.Changes()
 		allChangesList = append(allChangesList, changesArr)
 		recentChanges = changesArr
-		recentChangesSummary = v.Summary()
+		recentCoderOutput = v
 	}
 
 	var pastChanges [][]dt.CoderJsonchangesElem
@@ -1688,7 +1677,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 
 	var recentChangesJSON string
 	if len(recentChanges) == 0 {
-		recentChangesJSON = MarshalJSON(map[string]interface{}{"changes": recentChanges, "summary": recentChangesSummary})
+		recentChangesJSON = MarshalJSON(recentCoderOutput)
 	} else {
 		recentChangesJSON = MarshalJSON(recentChanges)
 	}
@@ -1704,7 +1693,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 
 	isTechLeadReview := step.Payload() != nil && step.Payload().HasCoderOutputs()
 
-	var resultsRaw []CacheResult[dt.CodeReviewJson]
+	var resultsRaw []CacheResult[*dt.CodeReviewJson]
 	if isTechLeadReview {
 
 		coderOutputs := step.Payload().CoderOutputs()
@@ -1718,13 +1707,11 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 			logStep(fmt.Sprintf("Iteration %d/%d", iterCount+1, MAXCodeIters), "CODER EXECUTION")
 
 			var recentChanges []dt.CoderJsonchangesElem
-			var recentChangesSummary string
 			var allChangesList [][]dt.CoderJsonchangesElem
 			for _, v := range coderOutputs {
 				changesArr := v.Changes()
 				allChangesList = append(allChangesList, changesArr)
 				recentChanges = changesArr
-				recentChangesSummary = v.Summary()
 			}
 
 			var pastChanges [][]dt.CoderJsonchangesElem
@@ -1733,7 +1720,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 			}
 			var recentChangesJSON string
 			if len(recentChanges) == 0 {
-				recentChangesJSON = MarshalJSON(map[string]interface{}{"changes": recentChanges, "summary": recentChangesSummary})
+				recentChangesJSON = MarshalJSON(coderOutputs[len(coderOutputs)-1])
 			} else {
 				recentChangesJSON = MarshalJSON(recentChanges)
 			}
@@ -1747,7 +1734,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 				MarshalJSON(pastChanges),
 			)
 
-			resultsRaw = Nudge[dt.CodeReviewJson](
+			resultsRaw = Nudge(
 				MAXCodeIters,
 				o.Agents.CodeReview,
 				reviewPrompt,
@@ -1757,7 +1744,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 			)
 			review := resultsRaw[len(resultsRaw)-1].Out
 
-			if reviewOk[dt.CodeReviewJsonissuesElemseverity](&review) {
+			if reviewOk[dt.CodeReviewJsonissuesElemseverity](review) {
 				break
 			}
 
@@ -1773,7 +1760,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 			return
 		}
 	} else {
-		resultsRaw = Nudge[dt.CodeReviewJson](
+		resultsRaw = Nudge(
 			MAXCodeIters,
 			o.Agents.CodeReview,
 			reviewPrompt,
@@ -1785,7 +1772,7 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep) {
 	review := resultsRaw[len(resultsRaw)-1].Out
 
 	o.Stack.NewStep(state.StepCodeReviewOrchestrator, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(codeReviewIter).WithPayload(state.CodeReviewWithPlanPayload(
-		&review,
+		review,
 		ds.TechLeadReviewIter(),
 	)).Push()
 }
@@ -1836,7 +1823,7 @@ func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep) {
 		}
 	}
 
-	techLeadFinalResults := Nudge[dt.TechLeadFinalJson](
+	techLeadFinalResults := Nudge(
 		100,
 		o.Agents.TechLeadFinal,
 		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nAPPROVED ARCHITECTURE:\n%s\nAPPROVED IMPLEMENTATION PLAN:\n%s\n%s<aggregate_implementation_summary>\n%s\n</aggregate_implementation_summary>\n",
@@ -1847,12 +1834,12 @@ func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep) {
 	)
 	techLeadFinalReview := techLeadFinalResults[len(techLeadFinalResults)-1].Out
 
-	ds = state.NewDomainStateBuilder(ds).WithTechLeadReviewResult(&techLeadFinalReview).Build()
+	ds = state.NewDomainStateBuilder(ds).WithTechLeadReviewResult(techLeadFinalReview).Build()
 	domains = step.State().Domains().Set(domainID, ds)
 	newWs = state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
 
 	o.Stack.NewStep(state.StepTechLeadReviewOrchestrator, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithPayload(state.TechLeadReviewOrchestratorPayload(
-		&techLeadFinalReview,
+		techLeadFinalReview,
 		docSuffix,
 		tlIter+1,
 	)).Push()
@@ -2056,7 +2043,7 @@ func (o *Orchestrator) executeArchitectureFinalReview(step *state.WorkflowStep) 
 	plan := ds.Plan()
 	wrappedTask := ds.WrappedTask()
 
-	finalFeedback := RunJSONAgent[dt.ArchFinalJson](
+	finalFeedback := RunJSONAgent(
 		o.Agents.ArchFinal,
 		fmt.Sprintf("TASK:\n%s\nARCHITECTURE:\n%s\nAPPROVED IMPLEMENTATION PLAN:\n%s\n<aggregate_implementation_summary>\n%s\n</aggregate_implementation_summary>\n",
 			wrappedTask,
@@ -2133,35 +2120,7 @@ func changesPrompt(changes map[string]string) string {
 }
 
 func updateSpeculativeExpansions(task *dt.PmSynthesizerJson, expansions []string) *dt.PmSynthesizerJson {
-	jsonBytes := []byte(MarshalJSON(task))
-	var m map[string]interface{}
-	if err := jsonv2.Unmarshal(jsonBytes, &m); err == nil {
-		m["speculative_expansions"] = expansions
-	}
-	jsonBytes = []byte(MarshalJSON(m))
-	var result dt.PmSynthesizerJson
-	jsonv2.Unmarshal(jsonBytes, &result)
-	return &result
-}
-
-func isEmptyInvestigationFindings(m map[string]interface{}) bool {
-	for _, v := range m {
-		switch val := v.(type) {
-		case string:
-			if val != "" {
-				return false
-			}
-		case []interface{}:
-			if len(val) > 0 {
-				return false
-			}
-		case nil:
-			continue
-		default:
-			return false
-		}
-	}
-	return true
+	return task.Clone().WithSpeculativeExpansions(expansions).Build()
 }
 
 func isEmptyFindings(f dt.InvestigatorFindingsJson) bool {

@@ -12,7 +12,7 @@
 					"description": "high-level explanation of the architecture decomposition strategy"
 				},
 				"reviewer_notes": {
-					"type": "array",
+					"type": ["array", "null"],
 					"items": {
 						"type": "string"
 					}

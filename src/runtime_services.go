@@ -18,7 +18,7 @@ type CacheResult[T any] struct {
 var runJSONAgentHook func(agentName, invocationID, prompt string)
 
 func RunJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string) T {
-	return runJSONAgent[T](agent, inputText, invocationID, subdir).Out
+	return runJSONAgent(agent, inputText, invocationID, subdir).Out
 }
 
 func runJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string) CacheResult[T] {
@@ -136,27 +136,63 @@ Output MUST be valid JSON only:
 	}
 }
 
-func Nudge[T any](
+type IWithNextStepsBuilder[
+	TNextSteps any,
+	TObject any,
+	TBuilder any,
+] interface {
+	WithNextSteps(*TNextSteps) TBuilder
+	Build() TObject
+}
+
+type IWithNextSteps[
+	TNextSteps any,
+	TObject any,
+	TBuilder IWithNextStepsBuilder[
+		TNextSteps,
+		TObject,
+		TBuilder,
+	],
+] interface {
+	NextSteps() *TNextSteps
+	Clone() TBuilder
+}
+
+func Nudge[
+	TNextSteps ~[]string,
+	TObject IWithNextSteps[
+		TNextSteps,
+		TObject,
+		TBuilder,
+	],
+	TBuilder IWithNextStepsBuilder[
+		TNextSteps,
+		TObject,
+		TBuilder,
+	],
+](
 	maxIt int,
-	agent *Agent[T],
+	agent *Agent[TObject],
 	prompt string,
 	invocationIDPrefix string,
 	subdir []string,
 	nsc *Agent[dt.NonCoderNextStepsCleanupJson],
-) []CacheResult[T] {
+) []CacheResult[TObject] {
 	nextPrompt := prompt
-	results := []CacheResult[T]{}
+	results := []CacheResult[TObject]{}
 	for i := 0; i < maxIt; i++ {
-		result := runJSONAgent[T](agent, nextPrompt, fmt.Sprintf("%s-nudge%d", invocationIDPrefix, i), subdir)
-		results = append(results, result)
-		var nextSteps []string
-		type nextStepper interface{ NextSteps() []string }
-		if ns, ok := any(&result.Out).(nextStepper); ok {
-			nextSteps = ns.NextSteps()
-		} else {
-			panic("Nudge: result type does not implement NextSteps")
-		}
+		result := runJSONAgent(agent, nextPrompt, fmt.Sprintf("%s-nudge%d", invocationIDPrefix, i), subdir)
 
+		var nextSteps TNextSteps
+		nsPtr := result.Out.NextSteps()
+		if nsPtr != nil {
+			nextSteps = *nsPtr
+			result.Out = result.Out.Clone().WithNextSteps(nil).Build()
+			if !agent.Ephemeral {
+				agent.LastCorrectResponse = &result.Out
+			}
+		}
+		results = append(results, result)
 		if nextSteps == nil || len(nextSteps) == 0 {
 			break
 		}
@@ -175,8 +211,6 @@ func Nudge[T any](
 		}
 		if agent.Ephemeral {
 			nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n", MarshalJSON(result.Out))
-		} else {
-			agent.LastCorrectResponse = &result.Out
 		}
 		nextPrompt += fmt.Sprintf("ITERATION: %d/%d\n", i+1, maxIt)
 		nextPrompt += "<feedback>\nADDRESS YOUR NEXT STEPS:\n"

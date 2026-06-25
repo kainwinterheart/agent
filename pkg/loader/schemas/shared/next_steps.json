@@ -1,6 +1,6 @@
 {{- define "shared_next_steps" }}
 	"next_steps": {
-		"type": "array",
+		"type": ["array", "null"],
 		"items": {
 			"type": "string",
 			"description": "\nOrdered list of 1\u20135 concrete reasoning or analysis steps that are **required to complete this task within the agent\u2019s role**, but have not yet been performed.\n\nThese steps represent only the following:\n* Analytical steps (reasoning)\n* Verification steps (code inspection, search, tracing)\n\nRules:\n* Each step must be something this agent itself should do (not another agent or system)\n* Do not propose implementation, external actions, or handoffs\n* Do not expand scope beyond the assigned task\n* Each step must address a specific gap, assumption, or incomplete part of the current output\n* Prefer steps that clarify, verify, compute, or refine the existing solution\n* Avoid vague phrasing (e.g., \u201cthink more\u201d, \u201cimprove answer\u201d)\n* Do not repeat steps already completed\n\nIf no required reasoning steps are missing and the task is complete - leave this array empty.\n"
