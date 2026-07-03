@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -9,11 +10,10 @@ import (
 	"time"
 
 	dt "agent-go/gen"
+	td "agent-go/test_data"
 )
 
-var markdownDocHook func(content interface{}, stageName string, subdir []string) string
-
-func BuildArchitectInput(domain dt.SystemDecompositionJsondecompositiondomainsElem, integrationOwnership []dt.SystemDecompositionJsondecompositionintegrationownershipElem) (string, string) {
+func BuildArchitectInput(domain dt.SystemDecompositiondecompositiondomainsElem, integrationOwnership []dt.SystemDecompositiondecompositionintegrationownershipElem) (string, string) {
 	spec := domain.DomainSpecification()
 	if spec == "" {
 		return "", ""
@@ -22,7 +22,7 @@ func BuildArchitectInput(domain dt.SystemDecompositionJsondecompositiondomainsEl
 		spec += "\n"
 	}
 	domainID := strings.ToLower(strings.TrimSpace(domain.Id()))
-	var integrations []dt.SystemDecompositionJsondecompositionintegrationownershipElem
+	var integrations []dt.SystemDecompositiondecompositionintegrationownershipElem
 	for _, item := range integrationOwnership {
 		ownerID := strings.ToLower(strings.TrimSpace(item.OwnerDomainId()))
 		if ownerID == domainID {
@@ -34,25 +34,39 @@ func BuildArchitectInput(domain dt.SystemDecompositionJsondecompositiondomainsEl
 		for i, item := range integrations {
 			cap := item.Capability()
 			suffix := ""
-			if len(item.IntegrationArtifacts()) > 0 {
+			if item.IntegrationArtifacts().Len() > 0 {
 				suffix = ":"
 			}
 			spec += fmt.Sprintf("%d. %s%s\n", i+1, cap, suffix)
-			for j, sub := range item.IntegrationArtifacts() {
+			var sub string
+			subItr := item.IntegrationArtifacts().Iterator()
+			j := 0
+			subItr.First()
+			for !subItr.Done() {
+				_, sub = subItr.Next()
 				spec += fmt.Sprintf("\t%d. %s\n", j+1, sub)
+				j++
 			}
 		}
 	}
 	more := ""
-	if len(domain.ExpectedArchitectureOutcomes()) > 0 {
+	if domain.ExpectedArchitectureOutcomes().Len() > 0 {
 		more += "\nExpected architecture outcomes:\n"
-		for _, s := range domain.ExpectedArchitectureOutcomes() {
+		var s string
+		oaItr := domain.ExpectedArchitectureOutcomes().Iterator()
+		oaItr.First()
+		for !oaItr.Done() {
+			_, s = oaItr.Next()
 			more += fmt.Sprintf("* %s\n", s)
 		}
 	}
-	if len(domain.ProducedArtifacts()) > 0 {
+	if domain.ProducedArtifacts().Len() > 0 {
 		more += "\nDetailed expectations:\n"
-		for _, item := range domain.ProducedArtifacts() {
+		var item dt.SystemDecompositiondecompositiondomainsElemproducedartifactsElem
+		paItr := domain.ProducedArtifacts().Iterator()
+		paItr.First()
+		for !paItr.Done() {
+			_, item = paItr.Next()
 			purpose := item.Purpose()
 			if !strings.HasSuffix(purpose, ".") {
 				purpose += "."
@@ -60,15 +74,23 @@ func BuildArchitectInput(domain dt.SystemDecompositionJsondecompositiondomainsEl
 			more += fmt.Sprintf("* %s: %s %s\n", item.ArtifactName(), purpose, item.ExpectedContent())
 		}
 	}
-	if len(domain.Constraints()) > 0 {
+	if domain.Constraints().Len() > 0 {
 		more += "\nConstraints:\n"
-		for _, s := range domain.Constraints() {
+		var s string
+		cItr := domain.Constraints().Iterator()
+		cItr.First()
+		for !cItr.Done() {
+			_, s = cItr.Next()
 			more += fmt.Sprintf("* %s\n", s)
 		}
 	}
-	if len(domain.ConsumedArtifacts()) > 0 {
+	if domain.ConsumedArtifacts().Len() > 0 {
 		more += "\nKnowledge REQUIRED to build context:\n"
-		for _, item := range domain.ConsumedArtifacts() {
+		var item dt.SystemDecompositiondecompositiondomainsElemconsumedartifactsElem
+		caItr := domain.ConsumedArtifacts().Iterator()
+		caItr.First()
+		for !caItr.Done() {
+			_, item = caItr.Next()
 			more += fmt.Sprintf("* %s: %s\n", item.ArtifactName(), item.Purpose())
 		}
 	}
@@ -87,52 +109,52 @@ func RenderMarkdownContent(content interface{}) string {
 	case string:
 		return v
 
-	case *dt.PmSynthesizerJson:
+	case *dt.PmSynthesizer:
 		return renderPmSynthesizer(v)
 
-	case dt.PmSynthesizerJson:
+	case dt.PmSynthesizer:
 		return renderPmSynthesizer(&v)
 
-	case *dt.SystemDecompositionJson:
+	case *dt.SystemDecomposition:
 		return renderDecomposition(v)
 
-	case dt.SystemDecompositionJson:
+	case dt.SystemDecomposition:
 		return renderDecomposition(&v)
 
-	case *dt.ArchJson:
+	case *dt.Arch:
 		return renderArchitecture(v)
 
-	case dt.ArchJson:
+	case dt.Arch:
 		return renderArchitecture(&v)
 
-	case *dt.PlanJson:
+	case *dt.Plan:
 		return renderPlan(v)
 
-	case dt.PlanJson:
+	case dt.Plan:
 		return renderPlan(&v)
 
-	case *dt.InvestigatorFindingsJson:
+	case *dt.InvestigatorFindings:
 		return renderInvestigatorFindings(v)
 
-	case dt.InvestigatorFindingsJson:
+	case dt.InvestigatorFindings:
 		return renderInvestigatorFindings(&v)
 
-	case *dt.InvestigationReportJson:
+	case *dt.InvestigationReport:
 		return renderInvestigationReport(v)
 
-	case dt.InvestigationReportJson:
+	case dt.InvestigationReport:
 		return renderInvestigationReport(&v)
 
-	case *dt.InvestigationClassifierJson:
+	case *dt.InvestigationClassifier:
 		return renderInvestigationClassifier(v)
 
-	case dt.InvestigationClassifierJson:
+	case dt.InvestigationClassifier:
 		return renderInvestigationClassifier(&v)
 
-	case *dt.InvestigatorPlanJson:
+	case *dt.InvestigatorPlan:
 		return renderInvestigatorPlan(v)
 
-	case dt.InvestigatorPlanJson:
+	case dt.InvestigatorPlan:
 		return renderInvestigatorPlan(&v)
 
 	default:
@@ -140,7 +162,7 @@ func RenderMarkdownContent(content interface{}) string {
 	}
 }
 
-func renderPmSynthesizer(ps *dt.PmSynthesizerJson) string {
+func renderPmSynthesizer(ps *dt.PmSynthesizer) string {
 	var b strings.Builder
 	b.WriteString("# Task Specification\n\n")
 	if ts := ps.TaskSpecification(); ts != "" {
@@ -150,47 +172,86 @@ func renderPmSynthesizer(ps *dt.PmSynthesizerJson) string {
 		}
 		b.WriteString("\n")
 	}
-	if files := ps.Files(); len(files) > 0 {
+	if files := ps.Files(); files.Len() > 0 {
 		b.WriteString("## Mentioned files\n\n")
-		for _, f := range files {
+		var f string
+		filesItr := files.Iterator()
+		filesItr.First()
+		for !filesItr.Done() {
+			_, f = filesItr.Next()
 			b.WriteString(fmt.Sprintf("- %s\n\n", f))
 		}
 	}
-	if pn := ps.ProperNouns(); len(pn) > 0 {
+	if pn := ps.ProperNouns(); pn.Len() > 0 {
 		b.WriteString("## Mentioned proper nouns\n\n")
-		for _, p := range pn {
+		var p string
+		pnItr := pn.Iterator()
+		pnItr.First()
+		for !pnItr.Done() {
+			_, p = pnItr.Next()
 			b.WriteString(fmt.Sprintf("- %s\n\n", p))
 		}
 	}
-	if facts := ps.Facts(); len(facts) > 0 {
+	if facts := ps.Facts(); facts.Len() > 0 {
 		b.WriteString("## Stated facts\n\n")
-		for _, f := range facts {
+		var f string
+		factsItr := facts.Iterator()
+		factsItr.First()
+		for !factsItr.Done() {
+			_, f = factsItr.Next()
 			b.WriteString(fmt.Sprintf("- %s\n\n", f))
 		}
 	}
-	if mbnd := ps.MissingButNecessaryDetails(); len(mbnd) > 0 {
+	if mbnd := ps.MissingButNecessaryDetails(); mbnd.Len() > 0 {
 		b.WriteString("## Additional considerations\n\n")
-		for _, v := range mbnd {
+		var v string
+		mbndItr := mbnd.Iterator()
+		mbndItr.First()
+		for !mbndItr.Done() {
+			_, v = mbndItr.Next()
 			b.WriteString(fmt.Sprintf("- %s\n\n", v))
 		}
 	}
-	if se := ps.SpeculativeExpansions(); len(se) > 0 {
+	if se := ps.SpeculativeExpansions(); se.Len() > 0 {
 		b.WriteString("## Out of scope\n\n")
-		for _, v := range se {
+		var v string
+		seItr := se.Iterator()
+		seItr.First()
+		for !seItr.Done() {
+			_, v = seItr.Next()
 			b.WriteString(fmt.Sprintf("- %s\n\n", v))
 		}
 	}
 	return b.String()
 }
 
-func renderDecomposition(decomp *dt.SystemDecompositionJson) string {
+func immutableListToSlice[T any](list *immutable.List[T]) []T {
+	if list == nil {
+		return []T{}
+	}
+	result := make([]T, 0, list.Len())
+	itr := list.Iterator()
+	itr.First()
+	for !itr.Done() {
+		_, v := itr.Next()
+		result = append(result, v)
+	}
+	return result
+}
+
+func renderDecomposition(decomp *dt.SystemDecomposition) string {
 	var b strings.Builder
 	b.WriteString("# Decomposition\n\n")
 	decompVal := decomp.Decomposition()
-	if len(decompVal.Domains()) > 0 {
+	if decompVal.Domains().Len() > 0 {
 		b.WriteString("## Domains\n\n")
-		for i, domain := range decompVal.Domains() {
-			if spec, extra := BuildArchitectInput(domain, decompVal.IntegrationOwnership()); spec != "" {
+		domItr := decompVal.Domains().Iterator()
+		i := 0
+		domItr.First()
+		var domain dt.SystemDecompositiondecompositiondomainsElem
+		for !domItr.Done() {
+			_, domain = domItr.Next()
+			if spec, extra := BuildArchitectInput(domain, immutableListToSlice(decompVal.IntegrationOwnership())); spec != "" {
 				b.WriteString(fmt.Sprintf("### Domain %d\n\n", i+1))
 				b.WriteString(spec)
 				if extra != "" {
@@ -198,12 +259,13 @@ func renderDecomposition(decomp *dt.SystemDecompositionJson) string {
 				}
 				b.WriteString("\n\n")
 			}
+			i++
 		}
 	}
 	return b.String()
 }
 
-func renderArchitecture(arch *dt.ArchJson) string {
+func renderArchitecture(arch *dt.Arch) string {
 	var b strings.Builder
 	b.WriteString("# Architecture\n\n")
 
@@ -215,45 +277,61 @@ func renderArchitecture(arch *dt.ArchJson) string {
 		b.WriteString("\n\n")
 	}
 
-	if comps := archInner.Components(); len(comps) > 0 {
+	if comps := archInner.Components(); comps.Len() > 0 {
 		b.WriteString("## Components\n\n")
-		for _, c := range comps {
-			name := c.Name()
+		compsItr := comps.Iterator()
+		compsItr.First()
+		var comp dt.ArcharchitecturecomponentsElem
+		for !compsItr.Done() {
+			_, comp = compsItr.Next()
+			name := comp.Name()
 			b.WriteString(fmt.Sprintf("### %s\n\n", name))
-			if resp := c.Responsibility(); resp != "" {
+			if resp := comp.Responsibility(); resp != "" {
 				b.WriteString(fmt.Sprintf("**Responsibility**: %s\n\n", resp))
 			}
-			if bg := c.Background(); bg != "" {
+			if bg := comp.Background(); bg != "" {
 				b.WriteString(fmt.Sprintf("**Background**: %s\n\n", bg))
 			}
 		}
 	}
 
-	if dataFlow := archInner.DataFlow(); len(dataFlow) > 0 {
+	if dataFlow := archInner.DataFlow(); dataFlow.Len() > 0 {
 		b.WriteString("## Data Flow\n\n")
-		for _, df := range dataFlow {
+		var df string
+		dataFlowItr := dataFlow.Iterator()
+		dataFlowItr.First()
+		for !dataFlowItr.Done() {
+			_, df = dataFlowItr.Next()
 			b.WriteString(fmt.Sprintf("- %s\n\n", df))
 		}
 	}
 
-	if techChoices := archInner.TechChoices(); len(techChoices) > 0 {
+	if techChoices := archInner.TechChoices(); techChoices.Len() > 0 {
 		b.WriteString("## Tech Choices\n\n")
-		for _, tc := range techChoices {
+		var tc string
+		techChoicesItr := techChoices.Iterator()
+		techChoicesItr.First()
+		for !techChoicesItr.Done() {
+			_, tc = techChoicesItr.Next()
 			b.WriteString(fmt.Sprintf("- %s\n\n", tc))
 		}
 	}
 
-	if constraints := archInner.Constraints(); len(constraints) > 0 {
+	if constraints := archInner.Constraints(); constraints.Len() > 0 {
 		b.WriteString("## Constraints\n\n")
-		for _, c := range constraints {
-			b.WriteString(fmt.Sprintf("- %s\n\n", c))
+		var con string
+		constItr := constraints.Iterator()
+		constItr.First()
+		for !constItr.Done() {
+			_, con = constItr.Next()
+			b.WriteString(fmt.Sprintf("- %s\n\n", con))
 		}
 	}
 
 	return b.String()
 }
 
-func renderPlan(plan *dt.PlanJson) string {
+func renderPlan(plan *dt.Plan) string {
 	var b strings.Builder
 	b.WriteString("# Implementation plan\n\n")
 
@@ -268,9 +346,13 @@ func renderPlan(plan *dt.PlanJson) string {
 		b.WriteString("\n")
 	}
 
-	if files := planInner.Files(); len(files) > 0 {
+	if files := planInner.Files(); files.Len() > 0 {
 		b.WriteString("## Files\n\n")
-		for _, f := range files {
+		var f dt.PlanplanfilesElem
+		filesItr := files.Iterator()
+		filesItr.First()
+		for !filesItr.Done() {
+			_, f = filesItr.Next()
 			b.WriteString(fmt.Sprintf("### %s\n\n", f.Path()))
 			if purpose := f.Purpose(); purpose != "" {
 				b.WriteString(fmt.Sprintf("**Purpose**: %s\n\n", purpose))
@@ -281,9 +363,13 @@ func renderPlan(plan *dt.PlanJson) string {
 		}
 	}
 
-	if steps := planInner.Steps(); len(steps) > 0 {
+	if steps := planInner.Steps(); steps.Len() > 0 {
 		b.WriteString("## Steps\n\n")
-		for _, s := range steps {
+		var s dt.PlanplanstepsElem
+		stepsItr := steps.Iterator()
+		stepsItr.First()
+		for !stepsItr.Done() {
+			_, s = stepsItr.Next()
 			b.WriteString(fmt.Sprintf("### Step %d\n\n", s.Id()))
 			b.WriteString(s.Description())
 			if !strings.HasSuffix(s.Description(), "\n") {
@@ -296,7 +382,7 @@ func renderPlan(plan *dt.PlanJson) string {
 	return b.String()
 }
 
-func renderInvestigatorFindings(findings *dt.InvestigatorFindingsJson) string {
+func renderInvestigatorFindings(findings *dt.InvestigatorFindings) string {
 	var b strings.Builder
 	b.WriteString("# Investigation Findings\n\n")
 
@@ -305,17 +391,25 @@ func renderInvestigatorFindings(findings *dt.InvestigatorFindingsJson) string {
 		b.WriteString("\n\n")
 	}
 
-	if concs := findings.Conclusions(); len(concs) > 0 {
+	if concs := findings.Conclusions(); concs.Len() > 0 {
 		b.WriteString("Conclusions:\n")
-		for _, c := range concs {
+		var c string
+		concsItr := concs.Iterator()
+		concsItr.First()
+		for !concsItr.Done() {
+			_, c = concsItr.Next()
 			b.WriteString(fmt.Sprintf("* %s\n", c))
 		}
 		b.WriteString("\n")
 	}
 
-	if evs := findings.SupportingEvidence(); len(evs) > 0 {
+	if evs := findings.SupportingEvidence(); evs.Len() > 0 {
 		b.WriteString("Supporting Evidence:\n")
-		for _, e := range evs {
+		var e dt.InvestigatorFindingssupportingevidenceElem
+		evsItr := evs.Iterator()
+		evsItr.First()
+		for !evsItr.Done() {
+			_, e = evsItr.Next()
 			et := e.EvidenceType()
 			ed := e.EvidenceDescription()
 			sr := e.SourceReference()
@@ -332,9 +426,13 @@ func renderInvestigatorFindings(findings *dt.InvestigatorFindingsJson) string {
 		b.WriteString(fmt.Sprintf("Confidence Level: %s\n\n", cl))
 	}
 
-	if uq := findings.UnansweredQuestions(); len(uq) > 0 {
+	if uq := findings.UnansweredQuestions(); uq.Len() > 0 {
 		b.WriteString("Unanswered Questions:\n")
-		for _, q := range uq {
+		var q string
+		uqItr := uq.Iterator()
+		uqItr.First()
+		for !uqItr.Done() {
+			_, q = uqItr.Next()
 			b.WriteString(fmt.Sprintf("* %s\n", q))
 		}
 		b.WriteString("\n")
@@ -343,7 +441,7 @@ func renderInvestigatorFindings(findings *dt.InvestigatorFindingsJson) string {
 	return b.String()
 }
 
-func renderInvestigationReport(report *dt.InvestigationReportJson) string {
+func renderInvestigationReport(report *dt.InvestigationReport) string {
 	var b strings.Builder
 
 	if es := report.ExecutiveSummary(); es != "" {
@@ -359,23 +457,31 @@ func renderInvestigationReport(report *dt.InvestigationReportJson) string {
 		pc := rca.PrimaryCause()
 		cf := rca.ContributingFactors()
 		et := rca.EvidenceTrail()
-		if pc != "" || len(cf) > 0 || len(et) > 0 {
+		if pc != "" || cf.Len() > 0 || et.Len() > 0 {
 			b.WriteString("## Root Cause Analysis\n\n")
 			if pc != "" {
 				b.WriteString("### Primary Cause\n\n")
 				b.WriteString(pc)
 				b.WriteString("\n\n")
 			}
-			if len(cf) > 0 {
+			if cf.Len() > 0 {
 				b.WriteString("### Contributing Factors\n\n")
-				for _, f := range cf {
+				var f string
+				cfItr := cf.Iterator()
+				cfItr.First()
+				for !cfItr.Done() {
+					_, f = cfItr.Next()
 					b.WriteString(fmt.Sprintf("* %s\n", f))
 				}
 				b.WriteString("\n")
 			}
-			if len(et) > 0 {
+			if et.Len() > 0 {
 				b.WriteString("### Evidence Trail\n\n")
-				for _, e := range et {
+				var e string
+				etItr := et.Iterator()
+				etItr.First()
+				for !etItr.Done() {
+					_, e = etItr.Next()
 					b.WriteString(fmt.Sprintf("* %s\n", e))
 				}
 				b.WriteString("\n")
@@ -383,9 +489,13 @@ func renderInvestigationReport(report *dt.InvestigationReportJson) string {
 		}
 	}
 
-	if tl := report.TimelineReconstruction(); len(tl) > 0 {
+	if tl := report.TimelineReconstruction(); tl.Len() > 0 {
 		b.WriteString("## Timeline Reconstruction\n\n")
-		for _, t := range tl {
+		var t dt.InvestigationReporttimelinereconstructionElem
+		tlItr := tl.Iterator()
+		tlItr.First()
+		for !tlItr.Done() {
+			_, t = tlItr.Next()
 			b.WriteString(fmt.Sprintf("### %s\n\n", t.Timestamp()))
 			b.WriteString(t.Event())
 			if !strings.HasSuffix(t.Event(), "\n") {
@@ -419,9 +529,13 @@ func renderInvestigationReport(report *dt.InvestigationReportJson) string {
 		}
 	}
 
-	if corr := report.CorrelationFindings(); len(corr) > 0 {
+	if corr := report.CorrelationFindings(); corr.Len() > 0 {
 		b.WriteString("## Correlation Findings\n\n")
-		for _, item := range corr {
+		var item dt.InvestigationReportcorrelationfindingsElem
+		corrItr := corr.Iterator()
+		corrItr.First()
+		for !corrItr.Done() {
+			_, item = corrItr.Next()
 			obs := item.Observation()
 			strength := item.CorrelationStrength()
 			causal := item.CausalClaim()
@@ -436,9 +550,13 @@ func renderInvestigationReport(report *dt.InvestigationReportJson) string {
 		}
 	}
 
-	if hr := report.HypothesisTestResults(); len(hr) > 0 {
+	if hr := report.HypothesisTestResults(); hr.Len() > 0 {
 		b.WriteString("## Hypothesis Test Results\n\n")
-		for _, item := range hr {
+		var item dt.InvestigationReporthypothesistestresultsElem
+		hrItr := hr.Iterator()
+		hrItr.First()
+		for !hrItr.Done() {
+			_, item = hrItr.Next()
 			hyp := item.Hypothesis()
 			test := item.TestPerformed()
 			result := item.Result()
@@ -457,17 +575,25 @@ func renderInvestigationReport(report *dt.InvestigationReportJson) string {
 		}
 	}
 
-	if gaps := report.KnownGapsAndUnknowns(); len(gaps) > 0 {
+	if gaps := report.KnownGapsAndUnknowns(); gaps.Len() > 0 {
 		b.WriteString("## Known Gaps and Unknowns\n\n")
-		for _, g := range gaps {
+		var g string
+		gapsItr := gaps.Iterator()
+		gapsItr.First()
+		for !gapsItr.Done() {
+			_, g = gapsItr.Next()
 			b.WriteString(fmt.Sprintf("* %s\n", g))
 		}
 		b.WriteString("\n")
 	}
 
-	if recs := report.Recommendations(); len(recs) > 0 {
+	if recs := report.Recommendations(); recs.Len() > 0 {
 		b.WriteString("## Recommendations\n\n")
-		for _, item := range recs {
+		var item dt.InvestigationReportrecommendationsElem
+		recsItr := recs.Iterator()
+		recsItr.First()
+		for !recsItr.Done() {
+			_, item = recsItr.Next()
 			priority := item.Priority()
 			action := item.Action()
 			rationale := item.Rationale()
@@ -483,7 +609,7 @@ func renderInvestigationReport(report *dt.InvestigationReportJson) string {
 	return b.String()
 }
 
-func renderInvestigationClassifier(class *dt.InvestigationClassifierJson) string {
+func renderInvestigationClassifier(class *dt.InvestigationClassifier) string {
 	var b strings.Builder
 	b.WriteString("# Investigation Classification\n\n")
 	b.WriteString(fmt.Sprintf("**Type**: %s\n\n", class.AType()))
@@ -493,39 +619,61 @@ func renderInvestigationClassifier(class *dt.InvestigationClassifierJson) string
 	return b.String()
 }
 
-func renderInvestigatorPlan(plan *dt.InvestigatorPlanJson) string {
+func renderInvestigatorPlan(plan *dt.InvestigatorPlan) string {
 	var b strings.Builder
 	b.WriteString("# Investigation Plan\n\n")
 	workstreams := plan.Workstreams()
-	for i, ws := range workstreams {
-		b.WriteString(fmt.Sprintf("## Workstream %d\n\n", i+1))
+	var ws dt.InvestigatorPlanworkstreamsElem
+	wsItr := workstreams.Iterator()
+	i := 0
+	wsItr.First()
+	for !wsItr.Done() {
+		_, ws = wsItr.Next()
+		i++
+		b.WriteString(fmt.Sprintf("## Workstream %d\n\n", i))
 		if obj := ws.Objective(); obj != "" {
 			b.WriteString(obj + "\n\n")
 		}
-		if ds := ws.DataSources(); len(ds) > 0 {
+		if ds := ws.DataSources(); ds.Len() > 0 {
 			b.WriteString("Data Sources:\n")
-			for _, s := range ds {
+			var s string
+			dsItr := ds.Iterator()
+			dsItr.First()
+			for !dsItr.Done() {
+				_, s = dsItr.Next()
 				b.WriteString(fmt.Sprintf("* %s\n", s))
 			}
 			b.WriteString("\n")
 		}
-		if hyps := ws.Hypotheses(); len(hyps) > 0 {
+		if hyps := ws.Hypotheses(); hyps.Len() > 0 {
 			b.WriteString("Hypotheses:\n")
-			for _, h := range hyps {
+			var h string
+			hypsItr := hyps.Iterator()
+			hypsItr.First()
+			for !hypsItr.Done() {
+				_, h = hypsItr.Next()
 				b.WriteString(fmt.Sprintf("* %s\n", h))
 			}
 			b.WriteString("\n")
 		}
-		if methods := ws.InvestigationMethods(); len(methods) > 0 {
+		if methods := ws.InvestigationMethods(); methods.Len() > 0 {
 			b.WriteString("Investigation Methods:\n")
-			for _, m := range methods {
+			var m string
+			methodsItr := methods.Iterator()
+			methodsItr.First()
+			for !methodsItr.Done() {
+				_, m = methodsItr.Next()
 				b.WriteString(fmt.Sprintf("* %s\n", m))
 			}
 			b.WriteString("\n")
 		}
-		if delivs := ws.ExpectedDeliverables(); len(delivs) > 0 {
+		if delivs := ws.ExpectedDeliverables(); delivs.Len() > 0 {
 			b.WriteString("Expected Deliverables:\n")
-			for _, d := range delivs {
+			var d string
+			delivsItr := delivs.Iterator()
+			delivsItr.First()
+			for !delivsItr.Done() {
+				_, d = delivsItr.Next()
 				b.WriteString(fmt.Sprintf("* %s\n", d))
 			}
 			b.WriteString("\n")
@@ -558,14 +706,12 @@ func writeMarkdownDocument(stageName, markdownContent string, subdir []string) s
 	return targetFilepath
 }
 
-func MarkdownDocumentGenerator(content interface{}, stageName string, subdir []string) string {
+func MarkdownDocumentGenerator(content interface{}, stageName string, subdir []string, context *Context) string {
 	markdownContent := RenderMarkdownContent(content)
-	trace("write_markdown_doc", map[string]interface{}{
-		"content":    markdownContent,
-		"stage_name": regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageName, ""),
-	})
-	if markdownDocHook != nil {
-		return markdownDocHook(content, stageName, subdir)
+	stageNameClean := regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageName, "")
+	context.Tracer.trace("write_markdown_doc", td.NewActionDetailsBuilder(nil).WithContent(&markdownContent).WithStageName(&stageNameClean).Build())
+	if context.markdownDocHook != nil {
+		return context.markdownDocHook(content, stageName, subdir)
 	}
 	return writeMarkdownDocument(stageName, markdownContent, subdir)
 }

@@ -1,24 +1,22 @@
 package main
 
 import (
-	"os"
+	state "agent-go/state"
+	td "agent-go/test_data"
+	immutable "github.com/benbjohnson/immutable"
+	"io"
 )
 
-func trace(action string, details map[string]interface{}) {
-	dest := os.Getenv("AGENT_TRACE_FILE")
-	if dest == "" {
-		return
-	}
-	f, err := os.OpenFile(dest, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	event := map[string]interface{}{
-		"action":  action,
-		"details": details,
-	}
-	data := MarshalJSON(event)
-	f.Write([]byte(data))
-	f.Write([]byte("\n"))
+type Tracer struct {
+	Actions []td.DataAction
+}
+
+func (t *Tracer) trace(action string, details *td.ActionDetails) {
+	t.Actions = append(t.Actions, *td.NewDataActionBuilder(nil).WithAction(action).WithDetails(details).Build())
+}
+
+func traceStack(w io.Writer, currentStep *state.WorkflowStep, followUpSteps []state.WorkflowStep, actions []td.DataAction) {
+	data := MarshalJSON(td.NewTestCaseBuilder(nil).WithStep(currentStep).WithFollowups(immutable.NewList(followUpSteps...)).WithActions(immutable.NewList(actions...)).Build())
+	w.Write([]byte(data))
+	w.Write([]byte("\n"))
 }

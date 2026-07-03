@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "testCase",
+  "title": "TestCase",
+  "type": "object",
+  "properties": {
+    "step": {
+      "goJSONSchema": {
+        "type": "state.WorkflowStep",
+        "pointer": true
+      }
+    },
+    "followups": {
+      "type": "array",
+      "items": {
+        "goJSONSchema": {
+          "type": "state.WorkflowStep"
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DataAction"
+      }
+    }
+  },
+  "required": ["step", "followups", "actions"],
+  "$defs": {
+    "AgentState": {
+      "type": "object",
+      "properties": {
+        "last_correct_response": {
+          "type": "string"
+        },
+        "session": {
+          "type": "string"
+        },
+        "session_suffix": {
+          "type": "string"
+        }
+      },
+      "required": ["session", "session_suffix"]
+    },
+    "ActionDetails": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "session_suffix": {
+          "type": "string"
+        },
+        "stage_name": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "changes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "agent_state": {
+          "$ref": "#/$defs/AgentState",
+          "goJSONSchema": {
+            "pointer": true
+          }
+        }
+      }
+    },
+    "DataAction": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "details": {
+          "$ref": "#/$defs/ActionDetails",
+          "goJSONSchema": {
+            "pointer": true
+          }
+        }
+      },
+      "required": ["action", "details"]
+    }
+  }
+}

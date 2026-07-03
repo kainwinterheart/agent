@@ -2,13 +2,12 @@ package main
 
 import (
 	"agent-go/pkg/loader"
+	td "agent-go/test_data"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
 )
-
-var resetHook func(agentName, sessionSuffix string)
 
 type Agent[T any] struct {
 	Name                string
@@ -70,7 +69,7 @@ func (a *Agent[T]) SessionKey() string {
 	return key
 }
 
-func (a *Agent[T]) Run(inputText string) string {
+func (a *Agent[T]) Run(inputText string, context *Context) string {
 	if !a.Ephemeral && a.Session == "" {
 		sess := LoadSessionId(a.SessionKey(), a.Subdir)
 		if sess != "" {
@@ -101,6 +100,7 @@ func (a *Agent[T]) Run(inputText string) string {
 			nextPrompt,
 			a.Schema,
 			a.Timeout,
+			context,
 		)
 		if err != nil {
 			logStep(fmt.Sprintf("Failed to run %s, retrying...", a.Name), a.Name)
@@ -119,23 +119,20 @@ func (a *Agent[T]) Run(inputText string) string {
 	}
 }
 
-func (a *Agent[T]) Reset(sessionSuffix ...string) {
+func (a *Agent[T]) Reset(context *Context, sessionSuffix ...string) {
 	var suffix string
 	if len(sessionSuffix) > 0 {
 		suffix = sessionSuffix[0]
 	}
-	if resetHook != nil {
-		resetHook(a.Name, suffix)
+	if context.resetHook != nil {
+		context.resetHook(a.Name, suffix)
 	}
-	trace("reset_agent", map[string]interface{}{
-		"session_suffix": func() interface{} {
-			if suffix == "" {
-				return nil
-			}
-			return suffix
-		}(),
-		"agent": a.Name,
-	})
+	context.Tracer.trace("reset_agent", td.NewActionDetailsBuilder(nil).WithSessionSuffix(func() *string {
+		if suffix == "" {
+			return nil
+		}
+		return &suffix
+	}()).WithAgent(&a.Name).Build())
 	a.resetInternal(sessionSuffix...)
 }
 

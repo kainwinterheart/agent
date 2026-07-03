@@ -11,3 +11,5 @@ agent
 src/src
 schema_exporter
 gen
+state/state.go
+test_data/test_data.go

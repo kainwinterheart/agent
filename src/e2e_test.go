@@ -1,123 +1,190 @@
 package main
 
 import (
+	"bufio"
 	jsonv2text "encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"fmt"
+	"github.com/datadog/zstd"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-
 	"testing"
+
+	state "agent-go/state"
+	td "agent-go/test_data"
+	"github.com/benbjohnson/immutable"
 )
 
-type DataAction struct {
-	Action  string           `json:"action"`
-	Details jsonv2text.Value `json:"details"`
+type actionDetails struct {
+	dataAction td.DataAction
 }
 
-type ActionDetails struct {
-	Action        string
-	Agent         string
-	InvocationID  string
-	Prompt        string
-	Schema        map[string]interface{}
-	Timeout       string
-	Stdout        string
-	SessionSuffix interface{}
-	StageName     string
-	Content       string
-	Text          string
-	Changes       map[string]string
+func newActionDetails(a td.DataAction) actionDetails {
+	return actionDetails{dataAction: a}
 }
 
-func parseDetails(raw jsonv2text.Value, action string) ActionDetails {
-	var d ActionDetails
-	d.Action = action
-	switch action {
-	case "user_input":
-		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
-		d.Text = m["text"].(string)
-	case "prepare_to_run_agent":
-		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
-		d.InvocationID = m["invocation_id"].(string)
-		d.Agent = m["agent"].(string)
-		d.Prompt = m["prompt"].(string)
-	case "run_codex":
-		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
-		d.Agent = m["agent_name"].(string)
-		d.Prompt = m["prompt"].(string)
-		d.Timeout = m["timeout"].(string)
-		d.Stdout = m["stdout"].(string)
-		if s, ok := m["schema"].(map[string]interface{}); ok {
-			d.Schema = s
-		}
-	case "reset_agent":
-		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
-		d.Agent = m["agent"].(string)
-		d.SessionSuffix = m["session_suffix"]
-	case "write_markdown_doc":
-		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
-		d.StageName = m["stage_name"].(string)
-		d.Content = m["content"].(string)
-	case "watchman":
-		var m map[string]interface{}
-		jsonv2.Unmarshal(raw, &m, jsonv2text.AllowDuplicateNames(true))
-		if changes, ok := m["changes"].(map[string]interface{}); ok {
-			d.Changes = make(map[string]string)
-			for k, v := range changes {
-				d.Changes[k] = fmt.Sprintf("%v", v)
-			}
-		}
+func (ad actionDetails) Action() string {
+	return ad.dataAction.Action()
+}
+
+func (ad actionDetails) Details() *td.ActionDetails {
+	return ad.dataAction.Details()
+}
+
+func (ad actionDetails) Agent() string {
+	v := ad.Details().Agent()
+	if v == nil {
+		return ""
 	}
-	return d
+	return *v
 }
 
-func loadDataActions(t *testing.T, filename string) []ActionDetails {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		t.Fatalf("Failed to read test data file %s: %v", filename, err)
+func (ad actionDetails) InvocationID() string {
+	v := ad.Details().InvocationId()
+	if v == nil {
+		return ""
 	}
-	var actions []ActionDetails
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+	return *v
+}
+
+func (ad actionDetails) Prompt() string {
+	v := ad.Details().Prompt()
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func (ad actionDetails) Schema() map[string]interface{} {
+	items := ad.Details().Schema().Items()
+	m := make(map[string]interface{}, len(items))
+	for _, item := range items {
+		m[item.Key] = item.Value
+	}
+	return m
+}
+
+func (ad actionDetails) Timeout() string {
+	v := ad.Details().Timeout()
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func (ad actionDetails) Stdout() string {
+	v := ad.Details().Stdout()
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func (ad actionDetails) SessionSuffix() string {
+	v := ad.Details().SessionSuffix()
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func (ad actionDetails) StageName() string {
+	v := ad.Details().StageName()
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func (ad actionDetails) Content() string {
+	v := ad.Details().Content()
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func (ad actionDetails) Changes() map[string]string {
+	items := ad.Details().Changes().Items()
+	m := make(map[string]string, len(items))
+	for _, item := range items {
+		m[item.Key] = item.Value
+	}
+	return m
+}
+
+func normalizeTestCaseLine(line string) string {
+	// line = regexp.MustCompile(`"approved", "resolved_issues", "approved_confidence", "approved_reason", "should_reset",`).ReplaceAllString(line, `"approved", "approved_confidence", "approved_reason", "resolved_issues", "should_reset",`)
+	// line = regexp.MustCompile(`"status", "brief_summary", "blocked_reason", "exists_after_change",`).ReplaceAllString(line, `"status", "blocked_reason", "brief_summary", "exists_after_change",`)
+	// line = regexp.MustCompile(`"reviewer_notes": {"type": "array",`).ReplaceAllString(line, `"reviewer_notes": {"type": ["array", "null"],`)
+	// line = regexp.MustCompile(`"next_steps": {"type": "array",`).ReplaceAllString(line, `"next_steps": {"type": ["array", "null"],`)
+	// line = regexp.MustCompile(`"dependencies": {"type": "array",`).ReplaceAllString(line, `"dependencies": {"type": ["array", "null"],`)
+	// line = regexp.MustCompile(`"domain_specification": {`).ReplaceAllString(line, `"domain_specification": {"minLength": 1,`)
+	return line
+}
+
+type testCase struct {
+	fileName string
+	testCase td.TestCase
+}
+
+func (tc testCase) Step() *state.WorkflowStep {
+	return tc.testCase.Step()
+}
+
+func (tc testCase) Actions() []actionDetails {
+	var actions []actionDetails
+	if tc.testCase.Actions() != nil {
+		for i := 0; i < tc.testCase.Actions().Len(); i++ {
+			actions = append(actions, newActionDetails(tc.testCase.Actions().Get(i)))
 		}
-		line = regexp.MustCompile(`"approved", "resolved_issues", "approved_confidence", "approved_reason", "should_reset",`).ReplaceAllString(line, `"approved", "approved_confidence", "approved_reason", "resolved_issues", "should_reset",`)
-		line = regexp.MustCompile(`"status", "brief_summary", "blocked_reason", "exists_after_change",`).ReplaceAllString(line, `"status", "blocked_reason", "brief_summary", "exists_after_change",`)
-		line = regexp.MustCompile(`"reviewer_notes": {"type": "array",`).ReplaceAllString(line, `"reviewer_notes": {"type": ["array", "null"],`)
-		line = regexp.MustCompile(`"next_steps": {"type": "array",`).ReplaceAllString(line, `"next_steps": {"type": ["array", "null"],`)
-		line = regexp.MustCompile(`"dependencies": {"type": "array",`).ReplaceAllString(line, `"dependencies": {"type": ["array", "null"],`)
-		line = regexp.MustCompile(`"domain_specification": {`).ReplaceAllString(line, `"domain_specification": {"minLength": 1,`)
-		var da DataAction
-		if err := jsonv2.Unmarshal([]byte(line), &da, jsonv2text.AllowDuplicateNames(true)); err != nil {
-			t.Fatalf("Failed to parse test data line: %q, err: %v", line, err)
-		}
-		actions = append(actions, parseDetails(da.Details, da.Action))
 	}
 	return actions
 }
 
+func (tc testCase) Followups() *immutable.List[state.WorkflowStep] {
+	return tc.testCase.Followups()
+}
+
+func (tc testCase) Task() string {
+	return tc.testCase.Step().State().Task()
+}
+
+func (tc testCase) Subdir() string {
+	return tc.testCase.Step().State().Subdir()
+}
+
+func (tc testCase) followupSlice() []state.WorkflowStep {
+	if tc.testCase.Followups() == nil {
+		return nil
+	}
+	lst := (*immutable.List[state.WorkflowStep])(tc.testCase.Followups())
+	result := make([]state.WorkflowStep, lst.Len())
+	for i := 0; i < lst.Len(); i++ {
+		result[i] = lst.Get(i)
+	}
+	return result
+}
+
+func fixup(step *state.WorkflowStep) *state.WorkflowStep {
+	return step.Clone().WithState(step.State().Clone().WithSubdir("[redacted]").Build()).Build()
+}
+
 type e2eMockRunner struct {
-	actions []ActionDetails
+	actions []actionDetails
 	idx     int
 	t       *testing.T
 }
 
-func newMockRunner(t *testing.T, actions []ActionDetails, startIdx int) *e2eMockRunner {
-	return &e2eMockRunner{actions: actions, idx: startIdx, t: t}
+func newMockRunner(t *testing.T, actions []actionDetails) *e2eMockRunner {
+	return &e2eMockRunner{actions: actions, idx: 0, t: t}
 }
 
-func (mr *e2eMockRunner) next(actualAction string, desc string) ActionDetails {
+func (mr *e2eMockRunner) next(actualAction string, desc string) actionDetails {
 	if desc != "" {
 		if os.Getenv("E2E_VERBOSE") != "" {
 			desc = desc + "\n"
@@ -131,10 +198,10 @@ func (mr *e2eMockRunner) next(actualAction string, desc string) ActionDetails {
 	}
 	action := mr.actions[mr.idx]
 	mr.idx++
-	if action.Action != actualAction {
+	if action.Action() != actualAction {
 		mr.t.Fatalf("%sActual action %q at index %d (total=%d), expected %q (agent=%q, invocation_id=%q, stage_name=%q)",
 			desc, actualAction, mr.idx-1, len(mr.actions),
-			action.Action, action.Agent, action.InvocationID, action.StageName)
+			action.Action(), action.Agent(), action.InvocationID(), action.StageName())
 	}
 	return action
 }
@@ -171,14 +238,8 @@ func normalizeErrorMessages(prompt string) string {
 	})
 }
 
-func normalizePrompt(prompt string, agent string, actions []ActionDetails) string {
-	result := strings.TrimSpace(prompt)
-	result = regexp.MustCompile(`\n`).ReplaceAllString(result, "\n")
-	result = regexp.MustCompile("\n\n\n").ReplaceAllString(result, "\n\n")
-	result = normalizeJSONObjects(result)
-	result = normalizeErrorMessages(result)
-
-	result = regexp.MustCompile(`[^\n\r]+/document_stores/[^\n\r]+\.md`).ReplaceAllStringFunc(result, func(m string) string {
+func normalizeDocumentStoresPath(text string) string {
+	return regexp.MustCompile(`[^\n\r]+/document_stores/[^\n\r]+\.md`).ReplaceAllStringFunc(text, func(m string) string {
 		idx := strings.Index(m, "/document_stores/")
 		if idx < 0 {
 			return m
@@ -188,6 +249,15 @@ func normalizePrompt(prompt string, agent string, actions []ActionDetails) strin
 		filename = regexp.MustCompile(`^[\d\-_+:]+[_-]?`).ReplaceAllString(filename, "")
 		return "SUBDIR/document_stores/" + filename
 	})
+}
+
+func normalizePrompt(prompt string, agent string, actions []actionDetails) string {
+	result := strings.TrimSpace(prompt)
+	result = regexp.MustCompile(`\n`).ReplaceAllString(result, "\n")
+	result = regexp.MustCompile("\n\n\n").ReplaceAllString(result, "\n\n")
+	result = normalizeJSONObjects(result)
+	result = normalizeErrorMessages(result)
+	result = normalizeDocumentStoresPath(result)
 	return result
 }
 
@@ -200,60 +270,94 @@ func TestE2E(t *testing.T) {
 		t.Fatal("No .json files found in ../fixtures/")
 	}
 	for _, f := range files {
-		f := f
-		t.Run(fmt.Sprintf("-%s-", strings.TrimSuffix(filepath.Base(f), ".json")), func(t *testing.T) {
-			runFixtureTest(t, f)
+		fileName := strings.TrimSuffix(filepath.Base(f), ".json")
+		t.Run(fmt.Sprintf("%s", fileName), func(t *testing.T) {
+			runTestsFromFile(t, f, fileName)
 		})
 	}
 }
 
-func runFixtureTest(t *testing.T, filename string) {
-	actions := loadDataActions(t, filename)
-
-	userAction := actions[0]
-	if userAction.Action != "user_input" {
-		t.Fatalf("First action must be user_input, got %q", userAction.Action)
+func runTestsFromFile(t *testing.T, f string, fileName string) {
+	t.Parallel()
+	fh, err := os.Open(f)
+	if err != nil {
+		t.Fatalf("Failed to read test data file %s: %v", f, err)
 	}
-	taskText := userAction.Text
+	defer fh.Close()
+	r := zstd.NewReader(fh)
+	defer r.Close()
+	data := bufio.NewScanner(r)
+	buf := make([]byte, 0, 10*1024*1024)
+	data.Buffer(buf, 100*1024*1024)
+	counter := 0
+	for data.Scan() {
+		counter++
+		line := strings.TrimSpace(data.Text())
+		if line == "" {
+			continue
+		}
+		t.Run(fmt.Sprintf("%d", counter), func(t *testing.T) {
+			runTestCase(t, fileName, counter, line)
+		})
+	}
+}
 
-	mr := newMockRunner(t, actions, 1)
+func runTestCase(t *testing.T, fileName string, counter int, line string) {
+	t.Parallel()
+	line = normalizeTestCaseLine(line)
+	var tc td.TestCase
+	if err := jsonv2.Unmarshal([]byte(line), &tc, jsonv2text.AllowDuplicateNames(true)); err != nil {
+		t.Fatalf("%s:%d: %v", fileName, counter, err)
+	}
+	runTestCaseImpl(t, testCase{
+		fileName: fileName,
+		testCase: tc,
+	})
+}
+
+func runTestCaseImpl(t *testing.T, tc testCase) {
+	actions := tc.Actions()
+
+	mr := newMockRunner(t, actions)
 	expectedMDFiles := make(map[string]string)
 
 	var hookSequence []string
 
-	runJSONAgentHook = func(agentName, invocationID, prompt string) {
+	c := NewContext()
+	c.runJSONAgentHook = func(agentName, invocationID, prompt string) *td.AgentState {
 		hookSequence = append(hookSequence, "prepare_to_run_agent")
 		action := mr.next("prepare_to_run_agent", fmt.Sprintf("%s (%s)\n%s", invocationID, agentName, prompt))
 
-		if action.InvocationID != invocationID {
+		if action.InvocationID() != invocationID {
 			mr.t.Fatalf("prepare_to_run_agent invocation_id mismatch: expected %q, got %q",
-				action.InvocationID, invocationID)
+				action.InvocationID(), invocationID)
 		}
-		if action.Agent != agentName {
+		if action.Agent() != agentName {
 			mr.t.Fatalf("prepare_to_run_agent agent mismatch: expected %q, got %q",
-				action.Agent, agentName)
+				action.Agent(), agentName)
 		}
-		normalizedDataPrompt := normalizePrompt(action.Prompt, action.Agent, actions)
-		normalizedCodePrompt := normalizePrompt(prompt, action.Agent, actions)
+		normalizedDataPrompt := normalizePrompt(action.Prompt(), action.Agent(), actions)
+		normalizedCodePrompt := normalizePrompt(prompt, agentName, actions)
 		if normalizedDataPrompt != normalizedCodePrompt {
 			mr.t.Fatalf("prepare_to_run_agent(%s, %s) prompt mismatch:\n%s", agentName, invocationID, mr.diff(normalizedDataPrompt, normalizedCodePrompt, "data", "code"))
 		}
+		return action.Details().AgentState()
 	}
 
-	runCodexHook = func(agentName, session, prompt string, schema map[string]interface{}, timeout string) (string, string, error) {
+	c.runCodexHook = func(agentName, session, prompt string, schema map[string]interface{}, timeout string) (string, string, error) {
 		hookSequence = append(hookSequence, "run_codex")
 		action := mr.next("run_codex", fmt.Sprintf("%s\n%s", agentName, prompt))
 
-		if action.Agent != agentName {
+		if action.Agent() != agentName {
 			mr.t.Fatalf("run_codex agent_name mismatch: expected %q, got %q",
-				action.Agent, agentName)
+				action.Agent(), agentName)
 		}
-		if action.Timeout != timeout {
+		if action.Timeout() != timeout {
 			mr.t.Fatalf("run_codex timeout mismatch: expected %q, got %q",
-				action.Timeout, timeout)
+				action.Timeout(), timeout)
 		}
-		normalizedDataPrompt := normalizePrompt(action.Prompt, action.Agent, actions)
-		normalizedCodePrompt := normalizePrompt(prompt, action.Agent, actions)
+		normalizedDataPrompt := normalizePrompt(action.Prompt(), action.Agent(), actions)
+		normalizedCodePrompt := normalizePrompt(prompt, agentName, actions)
 		if normalizedDataPrompt != normalizedCodePrompt {
 			desc := ""
 			if os.Getenv("E2E_VERBOSE") != "" {
@@ -261,13 +365,13 @@ func runFixtureTest(t *testing.T, filename string) {
 			}
 			mr.t.Fatalf("%srun_codex prompt mismatch:\n%s", desc, mr.diff(normalizedDataPrompt, normalizedCodePrompt, "data", "code"))
 		}
-		if action.Schema == nil {
+		if action.Schema() == nil {
 			mr.t.Fatal("run_codex schema is nil in data file")
 		}
 		if len(schema) == 0 {
 			mr.t.Fatal("run_codex schema is empty in code")
 		}
-		dataSchema := []byte(MarshalJSON(action.Schema))
+		dataSchema := []byte(MarshalJSON(action.Schema()))
 		codeSchema := []byte(MarshalJSON(schema))
 		if string(dataSchema) != string(codeSchema) {
 			(*jsonv2text.Value)(&dataSchema).Indent()
@@ -278,42 +382,42 @@ func runFixtureTest(t *testing.T, filename string) {
 			}
 			mr.t.Fatalf("%srun_codex schema mismatch:\n%s", desc, mr.diff(string(dataSchema), string(codeSchema), "data_schema", "code_schema"))
 		}
-		if action.Stdout == "" {
+		if action.Stdout() == "" {
 			return "", "", fmt.Errorf("Empty output, likely timeout issue")
 		}
-		return action.Stdout, agentName, nil
+		return action.Stdout(), action.Agent(), nil
 	}
 
-	resetHook = func(agentName, sessionSuffix string) {
+	c.resetHook = func(agentName, sessionSuffix string) {
 		hookSequence = append(hookSequence, "reset_agent")
 		action := mr.next("reset_agent", agentName)
 
-		if action.Agent != agentName {
+		if action.Agent() != agentName {
 			mr.t.Fatalf("reset_agent agent mismatch: expected %q, got %q",
-				action.Agent, agentName)
+				action.Agent(), agentName)
 		}
-		expectedSuffix, _ := action.SessionSuffix.(string)
+		expectedSuffix := action.SessionSuffix()
 		if sessionSuffix != expectedSuffix {
 			mr.t.Fatalf("reset_agent session_suffix mismatch: expected %q, got %q",
 				expectedSuffix, sessionSuffix)
 		}
 	}
 
-	markdownDocHook = func(content interface{}, stageNameRaw string, subdir []string) string {
+	c.markdownDocHook = func(content interface{}, stageNameRaw string, subdir []string) string {
 		stageName := regexp.MustCompile(`[0-9]+$`).ReplaceAllString(stageNameRaw, "")
 		hookSequence = append(hookSequence, "write_markdown_doc")
 		action := mr.next("write_markdown_doc", stageNameRaw)
 
-		if action.StageName != stageName {
+		if action.StageName() != stageName {
 			mr.t.Fatalf("write_markdown_doc stage_name mismatch: expected %q, got %q",
-				action.StageName, stageName)
+				action.StageName(), stageName)
 		}
 
 		actualContent := RenderMarkdownContent(content)
 		if stageName != "code_summary" {
-			if action.Content != actualContent {
+			if action.Content() != actualContent {
 				mr.t.Fatalf("write_markdown_doc content mismatch for stage %q:\n%s",
-					stageNameRaw, mr.diff(action.Content, actualContent, "data", "code"))
+					stageNameRaw, mr.diff(action.Content(), actualContent, "data", "code"))
 			}
 
 			var filename string
@@ -325,15 +429,15 @@ func runFixtureTest(t *testing.T, filename string) {
 			} else {
 				filename = stageNameRaw
 			}
-			expectedMDFiles[filename] = action.Content
+			expectedMDFiles[filename] = action.Content()
 		}
 		return writeMarkdownDocument(stageNameRaw, actualContent, subdir)
 	}
 
-	watchmanHook = func() map[string]string {
+	c.watchmanHook = func() map[string]string {
 		hookSequence = append(hookSequence, "watchman")
 		action := mr.next("watchman", "")
-		return action.Changes
+		return action.Changes()
 	}
 
 	mr.t.Cleanup(func() {
@@ -345,44 +449,70 @@ func runFixtureTest(t *testing.T, filename string) {
 		}
 	})
 
-	subdir := t.TempDir()
-	orch := NewOrchestrator(taskText, subdir)
-	orch.Run(taskText, subdir)
+	tempSubdir := mr.t.TempDir()
+
+	// Clone the step with a temp subdir to avoid cached responses
+	originalStep := tc.Step()
+	newState := originalStep.State().Clone().WithSubdir(tempSubdir).Build()
+	newStep := originalStep.Clone().WithState(newState).Build()
+
+	orch := NewOrchestrator("", tempSubdir)
+	// Capture stack length BEFORE executeStep to correctly identify followups
+	nextStepIdx := orch.Stack.Len()
+	orch.executeStep(newStep, c)
+	followUpSteps := orch.Stack.GetFrom(nextStepIdx)
+
+	// Validate followups using MarshalJSON + normalizeJSONObjects
+	expectedFollowups := tc.followupSlice()
+	if len(followUpSteps) != len(expectedFollowups) {
+		mr.t.Fatalf("Followup count mismatch: expected %d, got %d", len(expectedFollowups), len(followUpSteps))
+	}
+	for i := range followUpSteps {
+		expectedJSON := MarshalJSON(*fixup(&expectedFollowups[i]))
+		actualJSON := MarshalJSON(*fixup(&followUpSteps[i]))
+		normalizedExpected := normalizeDocumentStoresPath(normalizeJSONObjects(expectedJSON))
+		normalizedActual := normalizeDocumentStoresPath(normalizeJSONObjects(actualJSON))
+		if normalizedExpected != normalizedActual {
+			mr.t.Fatalf("Followup step %d mismatch:\n%s", i, mr.diff(normalizedExpected, normalizedActual, "data", "code"))
+		}
+	}
 
 	mr.verifyAllConsumed()
 
-	docStoresDir := filepath.Join(subdir, "document_stores")
-	if _, err := os.Stat(docStoresDir); os.IsNotExist(err) {
-		mr.t.Fatalf("document_stores directory not found at %s", docStoresDir)
-	}
+	if len(expectedMDFiles) > 0 {
+		docStoresDir := filepath.Join(tempSubdir, "document_stores")
+		if _, err := os.Stat(docStoresDir); os.IsNotExist(err) {
+			mr.t.Fatalf("document_stores directory not found at %s", docStoresDir)
+		}
 
-	actualFiles := make(map[string]string)
-	err := filepath.Walk(docStoresDir, func(path string, info os.FileInfo, err error) error {
+		actualFiles := make(map[string]string)
+		err := filepath.Walk(docStoresDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() && strings.HasSuffix(info.Name(), ".md") {
+				content, _ := os.ReadFile(path)
+				base := strings.TrimSuffix(info.Name(), ".md")
+
+				stageName := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_`).ReplaceAllString(base, "")
+				relpath, _ := filepath.Rel(docStoresDir, path)
+				actualFiles[filepath.Join(filepath.Dir(relpath), stageName)] = string(content)
+			}
+			return nil
+		})
 		if err != nil {
-			return err
+			mr.t.Fatalf("Error walking document_stores: %v", err)
 		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".md") {
-			content, _ := os.ReadFile(path)
-			base := strings.TrimSuffix(info.Name(), ".md")
 
-			stageName := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_`).ReplaceAllString(base, "")
-			relpath, _ := filepath.Rel(docStoresDir, path)
-			actualFiles[filepath.Join(filepath.Dir(relpath), stageName)] = string(content)
-		}
-		return nil
-	})
-	if err != nil {
-		mr.t.Fatalf("Error walking document_stores: %v", err)
-	}
-
-	for stageName, expectedContent := range expectedMDFiles {
-		actual, ok := actualFiles[stageName]
-		if !ok {
-			mr.t.Fatalf("Expected file for stage %q not found in document_stores", stageName)
-		}
-		if actual != expectedContent {
-			mr.t.Fatalf("File content mismatch for stage %q:\n%s",
-				stageName, mr.diff(actual, expectedContent, "data", "code"))
+		for stageName, expectedContent := range expectedMDFiles {
+			actual, ok := actualFiles[stageName]
+			if !ok {
+				mr.t.Fatalf("Expected file for stage %q not found in document_stores", stageName)
+			}
+			if actual != expectedContent {
+				mr.t.Fatalf("File content mismatch for stage %q:\n%s",
+					stageName, mr.diff(actual, expectedContent, "data", "code"))
+			}
 		}
 	}
 }

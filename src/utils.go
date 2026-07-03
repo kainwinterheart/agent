@@ -2,8 +2,10 @@ package main
 
 import (
 	"agent-go/pkg/loader"
+	td "agent-go/test_data"
 	jsonv2text "encoding/json/jsontext"
 	"fmt"
+	immutable "github.com/benbjohnson/immutable"
 	"io"
 	"os"
 	"os/exec"
@@ -12,8 +14,6 @@ import (
 	"strings"
 	"time"
 )
-
-var runCodexHook func(agentName, session, prompt string, schema map[string]interface{}, timeout string) (string, string, error)
 
 func logStep(msg string, step string) {
 	fmt.Fprintf(os.Stderr, ">> [%s] [%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), step, msg)
@@ -68,21 +68,16 @@ func RunCodex(
 	prompt string,
 	schema map[string]interface{},
 	timeout string,
+	context *Context,
 ) (string, string, error) {
 	var stdout, result string
 	var err error
-	if runCodexHook != nil {
-		stdout, result, err = runCodexHook(agentName, session, prompt, schema, timeout)
+	if context.runCodexHook != nil {
+		stdout, result, err = context.runCodexHook(agentName, session, prompt, schema, timeout)
 	} else {
 		stdout, result, err = realRunCodex(agentName, session, prompt, schema, timeout)
 	}
-	trace("run_codex", map[string]interface{}{
-		"agent_name": agentName,
-		"prompt":     prompt,
-		"schema":     schema,
-		"timeout":    timeout,
-		"stdout":     stdout,
-	})
+	context.Tracer.trace("run_codex", td.NewActionDetailsBuilder(nil).WithAgent(&agentName).WithPrompt(&prompt).WithSchema(td.ActionDetailsschema(*immutable.NewMapOf[string](nil, schema))).WithTimeout(&timeout).WithStdout(&stdout).Build())
 	return stdout, result, err
 }
 

@@ -1,11 +1,13 @@
 package main
 
 import (
-	dt "agent-go/gen"
+	"agent-go/gen"
 	"agent-go/pkg/loader"
+	td "agent-go/test_data"
 	jsonv2text "encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"fmt"
+	immutable "github.com/benbjohnson/immutable"
 	"os"
 	"path/filepath"
 )
@@ -15,21 +17,30 @@ type CacheResult[T any] struct {
 	FromCache bool
 }
 
-var runJSONAgentHook func(agentName, invocationID, prompt string)
-
-func RunJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string) T {
-	return runJSONAgent(agent, inputText, invocationID, subdir).Out
+func RunJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string, context *Context) T {
+	return runJSONAgent(agent, inputText, invocationID, subdir, context).Out
 }
 
-func runJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string) CacheResult[T] {
-	if runJSONAgentHook != nil {
-		runJSONAgentHook(agent.Name, invocationID, inputText)
+func runJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string, context *Context) CacheResult[T] {
+	if context.runJSONAgentHook != nil {
+		as := context.runJSONAgentHook(agent.Name, invocationID, inputText)
+		if as == nil {
+			panic("No agent state?")
+		}
+		agent.Session = as.Session()
+		agent.SessionSuffix = as.SessionSuffix()
+		if as.LastCorrectResponse() != nil {
+			var lcr T
+			jsonv2.Unmarshal([]byte(*as.LastCorrectResponse()), &lcr, jsonv2text.AllowDuplicateNames(true))
+			agent.LastCorrectResponse = &lcr
+		}
 	}
-	trace("prepare_to_run_agent", map[string]interface{}{
-		"invocation_id": invocationID,
-		"agent":         agent.Name,
-		"prompt":        inputText,
-	})
+	asb := td.NewAgentStateBuilder(nil).WithSession(agent.Session).WithSessionSuffix(agent.SessionSuffix)
+	if agent.LastCorrectResponse != nil {
+		lcr := MarshalJSON(agent.LastCorrectResponse)
+		asb = asb.WithLastCorrectResponse(&lcr)
+	}
+	context.Tracer.trace("prepare_to_run_agent", td.NewActionDetailsBuilder(nil).WithInvocationId(&invocationID).WithAgent(&agent.Name).WithPrompt(&inputText).WithAgentState(asb.Build()).Build())
 
 	var raw string
 	updated := false
@@ -42,7 +53,7 @@ func runJSONAgent[T any](agent *Agent[T], inputText string, invocationID string,
 	if raw == "" {
 		stateDir := filepath.Join(BuildPath(subdir, ".state"), fmt.Sprintf("%s_%s.in", agent.Name, invocationID))
 		AtomicWrite(stateDir, inputText)
-		raw = agent.Run(inputText)
+		raw = agent.Run(inputText, context)
 		updated = true
 	} else {
 		if j, err := ExtractJSON(raw); err == nil {
@@ -86,7 +97,7 @@ Your previous output failed JSON validation:
 Output MUST be valid JSON only:
 %s
 </feedback>
-`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)))
+`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)), context)
 			updated = true
 			continue
 		}
@@ -104,7 +115,7 @@ Your previous output failed JSON validation:
 Output MUST be valid JSON only:
 %s
 </feedback>
-`, agent.ResumePrompt, valErr, loader.SchemaToExample(agent.Schema)))
+`, agent.ResumePrompt, valErr, loader.SchemaToExample(agent.Schema)), context)
 				updated = true
 				continue
 			}
@@ -123,12 +134,12 @@ Your previous output failed JSON validation:
 Output MUST be valid JSON only:
 %s
 </feedback>
-`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)))
+`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)), context)
 			updated = true
 			continue
 		}
 		if agent.Ephemeral {
-			agent.Reset()
+			agent.Reset(context)
 		} else {
 			agent.LastCorrectResponse = &out
 		}
@@ -159,7 +170,7 @@ type IWithNextSteps[
 }
 
 func Nudge[
-	TNextSteps ~[]string,
+	TNextSteps ~*immutable.List[string],
 	TObject IWithNextSteps[
 		TNextSteps,
 		TObject,
@@ -176,12 +187,13 @@ func Nudge[
 	prompt string,
 	invocationIDPrefix string,
 	subdir []string,
-	nsc *Agent[dt.NonCoderNextStepsCleanupJson],
+	nsc *Agent[dt.NonCoderNextStepsCleanup],
+	context *Context,
 ) []CacheResult[TObject] {
 	nextPrompt := prompt
 	results := []CacheResult[TObject]{}
 	for i := 0; i < maxIt; i++ {
-		result := runJSONAgent(agent, nextPrompt, fmt.Sprintf("%s-nudge%d", invocationIDPrefix, i), subdir)
+		result := runJSONAgent(agent, nextPrompt, fmt.Sprintf("%s-nudge%d", invocationIDPrefix, i), subdir, context)
 
 		var nextSteps TNextSteps
 		nsPtr := result.Out.NextSteps()
@@ -193,13 +205,13 @@ func Nudge[
 			}
 		}
 		results = append(results, result)
-		if nextSteps == nil || len(nextSteps) == 0 {
+		if nextSteps == nil || (*immutable.List[string])(nextSteps).Len() == 0 {
 			break
 		}
 		if nsc != nil {
-			nscResult := runJSONAgent(nsc, fmt.Sprintf("INPUT:\n%s\n\nReturn the filtered list of steps, exactly as written.\nDo not include any explanation or commentary.", MarshalJSON(map[string]interface{}{"next_steps": nextSteps})), fmt.Sprintf("%s-nudge%d-nsc", invocationIDPrefix, i), subdir)
+			nscResult := runJSONAgent(nsc, fmt.Sprintf("INPUT:\n%s\n\nReturn the filtered list of steps, exactly as written.\nDo not include any explanation or commentary.", MarshalJSON(map[string]interface{}{"next_steps": immutableListToSlice((*immutable.List[string])(nextSteps))})), fmt.Sprintf("%s-nudge%d-nsc", invocationIDPrefix, i), subdir, context)
 			filtered := nscResult.Out.Lines()
-			if len(filtered) == 0 {
+			if filtered.Len() == 0 {
 				break
 			}
 			nextSteps = filtered
@@ -214,7 +226,11 @@ func Nudge[
 		}
 		nextPrompt += fmt.Sprintf("ITERATION: %d/%d\n", i+1, maxIt)
 		nextPrompt += "<feedback>\nADDRESS YOUR NEXT STEPS:\n"
-		for _, s := range nextSteps {
+		var s string
+		nextStepsItr := (*immutable.List[string])(nextSteps).Iterator()
+		nextStepsItr.First()
+		for !nextStepsItr.Done() {
+			_, s = nextStepsItr.Next()
 			nextPrompt += fmt.Sprintf("* %s\n", s)
 		}
 		nextPrompt += "</feedback>\n"
