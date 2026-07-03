@@ -59,12 +59,6 @@
         "pointer": false
       }
     },
-    "workstreamID": {
-      "type": "string",
-      "goJSONSchema": {
-        "pointer": false
-      }
-    },
     "iteration": {
       "type": "integer",
       "goJSONSchema": {
@@ -126,22 +120,10 @@
             }
           }
         },
-        "codeSummary": {
-          "type": "string",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
         "finalFeedback": {
           "goJSONSchema": {
             "type": "dt.ArchFinal",
             "pointer": true
-          }
-        },
-        "finalReviewPassed": {
-          "type": "boolean",
-          "goJSONSchema": {
-            "pointer": false
           }
         },
         "wrappedTask": {
@@ -156,16 +138,16 @@
             "pointer": false
           }
         },
-        "pmFilepath": {
-          "type": "string",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
         "allChanges": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
+          }
+        },
+        "techLeadReviewIter": {
+          "type": "integer",
+          "goJSONSchema": {
+            "pointer": false
           }
         },
         "codeSummaries": {
@@ -174,20 +156,8 @@
             "type": "string"
           }
         },
-        "mergedSummaries": {
-          "type": "string",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
         "techLeadRevisionCycle": {
           "type": "boolean",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
-        "techLeadReviewIter": {
-          "type": "integer",
           "goJSONSchema": {
             "pointer": false
           }
@@ -239,12 +209,6 @@
             "$ref": "#/$defs/DomainState"
           }
         },
-        "investigationPlan": {
-          "goJSONSchema": {
-            "type": "dt.InvestigatorPlan",
-            "pointer": true
-          }
-        },
         "investigationResults": {
           "goJSONSchema": {
             "type": "dt.InvestigationReport",
@@ -267,12 +231,6 @@
             }
           }
         },
-        "speculativeExpansions": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "out": {
           "type": "string",
           "goJSONSchema": {
@@ -291,28 +249,16 @@
             "pointer": false
           }
         },
-        "domainIterationIndex": {
-          "type": "integer",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
-        "domainIterationTotal": {
-          "type": "integer",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
         "domainCurrentStage": {
           "type": "string",
           "goJSONSchema": {
             "pointer": false
           }
         },
-        "techLeadDocSuffix": {
-          "type": "string",
+        "investigationPlan": {
           "goJSONSchema": {
-            "pointer": false
+            "type": "dt.InvestigatorPlan",
+            "pointer": true
           }
         }
       }
@@ -320,30 +266,6 @@
     "PayloadData": {
       "type": "object",
       "properties": {
-        "revisionPrompt": {
-          "type": "string",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
-        "docSuffix": {
-          "type": "string",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
-        "revisionInvPrefix": {
-          "type": "string",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
-        "initialPromptContext": {
-          "type": "string",
-          "goJSONSchema": {
-            "pointer": false
-          }
-        },
         "codeReview": {
           "goJSONSchema": {
             "type": "dt.CodeReview",
@@ -353,18 +275,6 @@
         "decompositionReview": {
           "goJSONSchema": {
             "type": "dt.SystemDecompositionReview",
-            "pointer": true
-          }
-        },
-        "investigationPlanQualityReview": {
-          "goJSONSchema": {
-            "type": "dt.InvestigationPlanQualityReview",
-            "pointer": true
-          }
-        },
-        "gapAnalysisReview": {
-          "goJSONSchema": {
-            "type": "dt.GapAnalysisReview",
             "pointer": true
           }
         },
@@ -380,18 +290,6 @@
             "pointer": true
           }
         },
-        "archFinal": {
-          "goJSONSchema": {
-            "type": "dt.ArchFinal",
-            "pointer": true
-          }
-        },
-        "factReview": {
-          "goJSONSchema": {
-            "type": "dt.FactCheckingReview",
-            "pointer": true
-          }
-        },
         "consistencyReview": {
           "goJSONSchema": {
             "type": "dt.SynthesisConsistencyReview",
@@ -404,54 +302,34 @@
             "pointer": true
           }
         },
-        "hasTechLeadFinalReview": {
-          "type": "boolean",
+        "revisionPrompt": {
+          "type": "string",
           "goJSONSchema": {
             "pointer": false
           }
         },
-        "investigationReport": {
+        "archFinal": {
           "goJSONSchema": {
-            "type": "dt.InvestigationReport",
+            "type": "dt.ArchFinal",
             "pointer": true
           }
         },
-        "investigatorFindings": {
+        "investigationPlanQualityReview": {
           "goJSONSchema": {
-            "type": "dt.InvestigatorFindings",
+            "type": "dt.InvestigationPlanQualityReview",
             "pointer": true
           }
         },
-        "coderOutputs": {
-          "type": "array",
-          "items": {
-            "goJSONSchema": {
-              "type": "dt.Coder"
-            }
-          }
-        },
-        "allChanges": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "iterCount": {
-          "type": "integer",
+        "factReview": {
           "goJSONSchema": {
-            "pointer": false
-          }
-        },
-        "workstreamElem": {
-          "goJSONSchema": {
-            "type": "dt.InvestigatorPlanworkstreamsElem",
+            "type": "dt.FactCheckingReview",
             "pointer": true
           }
         },
-        "tlIter": {
-          "type": "integer",
+        "gapAnalysisReview": {
           "goJSONSchema": {
-            "pointer": false
+            "type": "dt.GapAnalysisReview",
+            "pointer": true
           }
         }
       }

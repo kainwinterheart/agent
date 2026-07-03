@@ -540,7 +540,7 @@ func (o *Orchestrator) executePMReview(step *state.WorkflowStep, context *Contex
 		if speculativeExpansions.Len() > 0 {
 			hasExpansions = true
 		}
-		modState := state.NewWorkflowStateBuilder(step.State()).WithRephrasedTask(rephrasedTask).WithSpeculativeExpansions(speculativeExpansions).Build()
+		modState := state.NewWorkflowStateBuilder(step.State()).WithRephrasedTask(rephrasedTask).Build()
 		if hasExpansions {
 			o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypePMExpansionCleanup, modState).Build())
 			return
@@ -569,7 +569,7 @@ func (o *Orchestrator) executePMReview(step *state.WorkflowStep, context *Contex
 
 func (o *Orchestrator) executePMExpansionCleanup(step *state.WorkflowStep, context *Context) {
 	rephrasedTask := step.State().RephrasedTask()
-	speculativeExpansions := step.State().SpeculativeExpansions()
+	speculativeExpansions := rephrasedTask.SpeculativeExpansions()
 	expSlice := make([]string, speculativeExpansions.Len())
 	itr := speculativeExpansions.Iterator()
 	itr.First()
@@ -799,8 +799,7 @@ func (o *Orchestrator) executeInvestigationPlanStructuralReview(step *state.Work
 		}
 
 		modState := state.NewWorkflowStateBuilder(step.State()).WithWorkstreams(listToImmutableList(workstreams)).WithCompletedWorkstreams(state.WorkflowStatecompletedworkstreams(*immutable.NewMap[string, dt.InvestigatorFindings](nil))).Build()
-		wsID := strings.ToLower(strings.TrimSpace(workstreams[0].Id()))
-		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, modState).WithWorkstreamID(wsID).WithWorkstreamIndex(0).Build())
+		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, modState).WithWorkstreamIndex(0).Build())
 		return
 	}
 
@@ -847,6 +846,21 @@ func setCompletedWorkstream(cw state.WorkflowStatecompletedworkstreams, key stri
 	m := (*immutable.Map[string, dt.InvestigatorFindings])(&cw)
 	newM := m.Set(key, val)
 	return state.WorkflowStatecompletedworkstreams(*newM)
+}
+
+// isDomainFinalReviewPassed returns true if a domain has passed final review.
+// This replaces the FinalReviewPassed field which was removed from DomainState.
+func isDomainFinalReviewPassed(d *state.DomainState) bool {
+	if d.FinalFeedback() != nil {
+		return true
+	}
+	// Empty domain (no spec case) - marked as passed without actual review
+	if d.Architecture() == nil && d.Plan() == nil {
+		if d.CodeOutputs() == nil || d.CodeOutputs().Len() == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func immutableMapToRegular(m *immutable.Map[string, string]) map[string]string {
@@ -908,7 +922,8 @@ func buildInvestigationWorkstreamPrompt(wsElem dt.InvestigatorPlanworkstreamsEle
 }
 
 func (o *Orchestrator) executeInvestigationWorkstream(step *state.WorkflowStep, context *Context) {
-	workstreamID := step.WorkstreamID()
+	wsElem := step.State().Workstreams().Get(step.WorkstreamIndex())
+	workstreamID := strings.ToLower(strings.TrimSpace(wsElem.Id()))
 	if _, exists := lookupCompletedWorkstream(step.State().CompletedWorkstreams(), workstreamID); exists {
 
 		if step.Payload() == nil {
@@ -922,7 +937,7 @@ func (o *Orchestrator) executeInvestigationWorkstream(step *state.WorkflowStep, 
 	iteration := step.Iteration()
 
 	workstreams := step.State().Workstreams()
-	wsElem := workstreams.Get(workstreamIndex)
+	wsElem = workstreams.Get(workstreamIndex)
 
 	depsList := wsElem.Dependencies()
 	if depsList != nil {
@@ -961,8 +976,7 @@ func (o *Orchestrator) executeInvestigationWorkstream(step *state.WorkflowStep, 
 			nh := nextWs.Hypotheses().Len() > 0
 			nds := nextWs.DataSources().Len() > 0
 			if nh && nds {
-				nid := strings.ToLower(strings.TrimSpace(nextWs.Id()))
-				o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, modState).WithWorkstreamID(nid).WithWorkstreamIndex(i).Build())
+				o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, modState).WithWorkstreamIndex(i).Build())
 				return
 			}
 		}
@@ -994,19 +1008,20 @@ func (o *Orchestrator) executeInvestigationWorkstream(step *state.WorkflowStep, 
 	cw := step.State().CompletedWorkstreams()
 	cw = setCompletedWorkstream(cw, workstreamID, findings)
 	modState := state.NewWorkflowStateBuilder(step.State()).WithCompletedWorkstreams(cw).Build()
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstreamReview, modState).WithWorkstreamID(workstreamID).WithIteration(iteration).WithWorkstreamIndex(workstreamIndex).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstreamReview, modState).WithIteration(iteration).WithWorkstreamIndex(workstreamIndex).Build())
 }
 
 func (o *Orchestrator) executeInvestigationWorkstreamReview(step *state.WorkflowStep, context *Context) {
 	iteration := step.Iteration()
-	workstreamID := step.WorkstreamID()
 	workstreamIndex := step.WorkstreamIndex()
 	domainIntID := workstreamIndex + 1
+	wsElem := step.State().Workstreams().Get(workstreamIndex)
+	workstreamID := strings.ToLower(strings.TrimSpace(wsElem.Id()))
 	findingsVal, findingsOk := lookupCompletedWorkstream(step.State().CompletedWorkstreams(), workstreamID)
 	if !findingsOk {
 		return
 	}
-	wsElem := step.State().Workstreams().Get(workstreamIndex)
+	wsElem = step.State().Workstreams().Get(workstreamIndex)
 
 	gapReview := RunJSONAgent(
 		o.Agents.GapAnalysisReviewer,
@@ -1015,19 +1030,20 @@ func (o *Orchestrator) executeInvestigationWorkstreamReview(step *state.Workflow
 		[]string{step.State().Subdir(), "investigation", fmt.Sprintf("%d", domainIntID)}, context,
 	)
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationFactReview, step.State()).WithIteration(iteration).WithWorkstreamID(workstreamID).WithWorkstreamIndex(workstreamIndex).WithPayload(state.NewPayloadDataBuilder(nil).WithGapAnalysisReview(&gapReview).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationFactReview, step.State()).WithIteration(iteration).WithWorkstreamIndex(workstreamIndex).WithPayload(state.NewPayloadDataBuilder(nil).WithGapAnalysisReview(&gapReview).Build()).Build())
 }
 
 func (o *Orchestrator) executeInvestigationFactReview(step *state.WorkflowStep, context *Context) {
 	iteration := step.Iteration()
-	workstreamID := step.WorkstreamID()
 	workstreamIndex := step.WorkstreamIndex()
+	wsElem := step.State().Workstreams().Get(workstreamIndex)
+	workstreamID := strings.ToLower(strings.TrimSpace(wsElem.Id()))
 	gapReview := step.Payload().GapAnalysisReview()
 	findingsVal, findingsOk := lookupCompletedWorkstream(step.State().CompletedWorkstreams(), workstreamID)
 	if !findingsOk {
 		return
 	}
-	wsElem := step.State().Workstreams().Get(workstreamIndex)
+	wsElem = step.State().Workstreams().Get(workstreamIndex)
 
 	factReview := RunJSONAgent(
 		o.Agents.FactCheckingReviewer,
@@ -1036,7 +1052,7 @@ func (o *Orchestrator) executeInvestigationFactReview(step *state.WorkflowStep, 
 		[]string{step.State().Subdir(), "investigation", fmt.Sprintf("%d", workstreamIndex+1)}, context,
 	)
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationFactReviewOrchestrator, step.State()).WithIteration(iteration).WithWorkstreamID(workstreamID).WithWorkstreamIndex(workstreamIndex).WithPayload(state.NewPayloadDataBuilder(nil).WithFactReview(&factReview).WithGapAnalysisReview(gapReview).WithInvestigatorFindings(&findingsVal).WithWorkstreamElem(&wsElem).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationFactReviewOrchestrator, step.State()).WithIteration(iteration).WithWorkstreamIndex(workstreamIndex).WithPayload(state.NewPayloadDataBuilder(nil).WithFactReview(&factReview).WithGapAnalysisReview(gapReview).Build()).Build())
 }
 
 func (o *Orchestrator) executeInvestigationSynthesis(step *state.WorkflowStep, context *Context) {
@@ -1059,7 +1075,7 @@ func (o *Orchestrator) executeInvestigationSynthesis(step *state.WorkflowStep, c
 
 	var revisionPrompt string
 	if step.Payload() != nil {
-		reportVal := step.Payload().InvestigationReport()
+		reportVal := step.State().InvestigationResults()
 		consistencyReview := step.Payload().ConsistencyReview()
 		revisionPrompt = fmt.Sprintf(
 			"REVIEW FEEDBACK:\n%s\nFINDINGS:\n%s\nPREVIOUS REPORT:\n%s\n\nRebuild the investigation report from scratch using the findings and review feedback.",
@@ -1114,7 +1130,7 @@ func (o *Orchestrator) executeInvestigationConsistencyReview(step *state.Workflo
 		[]string{step.State().Subdir(), "investigation"}, context,
 	)
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationConsistencyReviewOrchestrator, step.State()).WithIteration(iteration).WithPayload(state.NewPayloadDataBuilder(nil).WithInvestigationReport(&reportVal).WithConsistencyReview(&consistencyReview).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationConsistencyReviewOrchestrator, step.State()).WithIteration(iteration).WithPayload(state.NewPayloadDataBuilder(nil).WithConsistencyReview(&consistencyReview).Build()).Build())
 }
 
 func (o *Orchestrator) executeDomainStart(step *state.WorkflowStep, context *Context) {
@@ -1136,7 +1152,6 @@ func (o *Orchestrator) executeDomainStart(step *state.WorkflowStep, context *Con
 		spec, archExtra := BuildArchitectInput(domainMap, integrationOwnershipList)
 		if spec == "" {
 			ds := state.NewDomainStateBuilder(nil).
-				WithFinalReviewPassed(true).
 				Build()
 			domains := setDomain(step.State().Domains(), domainID, ds)
 			modState := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).WithDomainCurrentStage("final_review").Build()
@@ -1162,7 +1177,6 @@ func (o *Orchestrator) executeDomainStart(step *state.WorkflowStep, context *Con
 		ds := state.NewDomainStateBuilder(nil).
 			WithWrappedTask(wrappedTask).
 			WithWrappedCoderTask(wrappedCoderTask).
-			WithPmFilepath(step.State().PmFilepath()).
 			WithAllChanges(state.DomainStateallchanges(*emptyMap)).
 			WithCodeSummaries(immutable.NewList[string]()).
 			Build()
@@ -1174,7 +1188,6 @@ func (o *Orchestrator) executeDomainStart(step *state.WorkflowStep, context *Con
 	}
 
 	ds := state.NewDomainStateBuilder(nil).
-		WithFinalReviewPassed(true).
 		Build()
 	domainStates := step.State().Domains()
 	domainStates = setDomain(domainStates, domainID, ds)
@@ -1190,7 +1203,7 @@ func (o *Orchestrator) executeArchitecture(step *state.WorkflowStep, context *Co
 	revIterForNudge := reviewIter
 	ds, _ := getDomain(step.State().Domains(), domainID)
 
-	ds = *state.NewDomainStateBuilder(&ds).WithCodeSummaries(immutable.NewList[string]()).WithFinalReviewPassed(false).WithMergedSummaries("").Build()
+	ds = *state.NewDomainStateBuilder(&ds).WithCodeSummaries(immutable.NewList[string]()).Build()
 
 	decompRes := step.State().DecompositionResult()
 	decomp := decompRes.Decomposition()
@@ -1202,9 +1215,9 @@ func (o *Orchestrator) executeArchitecture(step *state.WorkflowStep, context *Co
 
 	if step.Payload() == nil {
 		if ds.FinalFeedback() != nil && ds.FinalFeedback() != nil {
-			initialPrompt = fmt.Sprintf("BROAD PRODUCT SPECIFICATION: %s\nREVISE ARCHITECTURE based on feedback post implementation:\n%s", ds.PmFilepath(), MarshalJSON(ds.FinalFeedback()))
+			initialPrompt = fmt.Sprintf("BROAD PRODUCT SPECIFICATION: %s\nREVISE ARCHITECTURE based on feedback post implementation:\n%s", step.State().PmFilepath(), MarshalJSON(ds.FinalFeedback()))
 		} else {
-			initialPrompt = fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s", ds.WrappedTask(), ds.PmFilepath())
+			initialPrompt = fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s", ds.WrappedTask(), step.State().PmFilepath())
 		}
 	}
 
@@ -1217,10 +1230,10 @@ func (o *Orchestrator) executeArchitecture(step *state.WorkflowStep, context *Co
 			o.Agents.Arch.Reset(context, fmt.Sprintf("d%d-arch-%d-%d", domainIntID, iteration, reviewIter-1))
 			reviewPrompt = fmt.Sprintf(
 				"TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nPREVIOUS ARCHITECTURE:\n%s\nREVIEW FEEDBACK:\n%s\n\nRebuild the architecture from scratch using the task and review feedback.",
-				ds.WrappedTask(), ds.PmFilepath(), MarshalJSON(ds.Architecture()), MarshalJSON(review),
+				ds.WrappedTask(), step.State().PmFilepath(), MarshalJSON(ds.Architecture()), MarshalJSON(review),
 			)
 		} else {
-			reviewPrompt = fmt.Sprintf("BROAD PRODUCT SPECIFICATION: %s\nREVISE ARCHITECTURE based on feedback:\n%s", ds.PmFilepath(), MarshalJSON(review))
+			reviewPrompt = fmt.Sprintf("BROAD PRODUCT SPECIFICATION: %s\nREVISE ARCHITECTURE based on feedback:\n%s", step.State().PmFilepath(), MarshalJSON(review))
 		}
 	}
 
@@ -1251,7 +1264,7 @@ func (o *Orchestrator) executeArchitectureReview(step *state.WorkflowStep, conte
 		100,
 		o.Agents.ArchReview,
 		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nATTEMPT: %d/%d\nARCHITECTURE TO REVIEW:\n%s",
-			ds.WrappedTask(), ds.PmFilepath(), reviewIter+1, MAXPlanIters, MarshalJSON(arch)),
+			ds.WrappedTask(), step.State().PmFilepath(), reviewIter+1, MAXPlanIters, MarshalJSON(arch)),
 		fmt.Sprintf("d%d-arch-%d-review-%d", domainIntID, iteration, reviewIter),
 		[]string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)},
 		o.Agents.NextStepsCleanup, context,
@@ -1280,8 +1293,6 @@ func (o *Orchestrator) executeDecompositionOrchestrator(step *state.WorkflowStep
 		firstSortedIdx := sortedIndices[0]
 		if firstSortedIdx < len(domains) {
 			modState := state.NewWorkflowStateBuilder(step.State()).
-				WithDomainIterationIndex(0).
-				WithDomainIterationTotal(len(sortedIndices)).
 				Build()
 			o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeBoundary, modState).Build())
 		}
@@ -1373,9 +1384,8 @@ func (o *Orchestrator) executeCodeReviewOrchestrator(step *state.WorkflowStep, c
 		return
 	}
 
-	ds, _ := getDomain(step.State().Domains(), domainID)
 	crIter := codeReviewIter + 1
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeImplementation, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(crIter).WithPayload(state.NewPayloadDataBuilder(nil).WithCodeReview(review).WithTlIter(ds.TechLeadReviewIter()).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeImplementation, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(crIter).WithPayload(state.NewPayloadDataBuilder(nil).WithCodeReview(review).Build()).Build())
 }
 
 func (o *Orchestrator) executeTechLeadReviewOrchestrator(step *state.WorkflowStep, context *Context) {
@@ -1386,7 +1396,6 @@ func (o *Orchestrator) executeTechLeadReviewOrchestrator(step *state.WorkflowSte
 	if reviewOk[dt.TechLeadFinalissuesElemseverity](techLeadFinalReview) {
 		modState := state.NewWorkflowStateBuilder(step.State()).
 			WithDomainCurrentStage("tech_lead_review").
-			WithTechLeadDocSuffix(step.Payload().DocSuffix()).
 			Build()
 		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeBoundary, modState).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).Build())
 		return
@@ -1408,7 +1417,7 @@ func (o *Orchestrator) executeTechLeadReviewOrchestrator(step *state.WorkflowSte
 	domains := setDomain(step.State().Domains(), domainID, &ds)
 	newWs := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeImplementation, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(0).WithPayload(state.NewPayloadDataBuilder(nil).WithTechLeadFinalReview(techLeadFinalReview).WithHasTechLeadFinalReview(true).WithDocSuffix(step.Payload().DocSuffix()).WithTlIter(revisionTlIter).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeImplementation, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(0).WithPayload(state.NewPayloadDataBuilder(nil).WithTechLeadFinalReview(techLeadFinalReview).Build()).Build())
 }
 func (o *Orchestrator) executeArchitectureFinalReviewOrchestrator(step *state.WorkflowStep, context *Context) {
 	domainID := step.DomainID()
@@ -1417,7 +1426,7 @@ func (o *Orchestrator) executeArchitectureFinalReviewOrchestrator(step *state.Wo
 	ds, _ := getDomain(step.State().Domains(), domainID)
 
 	if reviewOk[dt.ArchFinalissuesElemseverity](finalFeedback) {
-		ds = *state.NewDomainStateBuilder(&ds).WithFinalFeedback(finalFeedback).WithFinalReviewPassed(true).Build()
+		ds = *state.NewDomainStateBuilder(&ds).WithFinalFeedback(finalFeedback).Build()
 		domains := setDomain(step.State().Domains(), domainID, &ds)
 		newWs := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
 		modState := state.NewWorkflowStateBuilder(newWs).WithDomainCurrentStage("final_review").Build()
@@ -1433,17 +1442,17 @@ func (o *Orchestrator) executeArchitectureFinalReviewOrchestrator(step *state.Wo
 
 func (o *Orchestrator) executeInvestigationFactReviewOrchestrator(step *state.WorkflowStep, context *Context) {
 	iteration := step.Iteration()
-	workstreamID := step.WorkstreamID()
 	workstreamIndex := step.WorkstreamIndex()
 	gapReview := step.Payload().GapAnalysisReview()
 	factReview := step.Payload().FactReview()
-	findingsVal := step.Payload().InvestigatorFindings()
-	wsElem := step.Payload().WorkstreamElem()
+	wsElem := step.State().Workstreams().Get(step.WorkstreamIndex())
+	workstreamID := strings.ToLower(strings.TrimSpace(wsElem.Id()))
+	findingsVal, _ := lookupCompletedWorkstream(step.State().CompletedWorkstreams(), workstreamID)
 
 	if reviewOk[dt.GapAnalysisReviewissuesElemseverity](gapReview) && reviewOk[dt.FactCheckingReviewissuesElemseverity](factReview) {
-		MarkdownDocumentGenerator(*findingsVal, fmt.Sprintf("investigation_workstream_%d", workstreamIndex+1), []string{step.State().Subdir(), "investigation", fmt.Sprintf("%d", workstreamIndex+1)}, context)
+		MarkdownDocumentGenerator(findingsVal, fmt.Sprintf("investigation_workstream_%d", workstreamIndex+1), []string{step.State().Subdir(), "investigation", fmt.Sprintf("%d", workstreamIndex+1)}, context)
 		cw := step.State().CompletedWorkstreams()
-		cw = setCompletedWorkstream(cw, workstreamID, *findingsVal)
+		cw = setCompletedWorkstream(cw, workstreamID, findingsVal)
 		modState := state.NewWorkflowStateBuilder(step.State()).WithCompletedWorkstreams(cw).Build()
 		allComplete := true
 		wsItr := modState.Workstreams().Iterator()
@@ -1462,9 +1471,7 @@ func (o *Orchestrator) executeInvestigationFactReviewOrchestrator(step *state.Wo
 			nextIdx := workstreamIndex + 1
 			workstreams := modState.Workstreams()
 			if nextIdx < workstreams.Len() {
-				nextWs := workstreams.Get(nextIdx)
-				nextID := strings.ToLower(strings.TrimSpace(nextWs.Id()))
-				o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, modState).WithWorkstreamID(nextID).WithWorkstreamIndex(nextIdx).Build())
+				o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, modState).WithWorkstreamIndex(nextIdx).Build())
 			}
 		}
 		return
@@ -1479,18 +1486,18 @@ func (o *Orchestrator) executeInvestigationFactReviewOrchestrator(step *state.Wo
 		o.Agents.InvestigatorExecutor.Reset(context, fmt.Sprintf("investigation-workstream-%d-%d", workstreamIndex+1, iteration))
 		revisionPrompt = fmt.Sprintf(
 			"WORKSTREAM:\n%s\nPREVIOUS FINDINGS:\n%s\nREVIEW FEEDBACK:\n%s\n\nRevise the investigation findings for this workstream.",
-			buildInvestigationWorkstreamPrompt(*wsElem, step.State().CompletedWorkstreams()), MarshalJSON(findingsVal), MarshalJSON(combinedReview),
+			buildInvestigationWorkstreamPrompt(wsElem, step.State().CompletedWorkstreams()), MarshalJSON(findingsVal), MarshalJSON(combinedReview),
 		)
 	} else {
 		revisionPrompt = fmt.Sprintf("REVISE INVESTIGATION FINDINGS based on feedback:\n%s", MarshalJSON(combinedReview))
 	}
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, step.State()).WithIteration(iteration + 1).WithWorkstreamID(workstreamID).WithWorkstreamIndex(workstreamIndex).WithPayload(state.NewPayloadDataBuilder(nil).WithRevisionPrompt(revisionPrompt).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationWorkstream, step.State()).WithIteration(iteration + 1).WithWorkstreamIndex(workstreamIndex).WithPayload(state.NewPayloadDataBuilder(nil).WithRevisionPrompt(revisionPrompt).Build()).Build())
 }
 
 func (o *Orchestrator) executeInvestigationConsistencyReviewOrchestrator(step *state.WorkflowStep, context *Context) {
 	iteration := step.Iteration()
-	reportVal := step.Payload().InvestigationReport()
+	reportVal := step.State().InvestigationResults()
 	consistencyReview := step.Payload().ConsistencyReview()
 
 	if reviewOk[dt.SynthesisConsistencyReviewissuesElemseverity](consistencyReview) {
@@ -1498,7 +1505,7 @@ func (o *Orchestrator) executeInvestigationConsistencyReviewOrchestrator(step *s
 		return
 	}
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationSynthesis, step.State()).WithIteration(iteration + 1).WithPayload(state.NewPayloadDataBuilder(nil).WithInvestigationReport(reportVal).WithConsistencyReview(consistencyReview).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeInvestigationSynthesis, step.State()).WithIteration(iteration + 1).WithPayload(state.NewPayloadDataBuilder(nil).WithConsistencyReview(consistencyReview).Build()).Build())
 }
 
 func (o *Orchestrator) executePlanReview(step *state.WorkflowStep, context *Context) {
@@ -1514,7 +1521,7 @@ func (o *Orchestrator) executePlanReview(step *state.WorkflowStep, context *Cont
 		100,
 		o.Agents.PlanReview,
 		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nATTEMPT: %d/%d\nAPPROVED ARCHITECTURE:\n%s\nPLAN TO REVIEW:\n%s",
-			ds.WrappedCoderTask(), ds.PmFilepath(), reviewIter+1, MAXPlanIters, MarshalJSON(arch), MarshalJSON(plan)),
+			ds.WrappedCoderTask(), step.State().PmFilepath(), reviewIter+1, MAXPlanIters, MarshalJSON(arch), MarshalJSON(plan)),
 		fmt.Sprintf("d%d-plan-%d-review-%d", domainIntID, iteration, reviewIter),
 		[]string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)},
 		o.Agents.NextStepsCleanup, context,
@@ -1542,17 +1549,17 @@ func (o *Orchestrator) executePlan(step *state.WorkflowStep, context *Context) {
 			o.Agents.TechLead.Reset(context, fmt.Sprintf("d%d-plan-%d-%d", domainIntID, iteration, step.ReviewIteration()))
 			initialPrompt = fmt.Sprintf(
 				"TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nAPPROVED ARCHITECTURE:\n%s\nPREVIOUS PLAN:\n%s\nREVIEW FEEDBACK:\n%s\n\nRebuild the plan from scratch using the task, architecture, and review feedback.",
-				ds.WrappedCoderTask(), ds.PmFilepath(), MarshalJSON(arch), MarshalJSON(ds.Plan()), MarshalJSON(review),
+				ds.WrappedCoderTask(), step.State().PmFilepath(), MarshalJSON(arch), MarshalJSON(ds.Plan()), MarshalJSON(review),
 			)
 		} else {
-			initialPrompt = fmt.Sprintf("BROAD PRODUCT SPECIFICATION: %s\nREVISE PLAN based on feedback:\n%s", ds.PmFilepath(), MarshalJSON(review))
+			initialPrompt = fmt.Sprintf("BROAD PRODUCT SPECIFICATION: %s\nREVISE PLAN based on feedback:\n%s", step.State().PmFilepath(), MarshalJSON(review))
 		}
 		planReviewIteration = step.ReviewIteration() + 1
 		initialPrompt += planExtraPrompt
 	} else {
 
 		initialPrompt = fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nAPPROVED ARCHITECTURE:\n%s%s",
-			ds.WrappedCoderTask(), ds.PmFilepath(), MarshalJSON(arch), planExtraPrompt)
+			ds.WrappedCoderTask(), step.State().PmFilepath(), MarshalJSON(arch), planExtraPrompt)
 	}
 
 	planResults := Nudge(
@@ -1607,7 +1614,7 @@ func (o *Orchestrator) executeCodeImplementation(step *state.WorkflowStep, conte
 	if ds.TechLeadRevisionCycle() {
 
 		if step.Payload() != nil {
-			tlIter = step.Payload().TlIter()
+			tlIter = ds.TechLeadReviewIter()
 		}
 		invocationIDPrefix = fmt.Sprintf("d%d-impl-revision-%d-%d", domainIntID, iteration, tlIter)
 	} else {
@@ -1621,7 +1628,7 @@ func (o *Orchestrator) executeCodeImplementation(step *state.WorkflowStep, conte
 		review = step.Payload().CodeReview()
 		hasTLReview := false
 		var tlReview *dt.TechLeadFinal
-		if step.Payload().HasTechLeadFinalReview() {
+		if step.Payload().TechLeadFinalReview() != nil {
 			hasTLReview = true
 			tlReview = step.Payload().TechLeadFinalReview()
 		}
@@ -1712,7 +1719,7 @@ func (o *Orchestrator) executeCodeImplementation(step *state.WorkflowStep, conte
 	if codeReviewPushIter >= MAXCodeIters {
 		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeBoundary, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).Build())
 	} else if review != nil {
-		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeReview, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(codeReviewPushIter).WithPayload(state.NewPayloadDataBuilder(nil).WithCodeReview(review).WithTlIter(ds.TechLeadReviewIter()).Build()).Build())
+		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeReview, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(codeReviewPushIter).WithPayload(state.NewPayloadDataBuilder(nil).WithCodeReview(review).Build()).Build())
 	} else {
 		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeReview, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(codeReviewPushIter).Build())
 	}
@@ -1786,80 +1793,18 @@ func (o *Orchestrator) executeCodeReview(step *state.WorkflowStep, context *Cont
 		MarshalJSON(pastChanges),
 	)
 
-	isTechLeadReview := step.Payload() != nil && step.Payload().CoderOutputs() != nil && step.Payload().CoderOutputs().Len() > 0
-
 	var resultsRaw []CacheResult[*dt.CodeReview]
-	if isTechLeadReview {
-
-		coderOutputs := step.Payload().CoderOutputs()
-		allChanges := step.Payload().AllChanges()
-		revisionInvPrefix := step.Payload().RevisionInvPrefix()
-		initialPromptContext := step.Payload().InitialPromptContext()
-
-		iterCount := step.Payload().IterCount()
-
-		for iterCount < MAXCodeIters {
-			logStep(fmt.Sprintf("Iteration %d/%d", iterCount+1, MAXCodeIters), "CODER EXECUTION")
-
-			var recentChanges []dt.CoderchangesElem
-			var allChangesList [][]dt.CoderchangesElem
-			coderOutputsSlice := immutableListToSlice(coderOutputs)
-			for _, v := range coderOutputsSlice {
-				changesArr := v.Changes()
-				allChangesList = append(allChangesList, immutableListToSlice(changesArr))
-				recentChanges = immutableListToSlice(changesArr)
-			}
-
-			var pastChanges [][]dt.CoderchangesElem
-			if len(allChangesList) > 1 {
-				pastChanges = allChangesList[:len(allChangesList)-1]
-			}
-			var recentChangesJSON string
-			if len(recentChanges) == 0 {
-				recentChangesJSON = MarshalJSON(coderOutputsSlice[len(coderOutputsSlice)-1])
-			} else {
-				recentChangesJSON = MarshalJSON(recentChanges)
-			}
-			reviewPrompt := fmt.Sprintf(
-				"TASK:\n%s\nATTEMPT: %d/%d\n\nMOST RECENT CHANGES:\n%s\n%s\nchanges from past iterations for context:\n%s",
-				initialPromptContext,
-				iterCount+1,
-				MAXCodeIters,
-				recentChangesJSON,
-				changesPrompt(immutableMapToRegular((*immutable.Map[string, string])(&allChanges))),
-				MarshalJSON(pastChanges),
-			)
-
-			resultsRaw = Nudge(
-				MAXCodeIters,
-				o.Agents.CodeReview,
-				reviewPrompt,
-				fmt.Sprintf("%s-code-review-%d", revisionInvPrefix, iterCount),
-				[]string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)},
-				o.Agents.NextStepsCleanup, context,
-			)
-			review := resultsRaw[len(resultsRaw)-1].Out
-
-			if reviewOk[dt.CodeReviewissuesElemseverity](review) {
-				break
-			}
-
-			o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeReview, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithPayload(state.NewPayloadDataBuilder(nil).WithCoderOutputs(coderOutputs).WithAllChanges(allChanges).WithRevisionInvPrefix(revisionInvPrefix).WithInitialPromptContext(initialPromptContext).WithIterCount(iterCount).WithTechLeadFinalReview(step.Payload().TechLeadFinalReview()).WithDocSuffix(step.Payload().DocSuffix()).Build()).Build())
-			return
-		}
-	} else {
-		resultsRaw = Nudge(
-			MAXCodeIters,
-			o.Agents.CodeReview,
-			reviewPrompt,
-			fmt.Sprintf("%s-code-review-%d", invocationIDPrefix, codeReviewIter),
-			[]string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)},
-			o.Agents.NextStepsCleanup, context,
-		)
-	}
+	resultsRaw = Nudge(
+		MAXCodeIters,
+		o.Agents.CodeReview,
+		reviewPrompt,
+		fmt.Sprintf("%s-code-review-%d", invocationIDPrefix, codeReviewIter),
+		[]string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)},
+		o.Agents.NextStepsCleanup, context,
+	)
 	review := resultsRaw[len(resultsRaw)-1].Out
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeReviewOrchestrator, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(codeReviewIter).WithPayload(state.NewPayloadDataBuilder(nil).WithCodeReview(review).WithTlIter(ds.TechLeadReviewIter()).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeCodeReviewOrchestrator, step.State()).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithCodeReviewIteration(codeReviewIter).WithPayload(state.NewPayloadDataBuilder(nil).WithCodeReview(review).Build()).Build())
 }
 
 func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep, context *Context) {
@@ -1870,10 +1815,6 @@ func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep, context *
 	plan := ds.Plan()
 	arch := ds.Architecture()
 	wrappedCoderTask := ds.WrappedCoderTask()
-	docSuffix := ""
-	if iteration > 0 {
-		docSuffix = fmt.Sprintf("%d", iteration+1)
-	}
 
 	var revisions []string
 	totalOutputs := ds.CodeOutputs().Len()
@@ -1886,7 +1827,6 @@ func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep, context *
 		revisions = append(revisions, fmt.Sprintf("<revision%d>\n%s\n</revision%d>", i+1, summary, i+1))
 	}
 	codeSummary := fmt.Sprintf("%s\n%s", strings.Join(revisions, "\n"), changesPrompt(immutableStringMapToRegular(ds.AllChanges())))
-	ds = *state.NewDomainStateBuilder(&ds).WithCodeSummary(codeSummary).Build()
 
 	if step.Payload() != nil {
 		cs := ds.CodeSummaries().Append(codeSummary)
@@ -1897,7 +1837,7 @@ func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep, context *
 
 	tlIter := 0
 	if step.Payload() != nil {
-		tlIter = step.Payload().TlIter()
+		tlIter = ds.TechLeadReviewIter()
 	}
 
 	var extraPromptTL string
@@ -1912,7 +1852,7 @@ func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep, context *
 		100,
 		o.Agents.TechLeadFinal,
 		fmt.Sprintf("TASK:\n%s\n\nBROAD PRODUCT SPECIFICATION: %s\nAPPROVED ARCHITECTURE:\n%s\nAPPROVED IMPLEMENTATION PLAN:\n%s\n%s<aggregate_implementation_summary>\n%s\n</aggregate_implementation_summary>\n",
-			wrappedCoderTask, ds.PmFilepath(), MarshalJSON(arch), MarshalJSON(plan), extraPromptTL, codeSummary),
+			wrappedCoderTask, step.State().PmFilepath(), MarshalJSON(arch), MarshalJSON(plan), extraPromptTL, codeSummary),
 		fmt.Sprintf("d%d-tl-review-%d-%d", domainIntID, iteration, tlIter),
 		[]string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)},
 		o.Agents.NextStepsCleanup, context,
@@ -1923,11 +1863,10 @@ func (o *Orchestrator) executeTechLeadReview(step *state.WorkflowStep, context *
 	domains = setDomain(step.State().Domains(), domainID, &ds)
 	newWs = state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
 
-	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeTechLeadReviewOrchestrator, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithPayload(state.NewPayloadDataBuilder(nil).WithTechLeadFinalReview(techLeadFinalReview).WithHasTechLeadFinalReview(true).WithDocSuffix(docSuffix).WithTlIter(tlIter + 1).Build()).Build())
+	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeTechLeadReviewOrchestrator, newWs).WithDomainID(domainID).WithDomainIndex(step.DomainIndex()).WithIteration(iteration).WithPayload(state.NewPayloadDataBuilder(nil).WithTechLeadFinalReview(techLeadFinalReview).Build()).Build())
 }
 
 func (o *Orchestrator) executeTechLeadEnd(step *state.WorkflowStep, context *Context) {
-	docSuffix := step.Payload().DocSuffix()
 	domainID := step.DomainID()
 	domainIntID := step.DomainIndex() + 1
 	iteration := step.Iteration()
@@ -1943,12 +1882,12 @@ func (o *Orchestrator) executeTechLeadEnd(step *state.WorkflowStep, context *Con
 	if mergedSummaries != "" {
 		mergedSummaries = strings.TrimSuffix(mergedSummaries, "\n")
 	} else {
-		mergedSummaries = fmt.Sprintf("<summary1>\n%s\n</summary1>", ds.CodeSummary())
+		mergedSummaries = ""
 	}
-	ds = *state.NewDomainStateBuilder(&ds).WithMergedSummaries(mergedSummaries).WithTechLeadRevisionCycle(false).WithTechLeadReviewIter(0).Build()
+	ds = *state.NewDomainStateBuilder(&ds).WithTechLeadRevisionCycle(false).WithTechLeadReviewIter(0).Build()
 	domains := setDomain(step.State().Domains(), domainID, &ds)
 	newWs := state.NewWorkflowStateBuilder(step.State()).WithDomains(domains).Build()
-	MarkdownDocumentGenerator(mergedSummaries, fmt.Sprintf("code_summary%s", docSuffix), []string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)}, context)
+	MarkdownDocumentGenerator(mergedSummaries, "code_summary", []string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)}, context)
 
 	modState := state.NewWorkflowStateBuilder(newWs).WithDomainCurrentStage("tech_lead_end").Build()
 	o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeBoundary, modState).
@@ -1961,7 +1900,7 @@ func (o *Orchestrator) executeTechLeadEnd(step *state.WorkflowStep, context *Con
 func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Context) {
 	ws := step.State()
 
-	if ws.DomainIterationTotal() == 0 && ws.DecompositionResult() == nil && ws.Out() != "" {
+	if ws.DecompositionResult() == nil && ws.Out() != "" {
 		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeClassification, ws).Build())
 		return
 	}
@@ -1969,9 +1908,7 @@ func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Contex
 	decompRes := ws.DecompositionResult()
 	decomp := decompRes.Decomposition()
 	numDomains := len(immutableListToSlice(decomp.Domains()))
-	if ws.DecompositionResult() != nil && numDomains > 0 && ws.DomainIterationTotal() > 0 && ws.DomainCurrentStage() == "" {
-		total := ws.DomainIterationTotal()
-
+	if ws.DecompositionResult() != nil && ws.DomainCurrentStage() == "" {
 		decompVal := ws.DecompositionResult()
 		decomp := decompVal.Decomposition()
 		domains := immutableListToSlice(decomp.Domains())
@@ -1987,8 +1924,6 @@ func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Contex
 		}
 		firstDomainID := strings.ToLower(strings.TrimSpace(domains[firstSortedIdx].Id()))
 		modState := state.NewWorkflowStateBuilder(ws).
-			WithDomainIterationIndex(0).
-			WithDomainIterationTotal(total).
 			WithDomainCurrentStage("domain_start").
 			Build()
 		o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeDomainStart, modState).
@@ -1998,9 +1933,10 @@ func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Contex
 		return
 	}
 
-	if ws.DomainIterationTotal() > 0 {
-		currentIdx := ws.DomainIterationIndex()
-		total := ws.DomainIterationTotal()
+	if ws.DomainCurrentStage() != "" {
+		sortedIndices := sortDomainsTyped(immutableListToSlice(decomp.Domains()))
+		currentIdx := slices.Index(sortedIndices, step.DomainIndex())
+		total := numDomains
 		currentStage := ws.DomainCurrentStage()
 
 		switch currentStage {
@@ -2031,10 +1967,8 @@ func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Contex
 		case "code":
 
 			ds, dsExists := getDomain(ws.Domains(), step.DomainID())
-			tlIter := 0
 			var techLeadFinalReview *dt.TechLeadFinal
 			if dsExists {
-				tlIter = ds.TechLeadReviewIter()
 				if tr := ds.TechLeadReviewResult(); tr != nil {
 					techLeadFinalReview = tr
 				}
@@ -2045,18 +1979,17 @@ func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Contex
 				WithDomainID(step.DomainID()).
 				WithDomainIndex(step.DomainIndex()).
 				WithIteration(codeIter).
-				WithPayload(state.NewPayloadDataBuilder(nil).WithTlIter(tlIter).WithTechLeadFinalReview(techLeadFinalReview).Build()).
+				WithPayload(state.NewPayloadDataBuilder(nil).WithTechLeadFinalReview(techLeadFinalReview).Build()).
 				Build())
 		case "tech_lead_review":
 
-			docSuffix := ws.TechLeadDocSuffix()
 			tlReviewIter := step.Iteration()
 			modState := state.NewWorkflowStateBuilder(ws).WithDomainCurrentStage("tech_lead_end").Build()
 			o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeTechLeadEnd, modState).
 				WithDomainID(step.DomainID()).
 				WithDomainIndex(step.DomainIndex()).
 				WithIteration(tlReviewIter).
-				WithPayload(state.NewPayloadDataBuilder(nil).WithDocSuffix(docSuffix).Build()).
+				WithPayload(state.NewPayloadDataBuilder(nil).Build()).
 				Build())
 
 		case "tech_lead_end":
@@ -2076,7 +2009,7 @@ func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Contex
 			domItr.First()
 			for !domItr.Done() {
 				_, d, _ := domItr.Next()
-				if d.FinalReviewPassed() {
+				if isDomainFinalReviewPassed(&d) {
 					passedCount++
 				}
 			}
@@ -2095,7 +2028,6 @@ func (o *Orchestrator) executeBoundary(step *state.WorkflowStep, context *Contex
 				if nextSortedIdx < len(domains) {
 					nextDomainID := strings.ToLower(strings.TrimSpace(domains[nextSortedIdx].Id()))
 					modState := state.NewWorkflowStateBuilder(ws).
-						WithDomainIterationIndex(nextPosition).
 						WithDomainCurrentStage("domain_start").
 						Build()
 					o.Stack.Push(o.Stack.NewStep(state.WorkflowStepsteptypeDomainStart, modState).
@@ -2129,7 +2061,19 @@ func (o *Orchestrator) executeArchitectureFinalReview(step *state.WorkflowStep, 
 			wrappedTask,
 			MarshalJSON(arch),
 			MarshalJSON(plan),
-			ds.MergedSummaries(),
+			func() string {
+				merged := ""
+				itr := ds.CodeSummaries().Iterator()
+				itr.First()
+				for i := 0; i < ds.CodeSummaries().Len(); i++ {
+					_, cs := itr.Next()
+					merged += fmt.Sprintf("<summary%d>\n%s\n</summary%d>\n", i+1, cs, i+1)
+				}
+				if merged != "" {
+					merged = strings.TrimSuffix(merged, "\n")
+				}
+				return merged
+			}(),
 		),
 		fmt.Sprintf("d%d-arch-final-review-%d", domainIntID, iteration),
 		[]string{step.State().Subdir(), fmt.Sprintf("%d", domainIntID)}, context,
