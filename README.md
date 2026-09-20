@@ -26,7 +26,9 @@ JSON (schema enforced at generation time and re-validated in the orchestrator).
    subworkflow to run next (or `finish`), why, and the task for that
    execution — the concrete goal that becomes the execution's section heading
    in the artifact index. The orchestrator persists the validated decision
-   under `decisions/`.
+   under `decisions/`. The prompt also states the authoritative run state
+   (`RUN STATE: BOOTSTRAP` when no subworkflow has completed yet, so the
+   driver's first decision is the `spec` subworkflow).
 4. The chosen **subworkflow** runs: a small fixed group of closely tied agents
    (a producer and its reviewers). Each agent writes its final output as a
    Markdown document to its own pregenerated, unique file path. The system
@@ -44,7 +46,18 @@ JSON (schema enforced at generation time and re-validated in the orchestrator).
    agent that produced it. Each agent identifies the documents to read from
    the index based on its role and the task at hand.
 7. Control returns to the driver, which adapts the next step to the results.
-   This repeats until the driver finishes; there is no iteration budget.
+   This repeats until the driver responds with `finish` and confirms it;
+   there is no iteration budget.
+8. A `finish` response never terminates the run by itself. The orchestrator
+   sends the driver's full response back to it in a mandatory **finish
+   reassessment**: the driver either confirms the `finish` (the run ends, and
+   the confirmation rationale becomes the run outcome) or picks the
+   subworkflow that was actually needed (which runs as the turn's decision).
+   The reassessment response uses an explicit `decision` field
+   (`confirm_finish` / `select_subworkflow`), and the orchestrator rejects
+   confirmations that are structurally impossible — a `confirm_finish` in
+   bootstrap state (zero completed executions) is refused and the driver is
+   asked again. Both decisions are persisted under `decisions/`.
 
 ## Subworkflows
 
@@ -69,7 +82,7 @@ disk-change detection block (via the `wman` watcher, when available).
 
 | Role | Kind | Responsibility |
 |------|------|----------------|
-| **Workflow Driver** | decision agent (JSON) | Picks the next subworkflow or finishes |
+| **Workflow Driver** | decision agent (JSON) | Picks the next subworkflow; a `finish` must survive the mandatory reassessment |
 | **Loop Decider** | decision agent (JSON) | Reads a subworkflow's round documents; decides whether to repeat the round |
 | **Product Manager** | Refines the request into an engineering-ready specification |
 | **Classifier** | Determines investigation vs. engineering |
@@ -177,6 +190,7 @@ Each execution creates a session directory:
 │   └── ...
 └── decisions/                     # Driver decision documents
     ├── 001-driver.md
+    ├── 009-driver_finish_reassessment.md
     └── ...
 ```
 

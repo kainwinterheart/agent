@@ -155,3 +155,68 @@ func TestDecisionPromptsCarrySchemaAndExample(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeFinishReassessment(t *testing.T) {
+	confirm, err := decodeFinishReassessment(`{"decision":"confirm_finish","subworkflow":"finish","rationale":"All milestones implemented and reviewed: 007-implement_coder.md.","task":"The requested implementation is complete."}`)
+	if err != nil {
+		t.Fatalf("valid confirmation rejected: %v", err)
+	}
+	if confirm.Decision != "confirm_finish" || confirm.Subworkflow != "finish" {
+		t.Errorf("decoded confirmation = %+v", confirm)
+	}
+
+	selectSW, err := decodeFinishReassessment(`{"decision":"SELECT_Subworkflow","subworkflow":"Spec","rationale":"Not started.","task":"Produce the spec."}`)
+	if err != nil {
+		t.Fatalf("valid selection rejected: %v", err)
+	}
+	if selectSW.Decision != "select_subworkflow" || selectSW.Subworkflow != "spec" {
+		t.Errorf("decoded selection = %+v", selectSW)
+	}
+
+	invalid := []string{
+		`{"subworkflow":"finish","rationale":"r","task":"t"}`,                                       // missing decision
+		`{"decision":"","subworkflow":"finish","rationale":"r","task":"t"}`,                         // empty decision
+		`{"decision":"maybe","subworkflow":"finish","rationale":"r","task":"t"}`,                    // unknown branch
+		`{"decision":"confirm_finish","subworkflow":"spec","rationale":"r","task":"t"}`,             // confirm must select finish
+		`{"decision":"select_subworkflow","subworkflow":"finish","rationale":"r","task":"t"}`,       // select must not select finish
+		`{"decision":"select_subworkflow","subworkflow":"nope","rationale":"r","task":"t"}`,         // unknown subworkflow
+		`{"decision":"confirm_finish","subworkflow":"finish","task":"t"}`,                           // missing rationale
+		`{"decision":"confirm_finish","subworkflow":"finish","rationale":"r"}`,                      // missing task
+		`{"decision":"confirm_finish","subworkflow":"finish","rationale":"r","task":"t","extra":1}`, // unknown field
+		`not json`,
+	}
+	for _, in := range invalid {
+		if _, err := decodeFinishReassessment(in); err == nil {
+			t.Errorf("invalid reassessment accepted: %s", in)
+		}
+	}
+}
+
+func TestFinishReassessmentSchemaShape(t *testing.T) {
+	schema := finishReassessmentSchema()
+	props, _ := schema["properties"].(map[string]any)
+
+	branchEnum, _ := props["decision"].(map[string]any)["enum"].([]any)
+	if len(branchEnum) != 2 || branchEnum[0].(string) != "confirm_finish" || branchEnum[1].(string) != "select_subworkflow" {
+		t.Errorf("decision enum = %v", branchEnum)
+	}
+
+	subEnum, _ := props["subworkflow"].(map[string]any)["enum"].([]any)
+	want := append(append([]string{}, subworkflowIDs()...), "finish")
+	if len(subEnum) != len(want) {
+		t.Fatalf("subworkflow enum = %v, want %v", subEnum, want)
+	}
+	for i, id := range want {
+		if subEnum[i].(string) != id {
+			t.Errorf("subworkflow enum[%d] = %v, want %s", i, subEnum[i], id)
+		}
+	}
+
+	req, _ := schema["required"].([]string)
+	if len(req) != 4 || req[0] != "decision" || req[1] != "subworkflow" || req[2] != "rationale" || req[3] != "task" {
+		t.Errorf("required = %v", req)
+	}
+	if ap, _ := schema["additionalProperties"].(bool); ap {
+		t.Error("schema must reject additional properties")
+	}
+}

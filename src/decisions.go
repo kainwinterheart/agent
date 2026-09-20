@@ -196,3 +196,101 @@ func runJSONDecision[T any](agent *Agent, basePrompt string, decode func(string)
 		cur = basePrompt + jsonFeedbackBlock(problem, prettyJSON(agent.Schema), example)
 	}
 }
+
+// FinishReassessment is the driver's response to a mandatory finish
+// reassessment. The decision field makes the branch explicit: confirming the
+// finish is a named act ("confirm_finish"), distinct from selecting the
+// subworkflow that was actually needed ("select_subworkflow"). The two
+// branches are mutually exclusive with the subworkflow field, and the
+// combination is validated strictly.
+type FinishReassessment struct {
+	Decision    string `json:"decision"`    // "confirm_finish" or "select_subworkflow"
+	Subworkflow string `json:"subworkflow"` // "finish" when confirming; a subworkflow id when selecting
+	Rationale   string `json:"rationale"`
+	Task        string `json:"task"`
+}
+
+func finishReassessmentSchema() map[string]any {
+	ids := append(append([]string{}, subworkflowIDs()...), "finish")
+	enum := make([]any, 0, len(ids))
+	for _, id := range ids {
+		enum = append(enum, id)
+	}
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"decision": map[string]any{
+				"type": "string",
+				"enum": []any{"confirm_finish", "select_subworkflow"},
+			},
+			"subworkflow": map[string]any{"type": "string", "enum": enum},
+			"rationale":   map[string]any{"type": "string"},
+			"task":        map[string]any{"type": "string"},
+		},
+		"required":             []string{"decision", "subworkflow", "rationale", "task"},
+		"additionalProperties": false,
+	}
+}
+
+const finishReassessmentExample = `{
+  "decision": "select_subworkflow",
+  "subworkflow": "spec",
+  "rationale": "The run is in BOOTSTRAP: the artifact index has zero completed executions, so the work has not started and finish cannot be correct. The first step is the refined task specification.",
+  "task": "Produce the durable refined task specification from the user's request."
+}`
+
+// decodeFinishReassessment strictly validates a finish-reassessment response:
+// unknown fields are rejected, all four fields must be present and non-empty,
+// and the decision/subworkflow combination must be coherent:
+//
+//	confirm_finish       requires subworkflow == "finish"
+//	select_subworkflow   requires a known subworkflow id (never "finish")
+func decodeFinishReassessment(jsonText string) (FinishReassessment, error) {
+	var raw struct {
+		Decision    *string `json:"decision"`
+		Subworkflow *string `json:"subworkflow"`
+		Rationale   *string `json:"rationale"`
+		Task        *string `json:"task"`
+	}
+	dec := json.NewDecoder(strings.NewReader(jsonText))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&raw); err != nil {
+		return FinishReassessment{}, fmt.Errorf("invalid JSON object: %v", err)
+	}
+	if raw.Decision == nil || strings.TrimSpace(*raw.Decision) == "" {
+		return FinishReassessment{}, fmt.Errorf("missing required field \"decision\" (non-empty string)")
+	}
+	branch := strings.ToLower(strings.TrimSpace(*raw.Decision))
+	if branch != "confirm_finish" && branch != "select_subworkflow" {
+		return FinishReassessment{}, fmt.Errorf("invalid decision %q; must be \"confirm_finish\" or \"select_subworkflow\"", branch)
+	}
+	if raw.Subworkflow == nil || strings.TrimSpace(*raw.Subworkflow) == "" {
+		return FinishReassessment{}, fmt.Errorf("missing required field \"subworkflow\"")
+	}
+	choice := strings.ToLower(strings.TrimSpace(*raw.Subworkflow))
+	switch branch {
+	case "confirm_finish":
+		if choice != "finish" {
+			return FinishReassessment{}, fmt.Errorf("decision \"confirm_finish\" requires subworkflow \"finish\", got %q", choice)
+		}
+	case "select_subworkflow":
+		if choice == "finish" {
+			return FinishReassessment{}, fmt.Errorf("decision \"select_subworkflow\" must not select \"finish\"; name the subworkflow to run")
+		}
+		if getSubworkflow(choice) == nil {
+			return FinishReassessment{}, fmt.Errorf("unknown subworkflow id %q; valid ids: %s", choice, strings.Join(subworkflowIDs(), ", "))
+		}
+	}
+	if raw.Rationale == nil || strings.TrimSpace(*raw.Rationale) == "" {
+		return FinishReassessment{}, fmt.Errorf("missing required field \"rationale\" (non-empty string)")
+	}
+	if raw.Task == nil || strings.TrimSpace(*raw.Task) == "" {
+		return FinishReassessment{}, fmt.Errorf("missing required field \"task\" (non-empty string)")
+	}
+	return FinishReassessment{
+		Decision:    branch,
+		Subworkflow: choice,
+		Rationale:   strings.TrimSpace(*raw.Rationale),
+		Task:        strings.TrimSpace(*raw.Task),
+	}, nil
+}

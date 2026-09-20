@@ -120,6 +120,16 @@ func (o *Orchestrator) Run(task string, subdir string) error {
 
 		dec := o.runDriver(st, context)
 
+		// A "finish" response never terminates the run by itself: the
+		// driver's full response is sent back to it for a mandatory
+		// reassessment, which either confirms the finish or picks the
+		// subworkflow that was actually needed.
+		var finishDecision *Decision
+		if dec.Choice == "finish" {
+			finishDecision = dec
+			dec = o.runFinishReassessment(st, dec, context)
+		}
+
 		var outcome string
 		var produced []Artifact
 		if dec.Choice == "finish" {
@@ -141,6 +151,10 @@ func (o *Orchestrator) Run(task string, subdir string) error {
 		}
 		for i := range produced {
 			entry.Artifacts = append(entry.Artifacts, produced[i].ID)
+		}
+		if finishDecision != nil {
+			entry.FinishDecisionPath = finishDecision.Path
+			entry.FinishConfirmed = dec.Choice == "finish"
 		}
 		st.History = append(st.History, entry)
 

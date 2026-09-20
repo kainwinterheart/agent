@@ -30,6 +30,13 @@ type HistoryEntry struct {
 	Task         string   `json:"task,omitempty"`
 	Outcome      string   `json:"outcome"`
 	Artifacts    []string `json:"artifacts,omitempty"`
+	// FinishDecisionPath points at the driver's initial "finish" decision for
+	// this turn; set whenever the mandatory finish reassessment ran. The
+	// turn's final decision is recorded as usual.
+	FinishDecisionPath string `json:"finish_decision_path,omitempty"`
+	// FinishConfirmed reports whether the reassessment confirmed the finish
+	// (as opposed to overriding it with a subworkflow).
+	FinishConfirmed bool `json:"finish_confirmed,omitempty"`
 }
 
 // ActiveExecution tracks the subworkflow that is currently running, so the

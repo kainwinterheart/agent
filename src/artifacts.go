@@ -24,3 +24,10 @@ func (st *WorkflowState) newDecisionPath(subdir string) string {
 	seq := st.NextSeq()
 	return filepath.Join(subdir, "decisions", fmt.Sprintf("%03d-driver.md", seq))
 }
+
+// newReassessmentPath pregenerates a unique path for the driver's finish
+// reassessment decision document.
+func (st *WorkflowState) newReassessmentPath(subdir string) string {
+	seq := st.NextSeq()
+	return filepath.Join(subdir, "decisions", fmt.Sprintf("%03d-driver_finish_reassessment.md", seq))
+}

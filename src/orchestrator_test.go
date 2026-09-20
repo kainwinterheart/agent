@@ -34,9 +34,11 @@ type script struct {
 	t *testing.T
 
 	// Driver scenario.
-	DriverChoices   []string // consumed in order, one per valid driver response
-	DriverFailAfter int      // after this many driver calls, calls fail (0 = off)
-	DriverBadFirst  int      // first N driver responses fail strict validation
+	DriverChoices         []string // consumed in order, one per valid driver response
+	DriverReassessChoices []string // consumed in order, one per finish-reassessment response
+	DriverReassessRaw     []string // raw JSON reassessment responses, consumed before DriverReassessChoices
+	DriverFailAfter       int      // after this many driver calls, calls fail (0 = off)
+	DriverBadFirst        int      // first N driver responses fail strict validation
 
 	// Loop decider scenario.
 	LoopRepeat   []bool // consumed in order per decider call; default (empty) = false
@@ -47,9 +49,11 @@ type script struct {
 	FailFirst      map[string]int  // agent -> number of invocations that fail with a runtime error
 	EmptyFileFirst map[string]bool // agent writes an empty file on its first attempt
 
-	driverCalls int
-	choiceIdx   int
-	loopCalls   int
+	driverCalls    int
+	choiceIdx      int
+	reassessIdx    int
+	reassessRawIdx int
+	loopCalls      int
 
 	subdir        string
 	indexSnapshot map[string]string // agent -> artifact index contents when it ran
@@ -101,13 +105,46 @@ func assertNoArtifactPaths(t *testing.T, prompt string, st *WorkflowState) {
 	}
 }
 
-func (s *script) driverResponse(_ string) (string, error) {
+func (s *script) driverResponse(prompt string) (string, error) {
 	s.driverCalls++
 	if s.DriverFailAfter > 0 && s.driverCalls > s.DriverFailAfter {
 		return "", fmt.Errorf("simulated driver failure")
 	}
 	if s.driverCalls <= s.DriverBadFirst {
 		return `{"subworkflow":"classify","rationale":"broken","unexpected_field":true}`, nil
+	}
+	// Finish-reassessment turns carry the marker in their prompt; they
+	// consume a separate scripted queue (default: confirm the finish).
+	if strings.Contains(prompt, finishReassessmentMarker) {
+		if s.reassessRawIdx < len(s.DriverReassessRaw) {
+			raw := s.DriverReassessRaw[s.reassessRawIdx]
+			s.reassessRawIdx++
+			return raw, nil
+		}
+		choice := "finish"
+		if s.reassessIdx < len(s.DriverReassessChoices) {
+			choice = s.DriverReassessChoices[s.reassessIdx]
+			s.reassessIdx++
+		}
+		if choice == "finish" && strings.Contains(prompt, bootstrapRunStatePrefix) {
+			choice = "spec"
+		}
+		if choice == "finish" {
+			resp := map[string]any{
+				"decision":    "confirm_finish",
+				"subworkflow": "finish",
+				"rationale":   "Scripted rationale for finish",
+				"task":        "Scripted task: cover the auth domain.",
+			}
+			return prettyJSON(resp), nil
+		}
+		resp := map[string]any{
+			"decision":    "select_subworkflow",
+			"subworkflow": choice,
+			"rationale":   "Scripted rationale for " + choice,
+			"task":        "Scripted task: cover the auth domain.",
+		}
+		return prettyJSON(resp), nil
 	}
 	choice := "finish"
 	if s.choiceIdx < len(s.DriverChoices) {
@@ -565,8 +602,8 @@ func TestOrchestrator_DriverInvalidJSONRetried(t *testing.T) {
 	if !st.Finished {
 		t.Fatal("run should be finished despite the invalid first driver response")
 	}
-	if s.driverCalls != 3 {
-		t.Fatalf("driver calls = %d, want 3 (1 invalid + classify + finish)", s.driverCalls)
+	if s.driverCalls != 4 {
+		t.Fatalf("driver calls = %d, want 4 (1 invalid + classify + finish + reassessment-confirm)", s.driverCalls)
 	}
 
 	first := sc.promptFor(t, "workflow_driver", 1)
@@ -750,14 +787,23 @@ func TestOrchestrator_AlreadyFinishedNoop(t *testing.T) {
 	if err := orch.Run("Quick task.", subdir); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	if s.driverCalls != 1 {
-		t.Fatalf("driver calls = %d, want 1", s.driverCalls)
+	if s.driverCalls != 4 {
+		t.Fatalf("driver calls = %d, want 4 (finish, reassess->spec, finish, reassess->confirm)", s.driverCalls)
+	}
+	// The bootstrap finish was corrected: the spec subworkflow ran before
+	// the run could end.
+	st, err := loadWorkflowState(subdir)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if st.History[0].Subworkflow != "spec" {
+		t.Errorf("history 1 subworkflow = %q, want spec", st.History[0].Subworkflow)
 	}
 	// Re-running the finished session is a no-op.
 	if err := orch.Run("", subdir); err != nil {
 		t.Fatalf("rerun of finished session: %v", err)
 	}
-	if s.driverCalls != 1 {
+	if s.driverCalls != 4 {
 		t.Errorf("finished session must not consult the driver again (calls=%d)", s.driverCalls)
 	}
 }
@@ -1038,5 +1084,252 @@ func TestResume_FoldsInterruptedExecution(t *testing.T) {
 	}
 	if got := strings.Count(string(idxData), "## Iteration 2 — subworkflow: spec"); got != 1 {
 		t.Errorf("index sections for iteration 2 = %d, want 1", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Finish reassessment
+// ---------------------------------------------------------------------------
+
+// The reported bug: on a fresh run (zero artifacts) the driver answered
+// "finish" on its very first turn. The mandatory reassessment must send the
+// full response back, and the corrected choice (spec) must be executed.
+func TestOrchestrator_FinishReassessmentOverridesBootstrapFinish(t *testing.T) {
+	s := newScript(t)
+	// Every regular driver turn answers "finish" (script default); the first
+	// reassessment overrides it with "spec", the second confirms.
+	s.DriverReassessChoices = []string{"spec"}
+
+	sc := runScenario(t, "Build the thing.", s, nil)
+	st := sc.state(t)
+
+	if !st.Finished {
+		t.Fatal("run should finish after the corrected course")
+	}
+	if s.driverCalls != 4 {
+		t.Fatalf("driver calls = %d, want 4 (finish, reassess->spec, finish, reassess->confirm)", s.driverCalls)
+	}
+	if len(st.History) != 2 {
+		t.Fatalf("history = %d entries, want 2: %+v", len(st.History), st.History)
+	}
+
+	// Turn 1 records the FINAL decision (spec), with the initial finish
+	// decision preserved by reference.
+	h1 := st.History[0]
+	if h1.Subworkflow != "spec" {
+		t.Fatalf("history 1 subworkflow = %q, want spec", h1.Subworkflow)
+	}
+	if h1.FinishDecisionPath == "" {
+		t.Fatal("history 1 missing the initial finish decision path")
+	}
+	if h1.FinishConfirmed {
+		t.Error("history 1 must not mark the finish as confirmed")
+	}
+	initial, err := os.ReadFile(h1.FinishDecisionPath)
+	if err != nil {
+		t.Fatalf("initial finish decision missing: %v", err)
+	}
+	var idd map[string]any
+	if err := json.Unmarshal(initial, &idd); err != nil {
+		t.Fatalf("initial finish decision not JSON: %v", err)
+	}
+	if idd["subworkflow"] != "finish" {
+		t.Errorf("initial finish decision subworkflow = %v, want finish", idd["subworkflow"])
+	}
+	final, err := os.ReadFile(h1.DecisionPath)
+	if err != nil {
+		t.Fatalf("reassessment decision missing: %v", err)
+	}
+	var fdd map[string]any
+	if err := json.Unmarshal(final, &fdd); err != nil {
+		t.Fatalf("reassessment decision not JSON: %v", err)
+	}
+	if fdd["subworkflow"] != "spec" {
+		t.Errorf("reassessment decision subworkflow = %v, want spec", fdd["subworkflow"])
+	}
+	if fdd["decision"] != "select_subworkflow" {
+		t.Errorf("reassessment decision branch = %v, want select_subworkflow", fdd["decision"])
+	}
+
+	// The spec subworkflow actually ran: its documents exist.
+	sawPM, sawPMReview := false, false
+	for i := range st.Artifacts {
+		switch st.Artifacts[i].Agent {
+		case "product_manager":
+			sawPM = true
+		case "pm_review":
+			sawPMReview = true
+		}
+	}
+	if !sawPM || !sawPMReview {
+		t.Errorf("spec documents missing from artifacts: %+v", st.Artifacts)
+	}
+
+	// Turn 2: finish confirmed on reassessment.
+	h2 := st.History[1]
+	if h2.Subworkflow != "finish" || h2.Outcome != "finished" {
+		t.Fatalf("history 2 = %+v, want finish/finished", h2)
+	}
+	if h2.FinishDecisionPath == "" || !h2.FinishConfirmed {
+		t.Errorf("history 2 must record the confirmed finish: %+v", h2)
+	}
+	if st.Outcome != "Scripted rationale for finish" {
+		t.Errorf("outcome = %q, want the confirmation rationale", st.Outcome)
+	}
+
+	// The authoritative run state is stated in every driver prompt.
+	first := sc.promptFor(t, "workflow_driver", 1)
+	if !strings.Contains(first, "RUN STATE: BOOTSTRAP") {
+		t.Error("first driver prompt missing the bootstrap run state")
+	}
+	reassess := sc.promptFor(t, "workflow_driver", 2)
+	if !strings.Contains(reassess, finishReassessmentMarker) {
+		t.Fatal("second driver prompt is not a finish reassessment")
+	}
+	if !strings.Contains(reassess, "Scripted rationale for finish") ||
+		!strings.Contains(reassess, "Scripted task: cover the auth domain.") {
+		t.Error("reassessment prompt missing the driver's full finish response")
+	}
+	if !strings.Contains(reassess, "RUN STATE: BOOTSTRAP") {
+		t.Error("reassessment prompt missing the bootstrap run state")
+	}
+	assertNoArtifactPaths(t, reassess, st)
+	second := sc.promptFor(t, "workflow_driver", 3)
+	if !strings.Contains(second, "RUN STATE: 1 completed workflow execution(s)") {
+		t.Error("turn-2 driver prompt missing the completed-execution run state")
+	}
+	if !strings.Contains(second, "the mandatory finish reassessment overrode it") {
+		t.Error("turn-2 decision history missing the overridden-finish note")
+	}
+}
+
+func TestOrchestrator_FinishReassessmentConfirms(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"classify", "finish"}
+
+	sc := runScenario(t, "Classify it.", s, nil)
+	st := sc.state(t)
+
+	if !st.Finished {
+		t.Fatal("run should be finished")
+	}
+	if s.driverCalls != 3 {
+		t.Fatalf("driver calls = %d, want 3 (classify, finish, reassessment-confirm)", s.driverCalls)
+	}
+	last := st.History[len(st.History)-1]
+	if last.Subworkflow != "finish" || last.Outcome != "finished" {
+		t.Fatalf("last history = %+v, want finish/finished", last)
+	}
+	if last.FinishDecisionPath == "" {
+		t.Fatal("confirmed finish must still record the initial finish decision path")
+	}
+	if !last.FinishConfirmed {
+		t.Error("last history must mark the finish as confirmed")
+	}
+	initial, err := os.ReadFile(last.FinishDecisionPath)
+	if err != nil {
+		t.Fatalf("initial finish decision missing: %v", err)
+	}
+	var idd map[string]any
+	if err := json.Unmarshal(initial, &idd); err != nil {
+		t.Fatalf("initial finish decision not JSON: %v", err)
+	}
+	if idd["subworkflow"] != "finish" {
+		t.Errorf("initial finish decision subworkflow = %v, want finish", idd["subworkflow"])
+	}
+	conf, err := os.ReadFile(last.DecisionPath)
+	if err != nil {
+		t.Fatalf("confirmation decision missing: %v", err)
+	}
+	var cdd map[string]any
+	if err := json.Unmarshal(conf, &cdd); err != nil {
+		t.Fatalf("confirmation decision not JSON: %v", err)
+	}
+	if cdd["decision"] != "confirm_finish" || cdd["subworkflow"] != "finish" {
+		t.Errorf("confirmation decision = %v, want confirm_finish/finish", cdd)
+	}
+
+	reassess := sc.promptFor(t, "workflow_driver", 3)
+	if !strings.Contains(reassess, finishReassessmentMarker) {
+		t.Fatal("third driver prompt is not a finish reassessment")
+	}
+	if !strings.Contains(reassess, "Scripted rationale for finish") {
+		t.Error("reassessment prompt missing the driver's full finish response")
+	}
+	if !strings.Contains(reassess, "RUN STATE: 1 completed workflow execution(s)") {
+		t.Error("reassessment prompt missing the completed-execution run state")
+	}
+	assertNoArtifactPaths(t, reassess, st)
+}
+
+// Pins the reported incident: on a bootstrap run the driver's reassessment
+// response declared confirm_finish while its own rationale argued that the
+// only valid choice was spec. The orchestrator must reject a finish
+// confirmation in bootstrap state (the run cannot be complete before it has
+// started) and force a corrected response.
+func TestOrchestrator_FinishReassessmentBootstrapConfirmRejected(t *testing.T) {
+	s := newScript(t)
+	// First reassessment: the contradictory confirmation, as observed.
+	s.DriverReassessRaw = []string{
+		`{"decision":"confirm_finish","subworkflow":"finish","rationale":"The run is in BOOTSTRAP with zero completed executions. Per RULE 1 the only valid choice in bootstrap is the spec subworkflow.","task":"Produce the durable refined task specification from the user's request."}`,
+	}
+	// Second reassessment (after rejection feedback): the corrected choice.
+	s.DriverReassessChoices = []string{"spec"}
+
+	sc := runScenario(t, "Build the thing.", s, nil)
+	st := sc.state(t)
+
+	if !st.Finished {
+		t.Fatal("run should finish after the corrected course")
+	}
+	if s.driverCalls != 5 {
+		t.Fatalf("driver calls = %d, want 5 (finish, contradictory-confirm rejected, spec, finish, confirm)", s.driverCalls)
+	}
+	if len(st.History) != 2 {
+		t.Fatalf("history = %d entries, want 2: %+v", len(st.History), st.History)
+	}
+
+	h1 := st.History[0]
+	if h1.Subworkflow != "spec" {
+		t.Fatalf("history 1 subworkflow = %q, want spec", h1.Subworkflow)
+	}
+	if h1.FinishDecisionPath == "" || h1.FinishConfirmed {
+		t.Errorf("history 1 must record the overridden finish: %+v", h1)
+	}
+	final, err := os.ReadFile(h1.DecisionPath)
+	if err != nil {
+		t.Fatalf("reassessment decision missing: %v", err)
+	}
+	var fdd map[string]any
+	if err := json.Unmarshal(final, &fdd); err != nil {
+		t.Fatalf("reassessment decision not JSON: %v", err)
+	}
+	if fdd["decision"] != "select_subworkflow" || fdd["subworkflow"] != "spec" {
+		t.Errorf("persisted reassessment = %v, want select_subworkflow/spec", fdd)
+	}
+
+	// The rejection fed back the structural reason; the corrected response
+	// followed. (Prompt 2 is the reassessment attempt that received the
+	// contradictory response; prompt 3 carries the retry feedback.)
+	retryPrompt := sc.promptFor(t, "workflow_driver", 3)
+	if !strings.Contains(retryPrompt, "<feedback>") {
+		t.Fatal("third driver prompt missing retry feedback")
+	}
+	if !strings.Contains(retryPrompt, "confirm_finish is impossible in BOOTSTRAP") {
+		t.Error("retry feedback missing the bootstrap rejection reason")
+	}
+
+	// The spec subworkflow actually ran.
+	sawPM, sawPMReview := false, false
+	for i := range st.Artifacts {
+		switch st.Artifacts[i].Agent {
+		case "product_manager":
+			sawPM = true
+		case "pm_review":
+			sawPMReview = true
+		}
+	}
+	if !sawPM || !sawPMReview {
+		t.Errorf("spec documents missing from artifacts: %+v", st.Artifacts)
 	}
 }
