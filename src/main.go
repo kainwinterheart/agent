@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,21 +26,39 @@ func readStdin() string {
 }
 
 func main() {
-	loader.InitSchemas()
 	loader.InitPromptLoader()
 	loader.InitPrompts()
+	initSubworkflows()
 
 	ts := time.Now().Format("2006-01-02_15-04-05")
 
 	args := os.Args[1:]
 
+	if len(args) > 0 && args[0] == "static-defs" {
+		doc := StaticDefinitionsDocument()
+		if len(args) > 1 && args[1] != "" {
+			if err := os.MkdirAll(filepath.Dir(args[1]), 0o755); err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+			if err := os.WriteFile(args[1], []byte(doc), 0o644); err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "static definitions written to %s\n", args[1])
+			return
+		}
+		fmt.Print(doc)
+		return
+	}
+
 	if len(args) > 0 && args[0] == "exec" {
 		args = args[1:]
 	} else if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
-		fmt.Fprintln(os.Stderr, "usage: "+os.Args[0]+" exec [resume <session_id>]")
+		fmt.Fprintln(os.Stderr, "usage: "+os.Args[0]+" exec [resume <session_id>] | static-defs [path]")
 		os.Exit(0)
 	} else {
-		fmt.Fprintln(os.Stderr, "usage: "+os.Args[0]+" exec [resume <session_id>]")
+		fmt.Fprintln(os.Stderr, "usage: "+os.Args[0]+" exec [resume <session_id>] | static-defs [path]")
 		os.Exit(1)
 	}
 
@@ -63,31 +82,23 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "session id: %s\n", subdir)
 
+	// On resume the workflow state file is authoritative; Run loads it when
+	// task is empty.
 	task := ""
-	if isResume {
-		files, _ := os.ReadDir(subdir)
-		for _, f := range files {
-			if strings.HasSuffix(f.Name(), "-task.txt") {
-				data, err := os.ReadFile(fmt.Sprintf("%s/%s", subdir, f.Name()))
-				if err == nil {
-					task = string(data)
-					task = strings.TrimSpace(task)
-				}
-				break
-			}
-		}
-	} else {
+	if !isResume {
 		task = readStdin()
 		task = strings.TrimSpace(task)
-	}
-	if task == "" {
-		panic("Task content must be provided")
-	}
-	if !isResume {
+		if task == "" {
+			panic("Task content must be provided")
+		}
 		os.MkdirAll(subdir, 0o755)
 		taskFile := fmt.Sprintf("%s/%s-task.txt", subdir, ts)
 		os.WriteFile(taskFile, []byte(task), 0o644)
 	}
-	orch := NewOrchestrator(task, subdir)
-	orch.Run(task, subdir)
+
+	orch := NewOrchestrator(subdir)
+	if err := orch.Run(task, subdir); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 }

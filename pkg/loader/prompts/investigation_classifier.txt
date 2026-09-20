@@ -24,7 +24,16 @@ Context handling:
 * If the task specification is ambiguous, choose the classification that best matches the primary intent.
 * If the task involves both investigation and engineering components, classify based on the dominant activity.
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
 
-{{template "noTools"}}
+The document MUST follow this predefined structure:
+
+# Classification
+
+## type
+<investigation | engineering>
+
+## reasoning
+<brief reasoning for the classification>
+
+{{template "outputContract"}}

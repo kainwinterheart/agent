@@ -24,15 +24,31 @@ Data source grounding constraint:
 * Every piece of evidence you cite must be traceable to a declared data source.
 * Include explicit source references for all findings to demonstrate grounding.
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Investigation Findings
+
+## workstream_objective
+<the workstream objective being executed>
+
+## conclusions
+* <...>
+
+## supporting_evidence
+* evidence_type: <...>
+  source_reference: <...>
+  evidence_description: <...>
+
+## confidence_level
+<low | medium | high>
+
+## unanswered_questions
+* <...>
+
+{{template "outputContract"}}
 
 Rules:
-* No markdown
-* No explanations outside JSON
-* No extra keys
 * Support every conclusion with specific evidence
 * Include unanswered questions even if the list seems complete
-
-{{template "invNoTools"}}
-

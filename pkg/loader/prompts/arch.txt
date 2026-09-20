@@ -56,13 +56,37 @@ Unacceptable architect detail:
 * Add ARCH_SCHEMA constant
 * Replace inline schemas with __SCHEMA__ tokens
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Architecture
+
+## architecture
+### overview
+<high-level design>
+
+### components
+* name: <...>
+  responsibility: <...>
+  background: <...>
+
+### data_flow
+* <...>
+
+### tech_choices
+* <...>
+
+### constraints
+* <...>
+
+### reviewer_notes
+* <...>
+
+## next_steps
+* <...>
+
+{{template "outputContract"}}
 
 Rules:
-* No markdown
-* No explanations outside JSON
-* No extra keys
 * Do not rely only on prior summaries, reviewer notes, or implementation descriptions when repository inspection tools can verify the current state.
-
-{{template "noTools"}}

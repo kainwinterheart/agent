@@ -1,242 +1,193 @@
 package main
 
 import (
-	"agent-go/gen"
-	"agent-go/pkg/loader"
-	td "agent-go/test_data"
-	jsonv2text "encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
 	"fmt"
-	immutable "github.com/benbjohnson/immutable"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
+
+	"agent-go/wman"
 )
 
-type CacheResult[T any] struct {
-	Out       T
-	FromCache bool
+// Context carries per-turn services and test seams.
+type Context struct {
+	Tracer *Tracer
+
+	// watchmanHook replaces the real filesystem watcher in tests.
+	watchmanHook func() map[string]string
+	// runCodexHook replaces the real LLM invocation in tests.
+	runCodexHook func(agentName, prompt, timeout string, schema map[string]any) (string, error)
 }
 
-func RunJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string, context *Context) T {
-	return runJSONAgent(agent, inputText, invocationID, subdir, context).Out
+func NewContext() *Context {
+	return &Context{Tracer: &Tracer{}}
 }
 
-func runJSONAgent[T any](agent *Agent[T], inputText string, invocationID string, subdir []string, context *Context) CacheResult[T] {
-	if context.runJSONAgentHook != nil {
-		as := context.runJSONAgentHook(agent.Name, invocationID, inputText)
-		if as == nil {
-			panic("No agent state?")
-		}
-		agent.Session = as.Session()
-		agent.SessionSuffix = as.SessionSuffix()
-		if as.LastCorrectResponse() != nil {
-			var lcr T
-			jsonv2.Unmarshal([]byte(*as.LastCorrectResponse()), &lcr, jsonv2text.AllowDuplicateNames(true))
-			agent.LastCorrectResponse = &lcr
-		}
-	}
-	asb := td.NewAgentStateBuilder(nil).WithSession(agent.Session).WithSessionSuffix(agent.SessionSuffix)
-	if agent.LastCorrectResponse != nil {
-		lcr := MarshalJSON(agent.LastCorrectResponse)
-		asb = asb.WithLastCorrectResponse(&lcr)
-	}
-	context.Tracer.trace("prepare_to_run_agent", td.NewActionDetailsBuilder(nil).WithInvocationId(&invocationID).WithAgent(&agent.Name).WithPrompt(&inputText).WithAgentState(asb.Build()).Build())
-
-	var raw string
-	updated := false
-	cacheFile := filepath.Join(BuildPath(subdir, ".state"), fmt.Sprintf("%s_%s.out", agent.Name, invocationID))
-	if data, err := os.ReadFile(cacheFile); err == nil {
-		logStep(fmt.Sprintf("Using cached response: %s", cacheFile), invocationID)
-		raw = string(data)
-	}
-
-	if raw == "" {
-		stateDir := filepath.Join(BuildPath(subdir, ".state"), fmt.Sprintf("%s_%s.in", agent.Name, invocationID))
-		AtomicWrite(stateDir, inputText)
-		raw = agent.Run(inputText, context)
-		updated = true
+// RunCodex invokes the LLM runtime for one agent turn. When schema is
+// non-nil (decision agents), it is written to a temp file and passed to the
+// runtime as --output-schema so the model is constrained at generation time.
+func RunCodex(agentName, prompt, timeout string, schema map[string]any, context *Context) (string, error) {
+	var stdout string
+	var err error
+	if context.runCodexHook != nil {
+		stdout, err = context.runCodexHook(agentName, prompt, timeout, schema)
 	} else {
-		if j, err := ExtractJSON(raw); err == nil {
-			var x map[string]interface{}
-			if err := jsonv2.Unmarshal([]byte(j), &x, jsonv2text.AllowDuplicateNames(true)); err == nil {
-				kludged := false
-				if _, ok := x["approved"]; ok {
-					if _, ok2 := x["approved_confidence"]; !ok2 {
-						x["approved_confidence"] = "low"
-						x["approved_reason"] = "backfill"
-						x["resolved_issues"] = []interface{}{}
-						kludged = true
-					}
-				}
-				if (agent.Name == "tech_lead_final" || x["plan"] != nil) && x["next_steps"] == nil {
-					x["next_steps"] = []interface{}{}
-					kludged = true
-				}
-				if kludged {
-					raw = MarshalJSON(x)
-				}
-			}
-		}
+		stdout, err = realRunCodex(agentName, prompt, timeout, schema)
+	}
+	context.Tracer.trace("run_codex", map[string]any{
+		"agent":     agentName,
+		"prompt":    prompt,
+		"timeout":   timeout,
+		"hasSchema": schema != nil,
+		"stdout":    stdout,
+		"error":     errorString(err),
+	})
+	return stdout, err
+}
+
+func realRunCodex(agentName, prompt, timeout string, schema map[string]any) (string, error) {
+	cmdArgs := []string{"codex", "exec"}
+	if timeout != "" {
+		cmdArgs = append([]string{"timeout", "-s", "9", timeout}, cmdArgs...)
 	}
 
-	for {
-		if updated {
-			AtomicWrite(cacheFile, raw)
-		}
-		j, err := ExtractJSON(raw)
+	var schemaPath string
+	if schema != nil {
+		f, err := os.CreateTemp("", "schema-*.json")
 		if err != nil {
-			raw = agent.Run(fmt.Sprintf(`
-%s
-
-<feedback>
-Your previous output failed JSON validation:
-<error>
-%v
-</error>
-
-Output MUST be valid JSON only:
-%s
-</feedback>
-`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)), context)
-			updated = true
-			continue
+			panic(err)
 		}
-		if agent.Schema != nil {
-			if valErr := loader.ValidateJSONBytes([]byte(j), agent.Schema); valErr != nil {
-				raw = agent.Run(fmt.Sprintf(`
-%s
+		schemaPath = f.Name()
+		f.Write([]byte(prettyJSON(schema)))
+		f.Close()
+		defer os.Remove(schemaPath)
+		cmdArgs = append(cmdArgs, "--output-schema", schemaPath)
+	}
 
-<feedback>
-Your previous output failed JSON validation:
-<error>
-%v
-</error>
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	cmd.Stdin = strings.NewReader(prompt)
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("AC_AGENT_NAME=%s", agentName))
+	cmd.Env = env
 
-Output MUST be valid JSON only:
-%s
-</feedback>
-`, agent.ResumePrompt, valErr, loader.SchemaToExample(agent.Schema)), context)
-				updated = true
-				continue
-			}
-		}
-		var out T
-		if err := jsonv2.Unmarshal([]byte(j), &out, jsonv2text.AllowDuplicateNames(true)); err != nil {
-			raw = agent.Run(fmt.Sprintf(`
-%s
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		panic(err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		panic(err)
+	}
 
-<feedback>
-Your previous output failed JSON validation:
-<error>
-%v
-</error>
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
 
-Output MUST be valid JSON only:
-%s
-</feedback>
-`, agent.ResumePrompt, err, loader.SchemaToExample(agent.Schema)), context)
-			updated = true
-			continue
-		}
-		if agent.Ephemeral {
-			agent.Reset(context)
-		} else {
-			agent.LastCorrectResponse = &out
-		}
-		return CacheResult[T]{Out: out, FromCache: !updated}
+	var stdoutBuf, stderrBuf strings.Builder
+	doneStdout := make(chan struct{})
+	doneStderr := make(chan struct{})
+
+	go func() {
+		io.Copy(&stdoutBuf, stdoutPipe)
+		close(doneStdout)
+	}()
+	go func() {
+		tee := io.TeeReader(stderrPipe, &stderrBuf)
+		io.Copy(os.Stderr, tee)
+		close(doneStderr)
+	}()
+
+	cmd.Wait()
+	<-doneStdout
+	<-doneStderr
+
+	output := strings.TrimSpace(stdoutBuf.String())
+	if output == "" {
+		return "", fmt.Errorf("empty output from %s, likely timeout issue", agentName)
+	}
+	return output, nil
+}
+
+// AtomicWrite writes content to path via a temp file + rename.
+func AtomicWrite(path string, content string) {
+	dirPath := filepath.Dir(path)
+	if dirPath != "" {
+		os.MkdirAll(dirPath, 0o755)
+	}
+	tmpFile, err := os.CreateTemp(dirPath, "*.tmp")
+	if err != nil {
+		panic(fmt.Sprintf("atomic_write: failed to create temp file: %v", err))
+	}
+	tmpPath := tmpFile.Name()
+	_, err = tmpFile.WriteString(content)
+	tmpFile.Close()
+	if err != nil {
+		os.Remove(tmpPath)
+		panic(fmt.Sprintf("atomic_write: failed to write: %v", err))
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		panic(fmt.Sprintf("atomic_write: failed to rename: %v", err))
 	}
 }
 
-type IWithNextStepsBuilder[
-	TNextSteps any,
-	TObject any,
-	TBuilder any,
-] interface {
-	WithNextSteps(*TNextSteps) TBuilder
-	Build() TObject
-}
-
-type IWithNextSteps[
-	TNextSteps any,
-	TObject any,
-	TBuilder IWithNextStepsBuilder[
-		TNextSteps,
-		TObject,
-		TBuilder,
-	],
-] interface {
-	NextSteps() *TNextSteps
-	Clone() TBuilder
-}
-
-func Nudge[
-	TNextSteps ~*immutable.List[string],
-	TObject IWithNextSteps[
-		TNextSteps,
-		TObject,
-		TBuilder,
-	],
-	TBuilder IWithNextStepsBuilder[
-		TNextSteps,
-		TObject,
-		TBuilder,
-	],
-](
-	maxIt int,
-	agent *Agent[TObject],
-	prompt string,
-	invocationIDPrefix string,
-	subdir []string,
-	nsc *Agent[dt.NonCoderNextStepsCleanup],
-	context *Context,
-) []CacheResult[TObject] {
-	nextPrompt := prompt
-	results := []CacheResult[TObject]{}
-	for i := 0; i < maxIt; i++ {
-		result := runJSONAgent(agent, nextPrompt, fmt.Sprintf("%s-nudge%d", invocationIDPrefix, i), subdir, context)
-
-		var nextSteps TNextSteps
-		nsPtr := result.Out.NextSteps()
-		if nsPtr != nil {
-			nextSteps = *nsPtr
-			result.Out = result.Out.Clone().WithNextSteps(nil).Build()
-			if !agent.Ephemeral {
-				agent.LastCorrectResponse = &result.Out
-			}
-		}
-		results = append(results, result)
-		if nextSteps == nil || (*immutable.List[string])(nextSteps).Len() == 0 {
-			break
-		}
-		if nsc != nil {
-			nscResult := runJSONAgent(nsc, fmt.Sprintf("INPUT:\n%s\n\nReturn the filtered list of steps, exactly as written.\nDo not include any explanation or commentary.", MarshalJSON(map[string]interface{}{"next_steps": immutableListToSlice((*immutable.List[string])(nextSteps))})), fmt.Sprintf("%s-nudge%d-nsc", invocationIDPrefix, i), subdir, context)
-			filtered := nscResult.Out.Lines()
-			if filtered.Len() == 0 {
-				break
-			}
-			nextSteps = filtered
-		}
-		if agent.Ephemeral || (i+1)%10 == 0 {
-			nextPrompt = fmt.Sprintf("END GOAL:\n<reminder>\n%s\n</reminder>\n\n", prompt)
-		} else {
-			nextPrompt = ""
-		}
-		if agent.Ephemeral {
-			nextPrompt += fmt.Sprintf("PREVIOUS RESPONSE: %s\n", MarshalJSON(result.Out))
-		}
-		nextPrompt += fmt.Sprintf("ITERATION: %d/%d\n", i+1, maxIt)
-		nextPrompt += "<feedback>\nADDRESS YOUR NEXT STEPS:\n"
-		var s string
-		nextStepsItr := (*immutable.List[string])(nextSteps).Iterator()
-		nextStepsItr.First()
-		for !nextStepsItr.Done() {
-			_, s = nextStepsItr.Next()
-			nextPrompt += fmt.Sprintf("* %s\n", s)
-		}
-		nextPrompt += "</feedback>\n"
-		if agent.Ephemeral {
-			nextPrompt += "\n" + loader.Followup
-		}
+// BuildPath joins the session subdir root with a section and nested dirs.
+func BuildPath(subdir []string, section string) string {
+	if len(subdir) == 0 {
+		panic("`subdir` must be set")
 	}
-	return results
+	rootDir := subdir[0]
+	nested := subdir[1:]
+	return filepath.Join(append([]string{rootDir, section}, nested...)...)
+}
+
+func wrapText(text string) string {
+	return fmt.Sprintf("<text>\n%s\n</text>", text)
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// safeFlush drains the filesystem watcher, returning detected changes since the
+// last flush. Watcher problems degrade to an empty result, never a crash.
+func safeFlush(watcher *wman.Watchman, context *Context) map[string]string {
+	defer func() {
+		recover()
+	}()
+	var out map[string]string
+	if context.watchmanHook != nil {
+		out = context.watchmanHook()
+	} else if watcher != nil {
+		out = watcher.Flush()
+	}
+	if out == nil {
+		out = map[string]string{}
+	}
+	context.Tracer.trace("watchman", map[string]any{"changes": out})
+	return out
+}
+
+// changesPrompt renders the automated change-detection block injected into the
+// code review prompt.
+func changesPrompt(changes map[string]string) string {
+	if len(changes) == 0 {
+		return "**AUTOMATED VERIFICATION: NO ACTUAL FILE CHANGES DETECTED ON DISK.** Assess whether the claimed implementation work really happened.\n"
+	}
+	out := "AUTOMATED CHANGE DETECTION (files changed on disk since the coder step started): the following changes were detected automatically; completeness must be assessed and every claim verified against the repository.\n"
+	names := make([]string, 0, len(changes))
+	for name := range changes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		out += fmt.Sprintf("* %s: %s\n", changes[name], name)
+	}
+	return out
 }

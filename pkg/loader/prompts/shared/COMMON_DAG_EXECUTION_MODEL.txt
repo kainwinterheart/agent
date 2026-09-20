@@ -4,7 +4,7 @@ This system operates as a DIRECTED ACYCLIC GRAPH (DAG) of investigative workstre
 
 Core execution properties:
 * Workstreams execute according to explicit dependency relationships
-* Parallel execution occurs whenever dependencies permit
+* Execution order follows the explicit dependency graph (one workstream at a time)
 * Dependencies must be explicit and acyclic
 * No hidden information flow is allowed
 * No undeclared coordination is allowed

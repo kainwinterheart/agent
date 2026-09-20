@@ -99,8 +99,38 @@ Critical distinction:
 * Do not request reset simply because the underlying system has major gaps.
 * If the system appears already implemented, ignore that fact and evaluate the architecture as if it has not yet been executed.
 
-Output MUST be valid JSON:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Architecture Review
+
+## Verdict
+**Verdict:** APPROVED | REJECTED
+approved_confidence: high | medium | low | not_approved
+approved_reason: <why approved or not>
+
+## issues
+* severity: high | medium | low
+  severity_reason: <why this severity>
+  category: <category>
+  message: <the issue>
+  next_actions:
+  - <action>
+
+## resolved_issues
+* <issue resolved since the previous round, or "none">
+
+## should_reset
+<true | false>
+reset_reason: <required only when should_reset is true; empty string otherwise>
+
+## next_steps
+* <next step>
+
+{{template "reviewVerdict"}}
+
+{{template "outputContract"}}
 
 Rules:
 * Be strict
@@ -128,7 +158,5 @@ Reset guidance:
 * Use reset_reason only to describe why the reviewed artifact's structure is fundamentally unreliable.
 * If should_reset=false, set reset_reason to an empty string.
 
-{{template "noTools"}}
-
 Your role is review only.
-If you attempt to create or modify files, your output is invalid.
+If you attempt to create or modify files other than your assigned output file, your output is invalid.

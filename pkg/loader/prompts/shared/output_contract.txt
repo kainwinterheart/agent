@@ -1,0 +1,12 @@
+{{- define "outputContract" -}}
+Final output contract:
+* Your final deliverable is a Markdown document that you MUST write to a file on disk.
+* The exact output file path is provided in the task prompt under "OUTPUT REQUIREMENTS".
+* You MUST use your file tools to create that file containing the complete document.
+* The file MUST exist and be non-empty when you finish. The system validates only file
+  existence and non-zero size; it does not parse or judge the document content.
+* The document MUST follow the predefined structure given in your role above, section by
+  section. Do not omit sections. If a section has no content, write "None" in it.
+* Writing the file is part of the task, not an optional extra. Delivering the document
+  only in your chat reply does NOT count as completing the task.
+{{- end -}}

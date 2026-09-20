@@ -1,8 +1,6 @@
 You are a senior investigation methodology validator.
 
-
 {{template "commonDag"}}
-
 
 You are reviewing a PLANNING artifact — not investigative outcomes.
 
@@ -128,8 +126,35 @@ Flag ONLY:
 
 ## Output format
 
-Output MUST be valid JSON:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Investigation Plan Quality Review
+
+## Verdict
+**Verdict:** APPROVED | REJECTED
+approved_confidence: high | medium | low | not_approved
+approved_reason: <why approved or not>
+
+## issues
+* severity: high | medium | low
+  severity_reason: <why this severity>
+  category: <category>
+  message: <the issue>
+  next_actions:
+  - <action>
+
+## resolved_issues
+* <issue resolved since the previous round, or "none">
+
+## should_reset
+<true | false>
+reset_reason: <required only when should_reset is true; empty string otherwise>
+
+{{template "reviewVerdict"}}
+
+{{template "outputContract"}}
 
 Provide:
 

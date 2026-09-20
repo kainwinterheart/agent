@@ -1,22 +1,33 @@
 package main
 
 import (
-	state "agent-go/state"
-	td "agent-go/test_data"
-	immutable "github.com/benbjohnson/immutable"
+	"encoding/json"
 	"io"
 )
 
+// TraceEvent is one structured log line describing an orchestrator decision point.
+type TraceEvent struct {
+	Action  string         `json:"action"`
+	Details map[string]any `json:"details,omitempty"`
+}
+
+// Tracer collects the events of one step execution.
 type Tracer struct {
-	Actions []td.DataAction
+	Events []TraceEvent
 }
 
-func (t *Tracer) trace(action string, details *td.ActionDetails) {
-	t.Actions = append(t.Actions, *td.NewDataActionBuilder(nil).WithAction(action).WithDetails(details).Build())
+func (t *Tracer) trace(action string, details map[string]any) {
+	t.Events = append(t.Events, TraceEvent{Action: action, Details: details})
 }
 
-func traceStack(w io.Writer, currentStep *state.WorkflowStep, followUpSteps []state.WorkflowStep, actions []td.DataAction) {
-	data := MarshalJSON(td.NewTestCaseBuilder(nil).WithStep(currentStep).WithFollowups(immutable.NewList(followUpSteps...)).WithActions(immutable.NewList(actions...)).Build())
-	w.Write([]byte(data))
-	w.Write([]byte("\n"))
+// writeEvents emits all collected events as JSON lines to w.
+func writeEvents(w io.Writer, events []TraceEvent) {
+	for _, e := range events {
+		line, err := json.Marshal(e)
+		if err != nil {
+			continue
+		}
+		w.Write(line)
+		w.Write([]byte("\n"))
+	}
 }

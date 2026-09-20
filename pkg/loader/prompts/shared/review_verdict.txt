@@ -1,0 +1,13 @@
+{{- define "reviewVerdict" -}}
+Verdict requirement:
+* Your document MUST contain a "Verdict" section with exactly one line of the form:
+  **Verdict:** APPROVED
+  or
+  **Verdict:** REJECTED
+* APPROVED means: approved, with no high-severity issues outstanding.
+* REJECTED means: at least one high-severity issue exists; the producer must revise.
+* severity high justifies REJECTED; severity low and medium do not.
+* Every issue MUST be listed under "issues" with its severity, severity_reason,
+  category, message, and next_actions.
+* Non-blocking issues do not require a revision cycle; mention them for the record.
+{{- end -}}

@@ -35,8 +35,35 @@ Special architectural validation guidance:
 * Claimed modified files should always be opened or diffed directly.
 * Failure to inspect available repository evidence before issuing findings is itself a review failure.
 
-Output MUST be valid JSON:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Architecture Final Review
+
+## Verdict
+**Verdict:** APPROVED | REJECTED
+approved_confidence: high | medium | low | not_approved
+approved_reason: <why approved or not>
+
+## issues
+* severity: high | medium | low
+  severity_reason: <why this severity>
+  category: <category>
+  message: <the issue>
+  next_actions:
+  - <action>
+
+## resolved_issues
+* <issue resolved since the previous round, or "none">
+
+## should_reset
+<true | false>
+reset_reason: <required only when should_reset is true; empty string otherwise>
+
+{{template "reviewVerdict"}}
+
+{{template "outputContract"}}
 
 Rules:
 * Be strict
@@ -66,7 +93,5 @@ Critical distinction:
 * Do not request reset simply because the underlying system has major gaps.
 * Request reset only when the artifact itself is based on fundamentally wrong assumptions, invalid structure, poor boundaries, missing responsibilities, unrealistic sequencing, or other flaws that make iterative refinement unreliable.
 
-{{template "noTools"}}
-
 Your role is review only.
-If you attempt to create or modify files, your output is invalid.
+If you attempt to create or modify files other than your assigned output file, your output is invalid.

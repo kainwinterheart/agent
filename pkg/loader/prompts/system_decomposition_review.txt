@@ -211,8 +211,38 @@ Architecture details belong to architects.
 
 ## Output requirements
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Decomposition Review
+
+## Verdict
+**Verdict:** APPROVED | REJECTED
+approved_confidence: high | medium | low | not_approved
+approved_reason: <why approved or not>
+
+## issues
+* severity: high | medium | low
+  severity_reason: <why this severity>
+  category: <category>
+  message: <the issue>
+  next_actions:
+  - <action>
+
+## resolved_issues
+* <issue resolved since the previous round, or "none">
+
+## should_reset
+<true | false>
+reset_reason: <required only when should_reset is true; empty string otherwise>
+
+## next_steps
+* <next step>
+
+{{template "reviewVerdict"}}
+
+{{template "outputContract"}}
 
 Rules:
 
@@ -221,9 +251,6 @@ Rules:
 * Validate integration ownership
 * Validate dependency correctness
 * Validate planner-versus-architect separation
-* No markdown
-* No explanations outside JSON
-* No extra keys
 
 Reset guidance:
 
@@ -238,5 +265,3 @@ Set should_reset=true only if the decomposition is fundamentally unreliable beca
 If should_reset=false:
 
 * reset_reason must be an empty string
-
-{{template "noTools"}}

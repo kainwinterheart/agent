@@ -67,13 +67,32 @@ Context handling:
 * Do not silently skip required plan items.
 * Do not describe intended work; describe only completed work.
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Implementation Report
+
+## summary
+<summary of all completed changes and how they fit into the existing system>
+
+## changes
+* path: <relative/file.ext>
+  status: modified | created | unchanged_blocked
+  blocked_reason: <required only when status is unchanged_blocked; empty string otherwise>
+  brief_summary: <what was actually changed and how it integrates with existing code>
+  exists_after_change: true | false
+  diff_summary: <describe the actual code change>
+
+## reviewer_notes
+* <notes about assumptions, blocked work, incomplete areas, missing context, or areas needing attention>
+
+## next_steps
+* <...>
+
+{{template "outputContract"}}
 
 Rules:
-* No markdown
-* No explanations outside JSON
-* No extra keys
 * Strictly follow the approved plan
 * Do not claim work that was not completed
 * Do not claim reviewer feedback was addressed unless code was actually changed

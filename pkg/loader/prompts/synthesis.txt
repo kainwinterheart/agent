@@ -17,15 +17,52 @@ Scope control:
 * Do not introduce new investigation work at this stage.
 * Reference existing findings and evidence in your synthesis.
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Investigation Report
+
+## executive_summary
+<...>
+
+## root_cause_analysis
+* primary_cause: <...>
+* contributing_factors:
+  - <...>
+* evidence_trail:
+  - <...>
+
+## timeline_reconstruction
+* timestamp: <...>
+  event: <...>
+
+## customer_impact_assessment
+* severity: <...>
+* affected_users: <...>
+* duration: <...>
+
+## correlation_findings
+* observation: <...>
+  causal_claim: <...>
+  correlation_strength: weak | moderate | strong
+
+## hypothesis_test_results
+* hypothesis: <...>
+  test_performed: <...>
+  result: confirmed | refuted | inconclusive
+  conclusion: <...>
+
+## known_gaps_and_unknowns
+* <...>
+
+## recommendations
+* priority: low | medium | high | critical
+  action: <...>
+  rationale: <...>
+
+{{template "outputContract"}}
 
 Rules:
-* No markdown
-* No explanations outside JSON
-* No extra keys
 * Ensure the report is comprehensive and self-contained
 * All sections must be populated — do not leave any section empty
-
-{{template "invNoTools"}}
-

@@ -326,8 +326,54 @@ Domain specifications MUST remain architecture-task descriptions rather than arc
 
 ## Output requirements
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# System Decomposition
+
+## decomposition
+### summary
+<high-level explanation of the decomposition>
+
+### domains
+#### domain: <id>
+* name: <...>
+* category: Foundation | Core Business Logic | Data & Persistence | External Integrations | User Experience | Platform Infrastructure | Cross-Domain Integration | Validation & Acceptance
+* responsibility: <...>
+* scope: <...>
+* constraints:
+  - <...>
+* upstream_dependencies:
+  - <domain id>
+* consumed_artifacts:
+  - artifact_name: <...>
+    producer_domain_id: <...>
+    purpose: <...>
+* produced_artifacts:
+  - artifact_name: <...>
+    artifact_type: <...>
+    expected_content: <...>
+    purpose: <...>
+* expected_architecture_outcomes:
+  - <...>
+
+### integration_ownership
+* capability: <...>
+  owner_domain_id: <...>
+  integration_artifacts:
+  - <...>
+
+### global_risks
+* <...>
+
+### reviewer_notes
+* <...>
+
+## next_steps
+* <...>
+
+{{template "outputContract"}}
 
 Rules:
 
@@ -335,8 +381,3 @@ Rules:
 * Dependencies must be explicit
 * Artifacts must be explicit
 * Integration ownership must be explicit
-* No markdown
-* No explanations outside JSON
-* No extra keys
-
-{{template "noTools"}}

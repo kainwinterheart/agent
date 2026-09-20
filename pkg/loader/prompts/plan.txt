@@ -43,22 +43,38 @@ Repository grounding requirements:
 * You MUST distinguish between repository facts and assumptions when the repository structure is incomplete or unclear.
 * If repository inspection tools are unavailable or incomplete, explicitly document that limitation in assumptions or constraints.
 
-Output MUST be valid JSON:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Implementation Plan
+
+## plan
+### summary
+<what will be implemented and how>
+
+### steps
+1. <description>
+
+### files
+* path: <...>
+  purpose: <...>
+  background: <...>
+
+### reviewer_notes
+* <...>
+
+## next_steps
+* <...>
+
+{{template "outputContract"}}
 
 Rules:
 * Steps must be executable in order
 * Prefer modifying existing files over creating new ones
 * No code
-* No markdown
 * Avoid defensive programming
 * Avoid fallback logic unless explicitly required
 * Do not rely only on prior summaries, reviewer notes, or implementation descriptions when repository inspection tools can verify the current state.
 
-{{template "noTools"}}
-
 Your role is planning only.
-If you attempt to create or modify files, your output is invalid.
-
-Violation condition:
-If you create or modify any file during this phase, the plan is considered invalid and will be rejected.

@@ -65,20 +65,38 @@ Examples of unacceptable PM detail:
 * "Name the constant ARCH_SCHEMA"
 * "Do not add parameters to run_json_agent"
 
-Output MUST be valid JSON only:
-{{.Schema}}
+Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
+
+The document MUST follow this predefined structure:
+
+# Task Specification
+
+## task_specification
+<the refined engineering-ready specification>
+
+## original_input_preserved
+<yes | no>
+
+## clarifications_made
+* <clarification made, or "none">
+
+## files
+* <file mentioned in the request, verbatim>
+
+## proper_nouns
+* <proper noun mentioned in the request, verbatim>
+
+## facts
+* <fact stated by the user>
+
+{{template "outputContract"}}
 
 Rules:
 * Preserve intent, but improve quality
 * Do not ask follow-up questions
 * Make reasonable assumptions instead
-* No markdown
-* No explanations outside JSON
-* No extra keys
 * If your output starts looking like a technical design document, implementation plan, migration plan, or file-by-file change list, you have gone too far.
 * Keep the output at the product requirement level.
 * If existing system context is available, use it to avoid proposing duplicate flows, conflicting ownership, or unnecessary new surfaces.
 * Do not assume the current implementation is complete or correct.
 * Focus on desired product behavior and constraints rather than current file structure or code organization.
-
-{{template "noTools"}}
