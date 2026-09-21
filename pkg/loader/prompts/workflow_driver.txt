@@ -9,6 +9,8 @@ You must choose exactly one:
 
 `finish` is a TERMINAL STATE. It is never an action and is never used to inspect, read, verify, determine, check, or plan anything.
 
+`finish` is a claim about the RUN, not about your response. Finishing your response is not an event the run needs to hear about: you never emit `finish` to mean "this turn is done" or "my analysis is complete." Every turn either advances the run by selecting a subworkflow, or closes it with a justified completion claim.
+
 ---
 
 # HARD DECISION RULES
@@ -47,10 +49,11 @@ finish = INVALID
 
 There is no exception.
 
-The first driver decision of a fresh run MUST be:
+The first driver decision of a fresh run MUST select `spec`, rationale first:
 
 ```json
 {
+  "rationale": "The run state is BOOTSTRAP: zero completed executions, so the work has not started. RULE 1 makes spec the mandatory first subworkflow.",
   "subworkflow": "spec",
   "task": "Produce the durable refined task specification from the user's request."
 }
@@ -125,11 +128,7 @@ These describe WORK.
 
 Work requires a subworkflow.
 
-A valid finish task describes an ALREADY ACHIEVED OUTCOME, for example:
-
-```text
-The requested implementation has been completed and passed the required final reviews.
-```
+A valid finish task states, in the past tense, the outcome THIS run actually achieved, grounded in artifacts that exist in the index. Write it yourself: never reuse example wording from these instructions.
 
 ---
 
@@ -343,6 +342,10 @@ confirmation.
 
 # MANDATORY DECISION PROCEDURE
 
+## Response construction
+
+Your response is generated in schema order: `rationale` first, then `subworkflow`, then `task`. Write the rationale as your genuine analysis of the run state, and let the `subworkflow` field be forced by what the rationale concluded. Never emit a transition you have not yet reasoned about.
+
 Evaluate these conditions IN THIS ORDER:
 
 ## Step 1
@@ -399,6 +402,16 @@ ONLY NOW:
 choose finish
 ```
 
+## Emission check (always, before you stop)
+
+Re-read the rationale you just wrote.
+
+* If it names work that remains — a subworkflow to run, a document to read, a review to complete, a finding to resolve — then `subworkflow` MUST be that subworkflow's id.
+* If it says `finish` is invalid, premature, impossible, or forbidden — then `subworkflow` MUST NOT be `finish`.
+* If `task` describes an action in the present or future tense — then `subworkflow` MUST NOT be `finish`.
+
+A response that argues against finishing while selecting `finish` is invalid and will be rejected.
+
 ---
 
 # IMPORTANT
@@ -420,6 +433,8 @@ then your JSON MUST NOT contain:
 ```
 
 It MUST contain the applicable non-terminal subworkflow.
+
+Never copy example sentences from these instructions into your response verbatim. Your rationale and your task must describe THIS run.
 
 ---
 

@@ -35,6 +35,7 @@ type script struct {
 
 	// Driver scenario.
 	DriverChoices         []string // consumed in order, one per valid driver response
+	DriverNormalRaw       []string // raw JSON regular-turn responses, consumed before DriverChoices
 	DriverReassessChoices []string // consumed in order, one per finish-reassessment response
 	DriverReassessRaw     []string // raw JSON reassessment responses, consumed before DriverReassessChoices
 	DriverFailAfter       int      // after this many driver calls, calls fail (0 = off)
@@ -51,6 +52,7 @@ type script struct {
 
 	driverCalls    int
 	choiceIdx      int
+	normalRawIdx   int
 	reassessIdx    int
 	reassessRawIdx int
 	loopCalls      int
@@ -146,10 +148,22 @@ func (s *script) driverResponse(prompt string) (string, error) {
 		}
 		return prettyJSON(resp), nil
 	}
+	// Regular turns: raw scripted responses first (verbatim, for simulating
+	// protocol violations), then intents rendered protocol-compliantly - a
+	// "finish" intent in bootstrap becomes "spec", since a compliant driver
+	// never emits finish before the run has started.
+	if s.normalRawIdx < len(s.DriverNormalRaw) {
+		raw := s.DriverNormalRaw[s.normalRawIdx]
+		s.normalRawIdx++
+		return raw, nil
+	}
 	choice := "finish"
 	if s.choiceIdx < len(s.DriverChoices) {
 		choice = s.DriverChoices[s.choiceIdx]
 		s.choiceIdx++
+	}
+	if choice == "finish" && strings.Contains(prompt, bootstrapRunStatePrefix) {
+		choice = "spec"
 	}
 	resp := map[string]any{
 		"subworkflow": choice,
@@ -787,8 +801,8 @@ func TestOrchestrator_AlreadyFinishedNoop(t *testing.T) {
 	if err := orch.Run("Quick task.", subdir); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	if s.driverCalls != 4 {
-		t.Fatalf("driver calls = %d, want 4 (finish, reassess->spec, finish, reassess->confirm)", s.driverCalls)
+	if s.driverCalls != 3 {
+		t.Fatalf("driver calls = %d, want 3 (spec, finish, reassess->confirm)", s.driverCalls)
 	}
 	// The bootstrap finish was corrected: the spec subworkflow ran before
 	// the run could end.
@@ -803,7 +817,7 @@ func TestOrchestrator_AlreadyFinishedNoop(t *testing.T) {
 	if err := orch.Run("", subdir); err != nil {
 		t.Fatalf("rerun of finished session: %v", err)
 	}
-	if s.driverCalls != 4 {
+	if s.driverCalls != 3 {
 		t.Errorf("finished session must not consult the driver again (calls=%d)", s.driverCalls)
 	}
 }
@@ -1091,13 +1105,21 @@ func TestResume_FoldsInterruptedExecution(t *testing.T) {
 // Finish reassessment
 // ---------------------------------------------------------------------------
 
-// The reported bug: on a fresh run (zero artifacts) the driver answered
-// "finish" on its very first turn. The mandatory reassessment must send the
-// full response back, and the corrected choice (spec) must be executed.
-func TestOrchestrator_FinishReassessmentOverridesBootstrapFinish(t *testing.T) {
+// The reassessment backstop, with the source guard in the same run: turn 1
+// (bootstrap) answers a premature "finish" that the orchestrator rejects at
+// validation time and corrects; turn 2 (real work done) answers "finish"
+// again, and the mandatory reassessment overrides it with the subworkflow
+// that was actually needed.
+func TestOrchestrator_FinishReassessmentOverridesFinish(t *testing.T) {
 	s := newScript(t)
-	// Every regular driver turn answers "finish" (script default); the first
-	// reassessment overrides it with "spec", the second confirms.
+	// Turn 1, attempt 1 (bootstrap): a premature finish, verbatim.
+	s.DriverNormalRaw = []string{
+		`{"subworkflow":"finish","rationale":"The classification is done; the requested outcome is complete.","task":"The requested implementation has been completed and passed the required final reviews."}`,
+	}
+	// Turn 1, attempt 2 (after rejection feedback): classify.
+	// Turn 2: a premature finish (non-bootstrap, so admissible at validation).
+	s.DriverChoices = []string{"classify", "finish"}
+	// The turn-2 reassessment corrects the course.
 	s.DriverReassessChoices = []string{"spec"}
 
 	sc := runScenario(t, "Build the thing.", s, nil)
@@ -1106,26 +1128,40 @@ func TestOrchestrator_FinishReassessmentOverridesBootstrapFinish(t *testing.T) {
 	if !st.Finished {
 		t.Fatal("run should finish after the corrected course")
 	}
-	if s.driverCalls != 4 {
-		t.Fatalf("driver calls = %d, want 4 (finish, reassess->spec, finish, reassess->confirm)", s.driverCalls)
+	if s.driverCalls != 6 {
+		t.Fatalf("driver calls = %d, want 6 (finish rejected, classify, finish, reassess->spec, finish, reassess->confirm)", s.driverCalls)
 	}
-	if len(st.History) != 2 {
-		t.Fatalf("history = %d entries, want 2: %+v", len(st.History), st.History)
+	if len(st.History) != 3 {
+		t.Fatalf("history = %d entries, want 3: %+v", len(st.History), st.History)
 	}
 
-	// Turn 1 records the FINAL decision (spec), with the initial finish
-	// decision preserved by reference.
+	// Turn 1: the rejected bootstrap finish never reached the reassessment.
 	h1 := st.History[0]
-	if h1.Subworkflow != "spec" {
-		t.Fatalf("history 1 subworkflow = %q, want spec", h1.Subworkflow)
+	if h1.Subworkflow != "classify" {
+		t.Fatalf("history 1 subworkflow = %q, want classify", h1.Subworkflow)
 	}
-	if h1.FinishDecisionPath == "" {
-		t.Fatal("history 1 missing the initial finish decision path")
+	if h1.FinishDecisionPath != "" || h1.FinishConfirmed {
+		t.Errorf("history 1 must not reference a reassessment: %+v", h1)
 	}
-	if h1.FinishConfirmed {
-		t.Error("history 1 must not mark the finish as confirmed")
+	retryPrompt := sc.promptFor(t, "workflow_driver", 2)
+	if !strings.Contains(retryPrompt, "<feedback>") ||
+		!strings.Contains(retryPrompt, "finish is impossible in BOOTSTRAP") {
+		t.Error("turn-1 retry prompt missing the bootstrap rejection feedback")
 	}
-	initial, err := os.ReadFile(h1.FinishDecisionPath)
+
+	// Turn 2 records the FINAL decision (spec), with the initial finish
+	// decision preserved by reference.
+	h2 := st.History[1]
+	if h2.Subworkflow != "spec" {
+		t.Fatalf("history 2 subworkflow = %q, want spec", h2.Subworkflow)
+	}
+	if h2.FinishDecisionPath == "" {
+		t.Fatal("history 2 missing the initial finish decision path")
+	}
+	if h2.FinishConfirmed {
+		t.Error("history 2 must not mark the finish as confirmed")
+	}
+	initial, err := os.ReadFile(h2.FinishDecisionPath)
 	if err != nil {
 		t.Fatalf("initial finish decision missing: %v", err)
 	}
@@ -1136,7 +1172,7 @@ func TestOrchestrator_FinishReassessmentOverridesBootstrapFinish(t *testing.T) {
 	if idd["subworkflow"] != "finish" {
 		t.Errorf("initial finish decision subworkflow = %v, want finish", idd["subworkflow"])
 	}
-	final, err := os.ReadFile(h1.DecisionPath)
+	final, err := os.ReadFile(h2.DecisionPath)
 	if err != nil {
 		t.Fatalf("reassessment decision missing: %v", err)
 	}
@@ -1144,11 +1180,8 @@ func TestOrchestrator_FinishReassessmentOverridesBootstrapFinish(t *testing.T) {
 	if err := json.Unmarshal(final, &fdd); err != nil {
 		t.Fatalf("reassessment decision not JSON: %v", err)
 	}
-	if fdd["subworkflow"] != "spec" {
-		t.Errorf("reassessment decision subworkflow = %v, want spec", fdd["subworkflow"])
-	}
-	if fdd["decision"] != "select_subworkflow" {
-		t.Errorf("reassessment decision branch = %v, want select_subworkflow", fdd["decision"])
+	if fdd["subworkflow"] != "spec" || fdd["decision"] != "select_subworkflow" {
+		t.Errorf("reassessment decision = %v, want select_subworkflow/spec", fdd)
 	}
 
 	// The spec subworkflow actually ran: its documents exist.
@@ -1165,41 +1198,36 @@ func TestOrchestrator_FinishReassessmentOverridesBootstrapFinish(t *testing.T) {
 		t.Errorf("spec documents missing from artifacts: %+v", st.Artifacts)
 	}
 
-	// Turn 2: finish confirmed on reassessment.
-	h2 := st.History[1]
-	if h2.Subworkflow != "finish" || h2.Outcome != "finished" {
-		t.Fatalf("history 2 = %+v, want finish/finished", h2)
-	}
-	if h2.FinishDecisionPath == "" || !h2.FinishConfirmed {
-		t.Errorf("history 2 must record the confirmed finish: %+v", h2)
-	}
-	if st.Outcome != "Scripted rationale for finish" {
-		t.Errorf("outcome = %q, want the confirmation rationale", st.Outcome)
+	// Turn 3: finish confirmed on reassessment.
+	h3 := st.History[2]
+	if h3.Subworkflow != "finish" || h3.Outcome != "finished" || !h3.FinishConfirmed {
+		t.Errorf("history 3 must record the confirmed finish: %+v", h3)
 	}
 
-	// The authoritative run state is stated in every driver prompt.
-	first := sc.promptFor(t, "workflow_driver", 1)
-	if !strings.Contains(first, "RUN STATE: BOOTSTRAP") {
-		t.Error("first driver prompt missing the bootstrap run state")
-	}
-	reassess := sc.promptFor(t, "workflow_driver", 2)
+	// The turn-2 reassessment prompt carried the driver's FULL finish
+	// response and the completed-execution run state.
+	reassess := sc.promptFor(t, "workflow_driver", 4)
 	if !strings.Contains(reassess, finishReassessmentMarker) {
-		t.Fatal("second driver prompt is not a finish reassessment")
+		t.Fatal("fourth driver prompt is not a finish reassessment")
 	}
+	// (The turn-2 finish is the mock's standard scripted response; the raw
+	// response was consumed - and rejected - on turn 1.)
 	if !strings.Contains(reassess, "Scripted rationale for finish") ||
 		!strings.Contains(reassess, "Scripted task: cover the auth domain.") {
 		t.Error("reassessment prompt missing the driver's full finish response")
 	}
-	if !strings.Contains(reassess, "RUN STATE: BOOTSTRAP") {
-		t.Error("reassessment prompt missing the bootstrap run state")
+	if !strings.Contains(reassess, "RUN STATE: 1 completed workflow execution(s)") {
+		t.Error("reassessment prompt missing the completed-execution run state")
 	}
 	assertNoArtifactPaths(t, reassess, st)
-	second := sc.promptFor(t, "workflow_driver", 3)
-	if !strings.Contains(second, "RUN STATE: 1 completed workflow execution(s)") {
-		t.Error("turn-2 driver prompt missing the completed-execution run state")
+	// The turn-3 prompt's decision history carries the overridden-finish
+	// note and the updated run state.
+	turn3 := sc.promptFor(t, "workflow_driver", 5)
+	if !strings.Contains(turn3, "RUN STATE: 2 completed workflow execution(s)") {
+		t.Error("turn-3 driver prompt missing the completed-execution run state")
 	}
-	if !strings.Contains(second, "the mandatory finish reassessment overrode it") {
-		t.Error("turn-2 decision history missing the overridden-finish note")
+	if !strings.Contains(turn3, "the mandatory finish reassessment overrode it") {
+		t.Error("turn-3 decision history missing the overridden-finish note")
 	}
 }
 
@@ -1262,19 +1290,17 @@ func TestOrchestrator_FinishReassessmentConfirms(t *testing.T) {
 	assertNoArtifactPaths(t, reassess, st)
 }
 
-// Pins the reported incident: on a bootstrap run the driver's reassessment
-// response declared confirm_finish while its own rationale argued that the
-// only valid choice was spec. The orchestrator must reject a finish
-// confirmation in bootstrap state (the run cannot be complete before it has
-// started) and force a corrected response.
-func TestOrchestrator_FinishReassessmentBootstrapConfirmRejected(t *testing.T) {
+// Pins the reported incident at its source: on a bootstrap run the driver's
+// regular turn answered "finish" while its own rationale stated that finish
+// is invalid. The orchestrator rejects a bootstrap finish at validation time
+// (before any reassessment round trip) and forces the corrected response.
+func TestOrchestrator_BootstrapFinishRejectedAtSource(t *testing.T) {
 	s := newScript(t)
-	// First reassessment: the contradictory confirmation, as observed.
-	s.DriverReassessRaw = []string{
-		`{"decision":"confirm_finish","subworkflow":"finish","rationale":"The run is in BOOTSTRAP with zero completed executions. Per RULE 1 the only valid choice in bootstrap is the spec subworkflow.","task":"Produce the durable refined task specification from the user's request."}`,
+	// Regular turn 1: the verbatim contradictory response, as observed in
+	// production (decisions/001-driver.md).
+	s.DriverNormalRaw = []string{
+		`{"subworkflow":"finish","rationale":"Run state is BOOTSTRAP with zero completed workflow executions. Per RULE 1, the first driver decision must be the spec subworkflow; finish is invalid.","task":"The requested implementation has been completed and passed the required final reviews."}`,
 	}
-	// Second reassessment (after rejection feedback): the corrected choice.
-	s.DriverReassessChoices = []string{"spec"}
 
 	sc := runScenario(t, "Build the thing.", s, nil)
 	st := sc.state(t)
@@ -1282,8 +1308,8 @@ func TestOrchestrator_FinishReassessmentBootstrapConfirmRejected(t *testing.T) {
 	if !st.Finished {
 		t.Fatal("run should finish after the corrected course")
 	}
-	if s.driverCalls != 5 {
-		t.Fatalf("driver calls = %d, want 5 (finish, contradictory-confirm rejected, spec, finish, confirm)", s.driverCalls)
+	if s.driverCalls != 4 {
+		t.Fatalf("driver calls = %d, want 4 (raw finish rejected, spec, finish, reassess->confirm)", s.driverCalls)
 	}
 	if len(st.History) != 2 {
 		t.Fatalf("history = %d entries, want 2: %+v", len(st.History), st.History)
@@ -1293,29 +1319,28 @@ func TestOrchestrator_FinishReassessmentBootstrapConfirmRejected(t *testing.T) {
 	if h1.Subworkflow != "spec" {
 		t.Fatalf("history 1 subworkflow = %q, want spec", h1.Subworkflow)
 	}
-	if h1.FinishDecisionPath == "" || h1.FinishConfirmed {
-		t.Errorf("history 1 must record the overridden finish: %+v", h1)
+	if h1.FinishDecisionPath != "" || h1.FinishConfirmed {
+		t.Errorf("history 1 must not reference a reassessment (the finish never reached it): %+v", h1)
 	}
 	final, err := os.ReadFile(h1.DecisionPath)
 	if err != nil {
-		t.Fatalf("reassessment decision missing: %v", err)
+		t.Fatalf("decision missing: %v", err)
 	}
 	var fdd map[string]any
 	if err := json.Unmarshal(final, &fdd); err != nil {
-		t.Fatalf("reassessment decision not JSON: %v", err)
+		t.Fatalf("decision not JSON: %v", err)
 	}
-	if fdd["decision"] != "select_subworkflow" || fdd["subworkflow"] != "spec" {
-		t.Errorf("persisted reassessment = %v, want select_subworkflow/spec", fdd)
+	if fdd["subworkflow"] != "spec" {
+		t.Errorf("persisted decision subworkflow = %v, want spec", fdd["subworkflow"])
 	}
 
 	// The rejection fed back the structural reason; the corrected response
-	// followed. (Prompt 2 is the reassessment attempt that received the
-	// contradictory response; prompt 3 carries the retry feedback.)
-	retryPrompt := sc.promptFor(t, "workflow_driver", 3)
+	// followed. (Prompt 2 is the retry carrying the feedback.)
+	retryPrompt := sc.promptFor(t, "workflow_driver", 2)
 	if !strings.Contains(retryPrompt, "<feedback>") {
-		t.Fatal("third driver prompt missing retry feedback")
+		t.Fatal("second driver prompt missing retry feedback")
 	}
-	if !strings.Contains(retryPrompt, "confirm_finish is impossible in BOOTSTRAP") {
+	if !strings.Contains(retryPrompt, "finish is impossible in BOOTSTRAP") {
 		t.Error("retry feedback missing the bootstrap rejection reason")
 	}
 

@@ -70,7 +70,7 @@ var AgentDefinitions = []AgentDefinition{
 	{Name: "plan", Timeout: "60m", Inputs: []string{"product_manager", "arch", "system_decomposition"}, Outputs: []string{"plan"}},
 	{Name: "plan_review", Timeout: "30m", Inputs: []string{"product_manager", "arch", "system_decomposition", "plan"}, Outputs: []string{"plan_review"}, OutputTerminal: true},
 
-	{Name: "coder", Timeout: "180m", Inputs: []string{"plan"}, Outputs: []string{"coder"}},
+	{Name: "coder", Timeout: "720m", Inputs: []string{"plan"}, Outputs: []string{"coder"}},
 	{Name: "code_review", Timeout: "60m", Inputs: []string{"plan", "coder"}, Outputs: []string{"code_review"}, OutputTerminal: true},
 
 	{Name: "tech_lead_final", Timeout: "60m", Inputs: []string{"product_manager", "system_decomposition", "arch", "plan", "coder"}, Outputs: []string{"tech_lead_final"}, OutputTerminal: true},

@@ -220,3 +220,67 @@ func TestFinishReassessmentSchemaShape(t *testing.T) {
 		t.Error("schema must reject additional properties")
 	}
 }
+
+func TestStateAwareDecoders_BootstrapGuard(t *testing.T) {
+	fresh := newWorkflowState("task", "/sess")
+
+	decode := decodeDriverDecisionFor(fresh)
+	if _, err := decode(`{"subworkflow":"finish","rationale":"done","task":"complete"}`); err == nil {
+		t.Error("bootstrap finish accepted on a regular turn")
+	}
+	if _, err := decode(`{"subworkflow":"spec","rationale":"r","task":"t"}`); err != nil {
+		t.Errorf("bootstrap spec rejected: %v", err)
+	}
+
+	rdecode := decodeFinishReassessmentFor(fresh)
+	if _, err := rdecode(`{"decision":"confirm_finish","subworkflow":"finish","rationale":"r","task":"t"}`); err == nil {
+		t.Error("bootstrap confirm_finish accepted")
+	}
+	if _, err := rdecode(`{"decision":"select_subworkflow","subworkflow":"spec","rationale":"r","task":"t"}`); err != nil {
+		t.Errorf("bootstrap select_subworkflow rejected: %v", err)
+	}
+
+	// With a completed execution, completion claims are admissible again.
+	done := newWorkflowState("task", "/sess")
+	done.History = append(done.History, HistoryEntry{Iteration: 1, Subworkflow: "spec", Outcome: "completed"})
+	if _, err := decodeDriverDecisionFor(done)(`{"subworkflow":"finish","rationale":"done","task":"complete"}`); err != nil {
+		t.Errorf("post-bootstrap finish rejected: %v", err)
+	}
+	if _, err := decodeFinishReassessmentFor(done)(`{"decision":"confirm_finish","subworkflow":"finish","rationale":"r","task":"t"}`); err != nil {
+		t.Errorf("post-bootstrap confirm rejected: %v", err)
+	}
+}
+
+// Pins the init-order regression: the driver agent's CAPTURED schema - the
+// one handed to the runtime via --output-schema and rendered into its role
+// prompt - must enumerate the full subworkflow menu, not just "finish".
+// (Calling driverDecisionSchema() fresh at test time would pass even when
+// the captured schema was built against an empty registry.)
+func TestInitializedDriverAgentCarriesFullMenu(t *testing.T) {
+	if DriverAgent == nil || DriverAgent.Schema == nil {
+		t.Fatal("driver agent missing or has no schema")
+	}
+	props, _ := DriverAgent.Schema["properties"].(map[string]any)
+	enum, _ := props["subworkflow"].(map[string]any)["enum"].([]any)
+	want := append(append([]string{}, subworkflowIDs()...), "finish")
+	if len(enum) != len(want) {
+		t.Fatalf("captured driver schema enum = %v, want %v", enum, want)
+	}
+	for i, id := range want {
+		if enum[i].(string) != id {
+			t.Errorf("captured driver schema enum[%d] = %v, want %s", i, enum[i], id)
+		}
+	}
+	// The rendered role prompt carries the same full menu.
+	if !strings.Contains(DriverAgent.RolePrompt, `"spec"`) ||
+		!strings.Contains(DriverAgent.RolePrompt, `"implement"`) ||
+		!strings.Contains(DriverAgent.RolePrompt, `"finish"`) {
+		t.Error("driver role prompt missing subworkflow ids from its schema")
+	}
+	// The reassessment schema (built lazily at run time) must agree.
+	rprops, _ := finishReassessmentSchema()["properties"].(map[string]any)
+	renum, _ := rprops["subworkflow"].(map[string]any)["enum"].([]any)
+	if len(renum) != len(want) {
+		t.Errorf("reassessment schema enum = %v, want %v", renum, want)
+	}
+}

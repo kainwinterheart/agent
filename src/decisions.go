@@ -25,16 +25,29 @@ type LoopDecision struct {
 	Reason string `json:"reason"`
 }
 
-func driverDecisionSchema() map[string]any {
-	ids := append(append([]string{}, subworkflowIDs()...), "finish")
-	enum := make([]any, 0, len(ids))
+// subworkflowEnumValues returns the schema enum for the driver's
+// subworkflow field: every registered subworkflow id plus "finish". It
+// panics on an empty registry: a driver schema without the subworkflow menu
+// constrains the model to "finish" only, which is a structural defect that
+// must fail loudly at init instead of silently corrupting every run.
+func subworkflowEnumValues() []any {
+	ids := subworkflowIDs()
+	if len(ids) == 0 {
+		panic("subworkflow registry is empty; the driver decision schema must be built after Subworkflows is populated")
+	}
+	enum := make([]any, 0, len(ids)+1)
 	for _, id := range ids {
 		enum = append(enum, id)
 	}
+	enum = append(enum, "finish")
+	return enum
+}
+
+func driverDecisionSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"subworkflow": map[string]any{"type": "string", "enum": enum},
+			"subworkflow": map[string]any{"type": "string", "enum": subworkflowEnumValues()},
 			"rationale":   map[string]any{"type": "string"},
 			"task":        map[string]any{"type": "string"},
 		},
@@ -55,9 +68,12 @@ func loopDecisionSchema() map[string]any {
 	}
 }
 
+// The example is rationale-first, matching the schema's property order: the
+// analysis is committed before the transition, so the driver cannot emit a
+// transition token it has not yet reasoned about.
 const driverDecisionExample = `{
-  "subworkflow": "implement",
   "rationale": "The architecture and plan for the auth domain are approved; the plan's first milestone is ready for implementation.",
+  "subworkflow": "implement",
   "task": "Implement milestone 1 of the plan: token issuance and storage. Follow the plan's file list; do not touch other domains."
 }`
 
@@ -211,11 +227,6 @@ type FinishReassessment struct {
 }
 
 func finishReassessmentSchema() map[string]any {
-	ids := append(append([]string{}, subworkflowIDs()...), "finish")
-	enum := make([]any, 0, len(ids))
-	for _, id := range ids {
-		enum = append(enum, id)
-	}
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -223,7 +234,7 @@ func finishReassessmentSchema() map[string]any {
 				"type": "string",
 				"enum": []any{"confirm_finish", "select_subworkflow"},
 			},
-			"subworkflow": map[string]any{"type": "string", "enum": enum},
+			"subworkflow": map[string]any{"type": "string", "enum": subworkflowEnumValues()},
 			"rationale":   map[string]any{"type": "string"},
 			"task":        map[string]any{"type": "string"},
 		},
@@ -234,8 +245,8 @@ func finishReassessmentSchema() map[string]any {
 
 const finishReassessmentExample = `{
   "decision": "select_subworkflow",
-  "subworkflow": "spec",
   "rationale": "The run is in BOOTSTRAP: the artifact index has zero completed executions, so the work has not started and finish cannot be correct. The first step is the refined task specification.",
+  "subworkflow": "spec",
   "task": "Produce the durable refined task specification from the user's request."
 }`
 

@@ -59,8 +59,12 @@ func initSubworkflows() {
 		if def.Decision {
 			switch def.Name {
 			case "workflow_driver":
-				schema := driverDecisionSchema()
-				a = NewAgent(def.Name, loader.RenderDecisionPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID, schema, driverDecisionExample), def.Timeout).WithSchema(schema)
+				// Placeholder without a decision contract: the driver's
+				// schema enumerates the subworkflow registry, which is
+				// populated below. The agent is finalized after Subworkflows
+				// is set - building the schema earlier would capture an
+				// empty registry and constrain the driver to "finish".
+				a = NewAgent(def.Name, loader.GetPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID), def.Timeout)
 			case "loop_decider":
 				schema := loopDecisionSchema()
 				a = NewAgent(def.Name, loader.RenderDecisionPrompt(loader.LOOP_DECIDER_PROMPT_ID, schema, loopDecisionExample), def.Timeout).WithSchema(schema)
@@ -96,6 +100,18 @@ func initSubworkflows() {
 		})
 	}
 	Subworkflows = subworkflows
+
+	// The subworkflow registry is now populated: finalize the driver agent
+	// with its decision contract - the schema that enumerates every
+	// subworkflow id plus "finish", and the role prompt rendered against
+	// that schema.
+	placeholder := agents["workflow_driver"]
+	driverSchema := driverDecisionSchema()
+	driver := NewAgent(placeholder.Name, loader.RenderDecisionPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID, driverSchema, driverDecisionExample), placeholder.Timeout).WithSchema(driverSchema)
+	driver.Inputs = placeholder.Inputs
+	driver.Outputs = placeholder.Outputs
+	driver.OutputTerminal = placeholder.OutputTerminal
+	agents["workflow_driver"] = driver
 
 	DriverAgent = agents["workflow_driver"]
 	LoopDeciderAgent = agents["loop_decider"]

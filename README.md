@@ -25,10 +25,13 @@ JSON (schema enforced at generation time and re-validated in the orchestrator).
 3. The driver responds with a **strictly validated JSON decision**: which
    subworkflow to run next (or `finish`), why, and the task for that
    execution — the concrete goal that becomes the execution's section heading
-   in the artifact index. The orchestrator persists the validated decision
-   under `decisions/`. The prompt also states the authoritative run state
-   (`RUN STATE: BOOTSTRAP` when no subworkflow has completed yet, so the
-   driver's first decision is the `spec` subworkflow).
+   in the artifact index. The decision is written rationale-first, so the
+   analysis precedes the transition. The orchestrator persists the validated
+   decision under `decisions/`. The prompt also states the authoritative run
+   state (`RUN STATE: BOOTSTRAP` when no subworkflow has completed yet, so
+   the driver's first decision is the `spec` subworkflow) and a
+   `finish` in bootstrap state is rejected at validation time — the run
+   cannot be complete before it has started — with the driver asked again.
 4. The chosen **subworkflow** runs: a small fixed group of closely tied agents
    (a producer and its reviewers). Each agent writes its final output as a
    Markdown document to its own pregenerated, unique file path. The system
@@ -55,9 +58,9 @@ JSON (schema enforced at generation time and re-validated in the orchestrator).
    subworkflow that was actually needed (which runs as the turn's decision).
    The reassessment response uses an explicit `decision` field
    (`confirm_finish` / `select_subworkflow`), and the orchestrator rejects
-   confirmations that are structurally impossible — a `confirm_finish` in
-   bootstrap state (zero completed executions) is refused and the driver is
-   asked again. Both decisions are persisted under `decisions/`.
+   confirmations that are structurally impossible — the same rule that
+   applies to the regular turn. Both decisions are persisted under
+   `decisions/`.
 
 ## Subworkflows
 

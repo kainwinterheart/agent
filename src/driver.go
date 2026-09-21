@@ -46,7 +46,7 @@ func (o *Orchestrator) buildDriverPrompt(st *WorkflowState) string {
 	if n := completedExecutions(st); n == 0 {
 		b.WriteString(bootstrapRunStatePrefix + "the artifact index contains ZERO completed workflow executions. The run has NOT started. Per RULE 1, the only valid decision now is subworkflow \"spec\"; \"finish\" is INVALID.\n\n")
 	} else {
-		b.WriteString(fmt.Sprintf("RUN STATE: %d completed workflow execution(s) in the artifact index.\n\n", n))
+		b.WriteString(fmt.Sprintf("RUN STATE: %d completed workflow execution(s) in the artifact index. Your job this turn: select the subworkflow that must run next. \"finish\" is legal only if completed artifacts in the index prove the requested outcome is achieved and reviewed.\n\n", n))
 	}
 
 	b.WriteString("AVAILABLE SUBWORKFLOWS:\n")
@@ -88,9 +88,11 @@ func (o *Orchestrator) buildDriverPrompt(st *WorkflowState) string {
 
 // runDriver invokes the workflow driver agent until it returns a strictly
 // validated JSON decision, then persists the validated decision for the
-// record. The retry loop is unbounded.
+// record. Validation is state-aware: a "finish" in bootstrap state is
+// rejected with the structural reason and the driver is asked again. The
+// retry loop is unbounded.
 func (o *Orchestrator) runDriver(st *WorkflowState, context *Context) *Decision {
-	dd := runJSONDecision(o.driverAgent, o.buildDriverPrompt(st), decodeDriverDecision, driverDecisionExample, context)
+	dd := runJSONDecision(o.driverAgent, o.buildDriverPrompt(st), decodeDriverDecisionFor(st), driverDecisionExample, context)
 
 	path := AbsPath(st.newDecisionPath(o.subdir))
 	ensureParentDir(path)
@@ -123,6 +125,49 @@ func completedExecutions(st *WorkflowState) int {
 		}
 	}
 	return n
+}
+
+// confirmFinishAllowed reports whether a claim of completion can be valid in
+// the current state: a run with zero completed executions has not started,
+// so it cannot be complete.
+func confirmFinishAllowed(st *WorkflowState) bool {
+	return completedExecutions(st) > 0
+}
+
+// decodeDriverDecisionFor returns the regular-turn decision validator for
+// the current state: strict schema validation plus the structural rule that
+// "finish" is impossible in bootstrap state. A rejected response is fed
+// back to the driver with the reason and the driver is asked again, so the
+// worst-case first-turn failure is corrected at the source instead of
+// costing a reassessment round trip.
+func decodeDriverDecisionFor(st *WorkflowState) func(string) (DriverDecision, error) {
+	return func(jsonText string) (DriverDecision, error) {
+		dd, err := decodeDriverDecision(jsonText)
+		if err != nil {
+			return dd, err
+		}
+		if dd.Subworkflow == "finish" && !confirmFinishAllowed(st) {
+			return dd, fmt.Errorf("finish is impossible in BOOTSTRAP state (zero completed executions): the run has not started, so it cannot be complete. Respond with subworkflow \"spec\" (RULE 1)")
+		}
+		return dd, nil
+	}
+}
+
+// decodeFinishReassessmentFor returns the reassessment validator for the
+// current state: strict branch/combination validation plus the same
+// structural rule applied to confirmations (defense in depth - a bootstrap
+// finish is already rejected on the regular turn).
+func decodeFinishReassessmentFor(st *WorkflowState) func(string) (FinishReassessment, error) {
+	return func(jsonText string) (FinishReassessment, error) {
+		fr, err := decodeFinishReassessment(jsonText)
+		if err != nil {
+			return fr, err
+		}
+		if fr.Decision == "confirm_finish" && !confirmFinishAllowed(st) {
+			return fr, fmt.Errorf("confirm_finish is impossible in BOOTSTRAP state (zero completed executions): the run has not started, so it cannot be complete. Respond with decision \"select_subworkflow\" and subworkflow \"spec\"")
+		}
+		return fr, nil
+	}
 }
 
 // buildFinishReassessmentPrompt extends the regular driver prompt with the
@@ -185,17 +230,7 @@ func (o *Orchestrator) reassessmentAgent() *Agent {
 // impossible - the run has not started, so it cannot be complete. Such a
 // response is rejected and the driver is asked again.
 func (o *Orchestrator) runFinishReassessment(st *WorkflowState, finish *Decision, context *Context) *Decision {
-	decode := func(jsonText string) (FinishReassessment, error) {
-		fr, err := decodeFinishReassessment(jsonText)
-		if err != nil {
-			return fr, err
-		}
-		if fr.Decision == "confirm_finish" && completedExecutions(st) == 0 {
-			return fr, fmt.Errorf("confirm_finish is impossible in BOOTSTRAP state (zero completed executions): the run has not started, so it cannot be complete. Respond with decision \"select_subworkflow\" and subworkflow \"spec\"")
-		}
-		return fr, nil
-	}
-	fr := runJSONDecision(o.reassessmentAgent(), o.buildFinishReassessmentPrompt(st, finish), decode, finishReassessmentExample, context)
+	fr := runJSONDecision(o.reassessmentAgent(), o.buildFinishReassessmentPrompt(st, finish), decodeFinishReassessmentFor(st), finishReassessmentExample, context)
 
 	path := AbsPath(st.newReassessmentPath(o.subdir))
 	ensureParentDir(path)
