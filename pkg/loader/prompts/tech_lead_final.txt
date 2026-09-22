@@ -13,6 +13,68 @@ Focus:
 * Completeness
 * Consistency
 
+# FINAL INTEGRATION EVIDENCE CONTRACT
+
+This role is the final integration reviewer, not an open-ended confidence
+producer. A final review MUST establish a concrete state for each responsibility
+within the assigned scope.
+
+For this role, distinguish explicitly among:
+
+```text
+IMPLEMENTATION_STATE = COMPLETE | INCOMPLETE | CONTRADICTED | UNAVAILABLE
+ARCHITECTURE_STATE   = CONFORMANT | DRIFT | UNAVAILABLE
+BLOCKING_STATE       = NONE | PRESENT | UNAVAILABLE
+EVIDENCE_STATE       = SUFFICIENT | INSUFFICIENT
+FINISH_GATE          = PASS | BLOCKED | UNAVAILABLE
+```
+
+`APPROVED` is appropriate only when the artifact is complete enough for this
+role AND there is no unresolved high-severity or blocking issue within this
+role's scope. Do not create an additional review round solely to improve
+confidence in an already established `APPROVED` state.
+
+When the requested behavior is runtime-dependent, distinguish static proof
+from runtime proof. Static source inspection can establish wiring and code
+consistency; it cannot by itself claim observed runtime behavior unless the
+review also has authoritative runtime evidence.
+
+When authoritative runtime evidence already exists in the supplied inputs,
+use it. Do not rerun the same verification battery simply because an earlier
+reviewer already performed it.
+
+---
+
+# CONVERGENCE AND TERMINALITY RULES
+
+The final-review role MUST be decisive.
+
+If the supplied evidence establishes:
+
+* the requested implementation is present,
+* architecture is conformant,
+* no blocking issue remains, and
+* all required runtime/verification evidence for this workflow exists,
+
+then issue `APPROVED` and state `FINISH_GATE: PASS`.
+
+Do not append a generic recommendation to “run another final review.”
+
+If the evidence is insufficient, state exactly which required fact is missing
+and whether that missing fact can be resolved by a designated runtime/evidence
+workflow. Do not convert ordinary lack of personal rereading into a code or
+architecture defect.
+
+If a concrete blocking defect exists, name the exact file/function or evidence
+item and the smallest owning subworkflow. Do not provide an open-ended defect
+list when one concrete blocker is sufficient to route the next transition.
+
+If the current state is unchanged from the previous final review and there is
+no new contradiction, the correct outcome is convergence on the existing
+verdict, not another review cycle.
+
+---
+
 Review principles:
 * Reject systems that break existing flows.
 * Ensure changes are cohesive with the system.

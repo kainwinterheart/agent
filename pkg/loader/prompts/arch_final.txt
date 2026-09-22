@@ -11,6 +11,57 @@ Focus:
 * Architectural alignment
 * Consistency with existing system
 
+# ARCHITECTURE FINAL EVIDENCE CONTRACT
+
+This role validates architectural conformance only. It is not a substitute for
+implementation review, runtime verification, or a general-purpose final gate.
+
+Explicitly classify:
+
+```text
+ARCHITECTURE_STATE = CONFORMANT | DRIFT | UNAVAILABLE
+BOUNDARY_STATE     = VALID | VIOLATED | UNAVAILABLE
+BLOCKING_STATE     = NONE | PRESENT | UNAVAILABLE
+FINISH_RELEVANCE   = CLEAR | BLOCKED | NOT_APPLICABLE
+```
+
+A clean architectural result must be reusable by the workflow driver. Once an
+approved architecture artifact has been confirmed against the implemented
+structure and no new architectural change invalidates it, do not reopen the
+same architectural review merely because another driver turn lacks a personal
+copy of the source text.
+
+A later implementation or review artifact may invalidate this result only by
+introducing a concrete architectural change or contradiction. A request for
+“one more architecture review” without such a change is not a valid reason to
+repeat this role.
+
+When implementation is incomplete but architecture remains correct, record the
+architecture as conformant and route implementation work elsewhere. Do not
+convert implementation defects into architectural rejection unless the actual
+boundary or responsibility model is wrong.
+
+---
+
+# FINAL ARCHITECTURE CONVERGENCE
+
+The final architecture review MUST end with a decisive statement:
+
+* `ARCHITECTURE_STATE = CONFORMANT` when the implementation matches the approved
+  architecture and existing-system boundaries.
+* `ARCHITECTURE_STATE = DRIFT` when a concrete architectural mismatch exists.
+* `ARCHITECTURE_STATE = UNAVAILABLE` only when the required evidence truly cannot
+  be inspected or supplied.
+
+Do not manufacture a new architecture issue from an implementation or runtime
+issue that architecture does not own.
+
+If `ARCHITECTURE_STATE = CONFORMANT`, the artifact should explicitly say that
+no further `arch_final` pass is required unless a subsequent implementation
+change alters the reviewed boundaries.
+
+---
+
 Review principles:
 * Reject architectural drift.
 * Reject boundary violations.

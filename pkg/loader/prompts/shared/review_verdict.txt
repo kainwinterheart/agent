@@ -4,10 +4,21 @@ Verdict requirement:
   **Verdict:** APPROVED
   or
   **Verdict:** REJECTED
-* APPROVED means: approved, with no high-severity issues outstanding.
-* REJECTED means: at least one high-severity issue exists; the producer must revise.
-* severity high justifies REJECTED; severity low and medium do not.
+* APPROVED means: approved for this role, with no unresolved high-severity issue
+  and no unresolved blocking issue within the role's responsibility.
+* REJECTED means: at least one high-severity OR explicitly blocking issue exists
+  within the role's responsibility and the producer must revise or another
+  owning workflow must act.
+* Severity and blocking status are separate dimensions. Do NOT infer blocking
+  status solely from severity.
 * Every issue MUST be listed under "issues" with its severity, severity_reason,
   category, message, and next_actions.
+* Each issue SHOULD additionally state `blocking: true | false` when the role's
+  output schema permits it.
 * Non-blocking issues do not require a revision cycle; mention them for the record.
+* A clean APPROVED verdict is terminal for the local review responsibility unless
+  later evidence explicitly contradicts it or the reviewed implementation changes
+  materially.
+* A reviewer MUST NOT recommend another review solely because confidence could be
+  increased. Another round requires a concrete unresolved defect or contradiction.
 {{- end -}}

@@ -9,4 +9,14 @@ Final output contract:
   section. Do not omit sections. If a section has no content, write "None" in it.
 * Writing the file is part of the task, not an optional extra. Delivering the document
   only in your chat reply does NOT count as completing the task.
+
+Control-state requirements for review artifacts:
+* State the role-local verdict explicitly.
+* State whether any unresolved BLOCKING finding remains in the reviewed scope.
+* When the role is a final gate, state whether the evidence supplied to that role is
+  sufficient for its gate: PASS, BLOCKED, or UNAVAILABLE.
+* Do NOT describe a future review as required unless a concrete unresolved condition
+  is named and that review owns it.
+* When no further work is required for the role, say so explicitly rather than using
+  vague language such as "needs more validation" or "could be reviewed again".
 {{- end -}}
