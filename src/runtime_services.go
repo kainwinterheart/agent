@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -18,37 +19,50 @@ type Context struct {
 
 	// watchmanHook replaces the real filesystem watcher in tests.
 	watchmanHook func() map[string]string
-	// runCodexHook replaces the real LLM invocation in tests.
-	runCodexHook func(agentName, prompt, timeout string, schema map[string]any) (string, error)
+	// runCodexHook replaces the real LLM invocation in tests. sessionID
+	// non-empty resumes that conversation; the hook returns the session id
+	// the (mock) runtime reports for the call.
+	runCodexHook func(agentName, prompt, timeout string, schema map[string]any, sessionID string) (string, string, error)
 }
 
 func NewContext() *Context {
 	return &Context{Tracer: &Tracer{}}
 }
 
+// sessionIDRe extracts the session id the codex CLI reports on stderr for
+// every exec call (new or resumed). It is the handle a later call uses to
+// continue the same conversation via `codex exec resume <id>`.
+var sessionIDRe = regexp.MustCompile(`session id:\s*(\S+)`)
+
 // RunCodex invokes the LLM runtime for one agent turn. When schema is
 // non-nil (decision agents), it is written to a temp file and passed to the
-// runtime as --output-schema so the model is constrained at generation time.
-func RunCodex(agentName, prompt, timeout string, schema map[string]any, context *Context) (string, error) {
-	var stdout string
+// runtime as --output-schema so the model is constrained at generation
+// time. sessionID non-empty resumes that conversation; empty starts a
+// fresh session. The runtime reports the session id of the call on stderr;
+// it is returned so callers may keep it in memory and resume the
+// conversation later. This layer never persists the id: the session trace
+// records only whether the call resumed a session.
+func RunCodex(agentName, prompt, timeout string, schema map[string]any, sessionID string, context *Context) (string, string, error) {
+	var stdout, reported string
 	var err error
 	if context.runCodexHook != nil {
-		stdout, err = context.runCodexHook(agentName, prompt, timeout, schema)
+		stdout, reported, err = context.runCodexHook(agentName, prompt, timeout, schema, sessionID)
 	} else {
-		stdout, err = realRunCodex(agentName, prompt, timeout, schema)
+		stdout, reported, err = realRunCodex(agentName, prompt, timeout, schema, sessionID)
 	}
 	context.Tracer.trace("run_codex", map[string]any{
 		"agent":     agentName,
 		"prompt":    prompt,
 		"timeout":   timeout,
 		"hasSchema": schema != nil,
+		"resumed":   sessionID != "",
 		"stdout":    stdout,
 		"error":     errorString(err),
 	})
-	return stdout, err
+	return stdout, reported, err
 }
 
-func realRunCodex(agentName, prompt, timeout string, schema map[string]any) (string, error) {
+func realRunCodex(agentName, prompt, timeout string, schema map[string]any, sessionID string) (string, string, error) {
 	cmdArgs := []string{"codex", "exec"}
 	if timeout != "" {
 		cmdArgs = append([]string{"timeout", "-s", "9", timeout}, cmdArgs...)
@@ -65,6 +79,9 @@ func realRunCodex(agentName, prompt, timeout string, schema map[string]any) (str
 		f.Close()
 		defer os.Remove(schemaPath)
 		cmdArgs = append(cmdArgs, "--output-schema", schemaPath)
+	}
+	if sessionID != "" {
+		cmdArgs = append(cmdArgs, "resume", sessionID)
 	}
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
@@ -104,11 +121,16 @@ func realRunCodex(agentName, prompt, timeout string, schema map[string]any) (str
 	<-doneStdout
 	<-doneStderr
 
+	reported := sessionID
+	if m := sessionIDRe.FindStringSubmatch(stderrBuf.String()); len(m) > 1 {
+		reported = m[1]
+	}
+
 	output := strings.TrimSpace(stdoutBuf.String())
 	if output == "" {
-		return "", fmt.Errorf("empty output from %s, likely timeout issue", agentName)
+		return "", reported, fmt.Errorf("empty output from %s, likely timeout issue", agentName)
 	}
-	return output, nil
+	return output, reported, nil
 }
 
 // AtomicWrite writes content to path via a temp file + rename.

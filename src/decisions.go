@@ -176,43 +176,6 @@ Example of a valid response:
 `, problem, schemaText, example)
 }
 
-// runJSONDecision invokes a decision agent until its response passes strict
-// validation. The loop is unbounded: every invalid response is fed back to the
-// agent for another attempt.
-func runJSONDecision[T any](agent *Agent, basePrompt string, decode func(string) (T, error), example string, context *Context) T {
-	cur := basePrompt
-	attempt := 0
-	for {
-		attempt++
-		context.Tracer.trace("decision_invoke", map[string]any{
-			"agent": agent.Name, "attempt": attempt, "prompt": cur,
-		})
-
-		var out T
-		var problem string
-		stdout, runErr := agent.Run(cur, context)
-		if runErr != nil {
-			problem = "the agent run itself failed: " + runErr.Error()
-		} else if j, err := ExtractJSON(stdout); err != nil {
-			problem = "the response contains no JSON object: " + err.Error()
-		} else if out, err = decode(j); err != nil {
-			problem = "the response failed strict JSON validation: " + err.Error()
-		} else {
-			context.Tracer.trace("decision_result", map[string]any{
-				"agent": agent.Name, "attempt": attempt, "response": prettyJSON(out),
-			})
-			logStep(fmt.Sprintf("%s: valid decision after %d attempt(s)", agent.Name, attempt), "DECISION")
-			return out
-		}
-
-		logStep(fmt.Sprintf("%s attempt %d invalid: %s", agent.Name, attempt, problem), "DECISION")
-		context.Tracer.trace("decision_retry", map[string]any{
-			"agent": agent.Name, "attempt": attempt, "problem": problem,
-		})
-		cur = basePrompt + jsonFeedbackBlock(problem, prettyJSON(agent.Schema), example)
-	}
-}
-
 // FinishReassessment is the driver's response to a mandatory finish
 // reassessment. The decision field makes the branch explicit: confirming the
 // finish is a named act ("confirm_finish"), distinct from selecting the

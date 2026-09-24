@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-
-	"agent-go/pkg/loader"
 )
 
 // finishReassessmentMarker heads the mandatory reassessment block that is
@@ -13,6 +11,16 @@ import (
 // It is intentionally distinct from the role prompt's "FINISH REASSESSMENT"
 // section header so reassessment prompts can be told apart from regular ones.
 const finishReassessmentMarker = "FINISH REASSESSMENT - MANDATORY"
+
+// The phase markers head the three phase instructions of the driver's
+// multi-turn invocation. The mock runtime and the tests key off them to
+// identify phase calls; they are deliberately distinct from any section
+// header in the role prompt.
+const (
+	driverReadMarker    = "DRIVER PHASE 1 OF 3: READ INPUTS"
+	driverAnalyzeMarker = "DRIVER PHASE 2 OF 3: ANALYZE AND SAVE"
+	driverRespondMarker = "DRIVER PHASE 3 OF 3: RESPOND"
+)
 
 // bootstrapRunStatePrefix opens the authoritative bootstrap line stated in
 // every driver prompt while the run has zero completed executions. It is
@@ -28,10 +36,11 @@ type Decision struct {
 	Path      string // where the validated decision JSON is persisted
 }
 
-// buildDriverPrompt assembles the workflow driver's prompt: role, task, the
-// full list of available subworkflows, the artifact index path, and the
-// driver's own decision history. The JSON output contract (schema + example)
-// lives in the role prompt.
+// buildDriverPrompt assembles the driver's full state bundle: role, task,
+// the full list of available subworkflows, the artifact index path, and the
+// driver's own decision history. It is sent in full on the read-inputs call
+// (which starts the turn's session) and, in fallback mode, is prepended to
+// every later phase call so each call is self-contained.
 func (o *Orchestrator) buildDriverPrompt(st *WorkflowState) string {
 	var b strings.Builder
 	b.WriteString(o.driverAgent.RolePrompt)
@@ -86,13 +95,28 @@ func (o *Orchestrator) buildDriverPrompt(st *WorkflowState) string {
 	return b.String()
 }
 
-// runDriver invokes the workflow driver agent until it returns a strictly
-// validated JSON decision, then persists the validated decision for the
-// record. Validation is state-aware: a "finish" in bootstrap state is
-// rejected with the structural reason and the driver is asked again. The
-// retry loop is unbounded.
-func (o *Orchestrator) runDriver(st *WorkflowState, context *Context) *Decision {
-	dd := runJSONDecision(o.driverAgent, o.buildDriverPrompt(st), decodeDriverDecisionFor(st), driverDecisionExample, context)
+// runDriver executes one driver turn as a multi-turn conversation:
+//
+//  1. a model call in a fresh session, from clean context, reads all the
+//     inputs and yields the session id (kept in memory only);
+//  2. a model call resuming that session analyzes the data with the
+//     intention of producing the decision and saves its analysis and
+//     reasoning to a file;
+//  3. a model call resuming that session returns the JSON-structured
+//     decision, strictly validated.
+//
+// The validated decision is persisted for the record. The returned
+// agentTurn carries the in-memory session so the mandatory finish
+// reassessment can reuse it when the decision is "finish".
+func (o *Orchestrator) runDriver(st *WorkflowState, context *Context) (*Decision, *agentTurn) {
+	dt := newAgentTurn(o, o.driverAgent, context, o.buildDriverPrompt(st))
+	dt.readInputs(buildDriverReadPhaseBlock())
+
+	analysisPath := AbsPath(st.newAnalysisPath(o.subdir, "driver"))
+	dt.analyzeAndSave(analysisPath, buildDriverAnalyzePhaseBlock(analysisPath))
+
+	schema := driverDecisionSchema()
+	dd := agentDecide(dt, "respond", buildDriverRespondPhaseBlock(analysisPath, prettyJSON(schema), driverDecisionExample), schema, driverDecisionExample, decodeDriverDecisionFor(st))
 
 	path := AbsPath(st.newDecisionPath(o.subdir))
 	ensureParentDir(path)
@@ -105,13 +129,14 @@ func (o *Orchestrator) runDriver(st *WorkflowState, context *Context) *Decision 
 		Path:      path,
 	}
 	context.Tracer.trace("driver_decision", map[string]any{
-		"iteration": st.DriverIteration,
-		"choice":    dec.Choice,
-		"rationale": dec.Rationale,
-		"task":      dec.Task,
+		"iteration":     st.DriverIteration,
+		"choice":        dec.Choice,
+		"rationale":     dec.Rationale,
+		"task":          dec.Task,
+		"analysis_path": analysisPath,
 	})
 	logStep(fmt.Sprintf("driver iteration %d: chose %q", st.DriverIteration, dec.Choice), "DRIVER")
-	return dec
+	return dec, dt
 }
 
 // completedExecutions counts the subworkflow executions recorded in the
@@ -170,14 +195,64 @@ func decodeFinishReassessmentFor(st *WorkflowState) func(string) (FinishReassess
 	}
 }
 
-// buildFinishReassessmentPrompt extends the regular driver prompt with the
-// driver's full finish response and the mandatory reassessment instruction.
-// The response is a two-branch protocol: select the subworkflow that was
-// actually needed, or explicitly confirm the finish.
-func (o *Orchestrator) buildFinishReassessmentPrompt(st *WorkflowState, finish *Decision) string {
+// buildDriverReadPhaseBlock is the phase-1 instruction appended to the
+// full driver prompt on the read-inputs call: the model reads everything,
+// emits no decision, and warms the session the rest of the turn resumes.
+func buildDriverReadPhaseBlock() string {
 	var b strings.Builder
-	b.WriteString(o.buildDriverPrompt(st))
+	b.WriteString("<driver_read_inputs>\n")
+	b.WriteString(driverReadMarker + "\n\n")
+	b.WriteString("This is the first call of a three-call driver turn. In this call you MUST NOT produce a JSON decision: the Output contract of your role applies only to the third call. Your sole job now is to read all the inputs of this turn:\n\n")
+	b.WriteString("1. Read the artifact index at the path stated above.\n")
+	b.WriteString("2. Study in full every document the index lists that your MANDATORY DECISION PROCEDURE requires you to consider for this turn.\n")
+	b.WriteString("3. Reply with a short prose confirmation (no JSON): the documents you read and the run state as you see it.\n\n")
+	b.WriteString("The next two calls happen in this same session: you will then analyze the data and save your reasoning to a file, and only afterwards produce the JSON decision.\n")
+	b.WriteString("</driver_read_inputs>\n")
+	return b.String()
+}
 
+// buildDriverAnalyzePhaseBlock is the phase-2 instruction: analyze with
+// the intention of producing the decision, and save the analysis and
+// reasoning to the pregenerated file.
+func buildDriverAnalyzePhaseBlock(analysisPath string) string {
+	var b strings.Builder
+	b.WriteString("<driver_analyze>\n")
+	b.WriteString(driverAnalyzeMarker + "\n\n")
+	b.WriteString("Using everything you read in the previous call, now:\n\n")
+	b.WriteString("1. Analyze the data with the intention of producing your JSON decision: walk your MANDATORY DECISION PROCEDURE step by step against the actual state (run state, artifact index contents, decision history). Do NOT emit the JSON decision in this call.\n")
+	b.WriteString("2. Save your complete analysis and reasoning to this exact path:\n")
+	b.WriteString("  " + analysisPath + "\n")
+	b.WriteString("The file MUST exist and be non-empty when you finish. It must contain: what you read; the key facts you rely on; each decision-procedure step you evaluated and its outcome; and the transition you intend to emit (subworkflow id or finish) with the rationale that forces it.\n")
+	b.WriteString("</driver_analyze>\n")
+	return b.String()
+}
+
+// buildDriverRespondPhaseBlock is the phase-3 instruction: return the
+// JSON-structured response the analysis concluded, under the decision
+// schema enforced at generation time.
+func buildDriverRespondPhaseBlock(analysisPath, schemaText, example string) string {
+	var b strings.Builder
+	b.WriteString("<driver_respond>\n")
+	b.WriteString(driverRespondMarker + "\n\n")
+	b.WriteString("Your analysis is saved at:\n  " + analysisPath + "\n\n")
+	b.WriteString("Now produce the JSON decision your analysis concluded. The decision MUST be forced by that analysis - do not invent a new transition now.\n\n")
+	b.WriteString("Output MUST be valid JSON only, conforming to this schema:\n")
+	b.WriteString(schemaText + "\n\n")
+	b.WriteString("Example of a valid response:\n")
+	b.WriteString(example + "\n")
+	b.WriteString("</driver_respond>\n")
+	return b.String()
+}
+
+// buildFinishReassessmentBlock assembles the mandatory reassessment
+// instruction. It is self-contained: it carries the driver's full finish
+// response, the two-branch protocol, and the reassessment schema + example
+// (the contract shown to the model equals the contract enforced at
+// generation time). In session mode the role prompt and the state bundle
+// are already in the conversation from the turn's read-inputs call; in
+// fallback mode the full driver prompt is prepended by agentTurn.invoke.
+func buildFinishReassessmentBlock(finish *Decision) string {
+	var b strings.Builder
 	b.WriteString("<finish_reassessment>\n")
 	b.WriteString(finishReassessmentMarker + "\n\n")
 	b.WriteString("Your response for this driver turn was:\n\n")
@@ -196,41 +271,28 @@ func (o *Orchestrator) buildFinishReassessmentPrompt(st *WorkflowState, finish *
 	b.WriteString("  decision = \"confirm_finish\", subworkflow = \"finish\".\n")
 	b.WriteString("  Take this branch only if every condition of your FINISH GATE holds. The rationale MUST cite the specific completed artifacts in the index that prove the requested outcome was achieved. Restating your previous rationale is not a confirmation. In BOOTSTRAP state this branch is impossible.\n\n")
 	b.WriteString("Hard rule: if your rationale says the finish is wrong, premature, invalid, or forbidden, your decision MUST be \"select_subworkflow\". A response that argues against finishing while declaring confirm_finish is invalid and will be rejected.\n\n")
-	b.WriteString("Your response to this reassessment is final: a subworkflow selection is executed immediately, and a confirmed finish terminates the run.\n")
+	b.WriteString("Your response to this reassessment is final: a subworkflow selection is executed immediately, and a confirmed finish terminates the run.\n\n")
+	b.WriteString("Output MUST be valid JSON only, conforming to this schema:\n")
+	b.WriteString(prettyJSON(finishReassessmentSchema()) + "\n\n")
+	b.WriteString("Example of a valid response:\n")
+	b.WriteString(finishReassessmentExample + "\n")
 	b.WriteString("</finish_reassessment>\n")
-
 	return b.String()
 }
 
-// reassessmentAgent returns the driver agent bound to the finish
-// reassessment contract: the same role, but its Output section carries the
-// reassessment schema and example, matching the schema enforced at
-// generation time.
-func (o *Orchestrator) reassessmentAgent() *Agent {
-	schema := finishReassessmentSchema()
-	a := NewAgent(
-		o.driverAgent.Name,
-		loader.RenderDecisionPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID, schema, finishReassessmentExample),
-		o.driverAgent.Timeout,
-	)
-	a.Schema = schema
-	a.Inputs = o.driverAgent.Inputs
-	a.Outputs = o.driverAgent.Outputs
-	a.OutputTerminal = o.driverAgent.OutputTerminal
-	return a
-}
-
-// runFinishReassessment sends the driver's full finish response back to it
-// and asks it to reassess: confirm the finish or pick the appropriate
-// subworkflow. The validated reassessment decision is persisted for the
-// record; the returned decision is the final decision for the turn.
+// runFinishReassessment is the single mandatory reassessment of a "finish"
+// decision: it reuses the session acquired by the turn's read-inputs call,
+// so the driver second-guesses its own decision with everything it read
+// and analyzed still in context. The validated reassessment decision is
+// persisted for the record; the returned decision is the final decision
+// for the turn.
 //
 // The orchestrator enforces what it knows to be true: in BOOTSTRAP state
 // (zero completed executions) a finish confirmation is structurally
 // impossible - the run has not started, so it cannot be complete. Such a
 // response is rejected and the driver is asked again.
-func (o *Orchestrator) runFinishReassessment(st *WorkflowState, finish *Decision, context *Context) *Decision {
-	fr := runJSONDecision(o.reassessmentAgent(), o.buildFinishReassessmentPrompt(st, finish), decodeFinishReassessmentFor(st), finishReassessmentExample, context)
+func (o *Orchestrator) runFinishReassessment(st *WorkflowState, dt *agentTurn, finish *Decision) *Decision {
+	fr := agentDecide(dt, "reassess", buildFinishReassessmentBlock(finish), finishReassessmentSchema(), finishReassessmentExample, decodeFinishReassessmentFor(st))
 
 	path := AbsPath(st.newReassessmentPath(o.subdir))
 	ensureParentDir(path)
@@ -243,7 +305,7 @@ func (o *Orchestrator) runFinishReassessment(st *WorkflowState, finish *Decision
 		Path:      path,
 	}
 	confirmed := fr.Decision == "confirm_finish"
-	context.Tracer.trace("driver_finish_reassessment", map[string]any{
+	dt.context.Tracer.trace("driver_finish_reassessment", map[string]any{
 		"iteration":         st.DriverIteration,
 		"initial_choice":    finish.Choice,
 		"initial_rationale": finish.Rationale,

@@ -118,16 +118,17 @@ func (o *Orchestrator) Run(task string, subdir string) error {
 		st.DriverIteration++
 		context := o.contextFactory()
 
-		dec := o.runDriver(st, context)
+		dec, turn := o.runDriver(st, context)
 
 		// A "finish" response never terminates the run by itself: the
-		// driver's full response is sent back to it for a mandatory
+		// driver's full response is sent back to it - reusing the session
+		// acquired by this turn's read-inputs call - for a mandatory
 		// reassessment, which either confirms the finish or picks the
 		// subworkflow that was actually needed.
 		var finishDecision *Decision
 		if dec.Choice == "finish" {
 			finishDecision = dec
-			dec = o.runFinishReassessment(st, dec, context)
+			dec = o.runFinishReassessment(st, turn, finishDecision)
 		}
 
 		var outcome string

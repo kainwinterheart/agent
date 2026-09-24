@@ -208,11 +208,22 @@ func (o *Orchestrator) runSubworkflow(sw *Subworkflow, dec *Decision, st *Workfl
 	}
 }
 
-// runLoopDecider asks the loop decider agent whether the producer/reviewer
-// loop should run another round. The decider is pointed at the artifact index
-// and reads this execution's section itself. The decider's response is
-// strictly validated JSON; the retry loop is unbounded.
-func (o *Orchestrator) runLoopDecider(sw *Subworkflow, dec *Decision, st *WorkflowState, round int, context *Context) LoopDecision {
+// The loop decider's phase markers head the three phase instructions of
+// its multi-turn invocation. The mock runtime and the tests key off them
+// to identify phase calls; they are deliberately distinct from any section
+// header in the role prompt.
+const (
+	loopDeciderReadMarker    = "LOOP DECIDER PHASE 1 OF 3: READ INPUTS"
+	loopDeciderAnalyzeMarker = "LOOP DECIDER PHASE 2 OF 3: ANALYZE AND SAVE"
+	loopDeciderRespondMarker = "LOOP DECIDER PHASE 3 OF 3: RESPOND"
+)
+
+// buildLoopDeciderBundle assembles the loop decider's full state bundle:
+// role, task, subworkflow task, the round that just completed, and the
+// artifact index pointer. It is sent in full on the read-inputs call (which
+// starts the turn's session) and, in fallback mode, is prepended to every
+// later phase call so each call is self-contained.
+func (o *Orchestrator) buildLoopDeciderBundle(sw *Subworkflow, dec *Decision, st *WorkflowState, round int) string {
 	var b strings.Builder
 	b.WriteString(o.loopDeciderAgent.RolePrompt)
 	b.WriteString("\n\n")
@@ -226,9 +237,76 @@ func (o *Orchestrator) runLoopDecider(sw *Subworkflow, dec *Decision, st *Workfl
 	b.WriteString("ARTIFACT INDEX:\n")
 	b.WriteString("The system maintains an index of every document produced so far at:\n")
 	b.WriteString("  " + indexPath(o.subdir) + "\n")
-	b.WriteString("Read the section for this subworkflow execution and study every document listed in it in full before deciding. The documents of the round that just completed are the last entries of that section.\n\n")
+	b.WriteString(fmt.Sprintf("The section for this subworkflow execution is the one headed \"Iteration %d — subworkflow: %s\". The documents of the round that just completed are the last entries of that section.\n\n", st.DriverIteration, sw.ID))
 
-	return runJSONDecision(o.loopDeciderAgent, b.String(), decodeLoopDecision, loopDecisionExample, context)
+	return b.String()
+}
+
+// runLoopDecider asks the loop decider agent whether the producer/reviewer
+// loop should run another round, as a multi-turn conversation: a fresh
+// session reads this execution's index section and the round's documents;
+// the same session then analyzes them and saves the analysis to a file; and
+// only then returns the strictly validated JSON verdict. There is no
+// reassessment for the decider. See agentTurn.
+func (o *Orchestrator) runLoopDecider(sw *Subworkflow, dec *Decision, st *WorkflowState, round int, context *Context) LoopDecision {
+	turn := newAgentTurn(o, o.loopDeciderAgent, context, o.buildLoopDeciderBundle(sw, dec, st, round))
+	turn.readInputs(buildDeciderReadPhaseBlock())
+
+	analysisPath := AbsPath(st.newAnalysisPath(o.subdir, "loop_decider"))
+	turn.analyzeAndSave(analysisPath, buildDeciderAnalyzePhaseBlock(analysisPath))
+
+	schema := loopDecisionSchema()
+	return agentDecide(turn, "respond", buildDeciderRespondPhaseBlock(analysisPath, prettyJSON(schema), loopDecisionExample), schema, loopDecisionExample, decodeLoopDecision)
+}
+
+// buildDeciderReadPhaseBlock is the phase-1 instruction appended to the
+// full decider bundle on the read-inputs call: the model reads the
+// execution's documents, emits no verdict, and warms the session the rest
+// of the turn resumes.
+func buildDeciderReadPhaseBlock() string {
+	var b strings.Builder
+	b.WriteString("<loop_decider_read_inputs>\n")
+	b.WriteString(loopDeciderReadMarker + "\n\n")
+	b.WriteString("This is the first call of a three-call decider turn. In this call you MUST NOT produce a JSON verdict: the Output contract of your role applies only to the third call. Your sole job now is to read all the inputs of this turn:\n\n")
+	b.WriteString("1. Read the artifact index at the path stated above.\n")
+	b.WriteString("2. Study in full every document listed in this execution's section, with particular attention to the documents of the round that just completed (the last entries of the section).\n")
+	b.WriteString("3. Reply with a short prose confirmation (no JSON): the documents you read and the round's state as you see it.\n\n")
+	b.WriteString("The next two calls happen in this same session: you will then analyze the data and save your reasoning to a file, and only afterwards produce the JSON verdict.\n")
+	b.WriteString("</loop_decider_read_inputs>\n")
+	return b.String()
+}
+
+// buildDeciderAnalyzePhaseBlock is the phase-2 instruction: analyze with
+// the intention of producing the verdict, and save the analysis and
+// reasoning to the pregenerated file.
+func buildDeciderAnalyzePhaseBlock(analysisPath string) string {
+	var b strings.Builder
+	b.WriteString("<loop_decider_analyze>\n")
+	b.WriteString(loopDeciderAnalyzeMarker + "\n\n")
+	b.WriteString("Using everything you read in the previous call, now:\n\n")
+	b.WriteString("1. Analyze the data with the intention of producing your JSON verdict: walk your DECISION ORDER step by step against the actual evidence (the round's producer artifact, the reviewer verdicts, and the prior rounds when this is a revision). Do NOT emit the JSON verdict in this call.\n")
+	b.WriteString("2. Save your complete analysis and reasoning to this exact path:\n")
+	b.WriteString("  " + analysisPath + "\n")
+	b.WriteString("The file MUST exist and be non-empty when you finish. It must contain: what you read; the key facts you rely on (verdicts, findings, evidence locations); each decision-order step you evaluated and its outcome; and the repeat decision you intend to emit with the reason that forces it.\n")
+	b.WriteString("</loop_decider_analyze>\n")
+	return b.String()
+}
+
+// buildDeciderRespondPhaseBlock is the phase-3 instruction: return the
+// JSON-structured verdict the analysis concluded, under the verdict schema
+// enforced at generation time.
+func buildDeciderRespondPhaseBlock(analysisPath, schemaText, example string) string {
+	var b strings.Builder
+	b.WriteString("<loop_decider_respond>\n")
+	b.WriteString(loopDeciderRespondMarker + "\n\n")
+	b.WriteString("Your analysis is saved at:\n  " + analysisPath + "\n\n")
+	b.WriteString("Now produce the JSON verdict your analysis concluded. The verdict MUST be forced by that analysis - do not invent a new one now.\n\n")
+	b.WriteString("Output MUST be valid JSON only, conforming to this schema:\n")
+	b.WriteString(schemaText + "\n\n")
+	b.WriteString("Example of a valid response:\n")
+	b.WriteString(example + "\n")
+	b.WriteString("</loop_decider_respond>\n")
+	return b.String()
 }
 
 // buildStepPrompt assembles the full prompt for one agent step: role, task,

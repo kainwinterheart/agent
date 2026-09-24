@@ -4,9 +4,13 @@ import (
 	"fmt"
 )
 
-// Agent is a single LLM role. All agents are ephemeral: every invocation starts
-// a fresh session, because all durable context flows through artifact files and
-// validated decisions rather than through conversation state.
+// Agent is a single LLM role. Agents are one-shot by default: every
+// invocation starts a fresh session, because all durable context flows
+// through artifact files and validated decisions rather than through
+// conversation state. The workflow driver and the loop decider are the
+// exceptions: their invocations are multi-turn conversations whose session
+// id is acquired from the runtime and kept solely in memory for the
+// duration of one turn (see agentTurn in multiturn.go).
 //
 // Content agents (Schema == nil) deliver a Markdown document at their
 // pregenerated output path. Decision agents (Schema != nil) respond with a
@@ -44,11 +48,13 @@ func (a *Agent) WithSchema(schema map[string]any) *Agent {
 	return a
 }
 
-// Run invokes the LLM runtime once. For content agents the deliverable is the
-// file written to the pregenerated output path; for decision agents it is the
-// JSON response in stdout.
+// Run invokes the LLM runtime once in a fresh session. For content agents
+// the deliverable is the file written to the pregenerated output path; for
+// decision agents it is the JSON response in stdout. Stateful
+// conversations (the driver's multi-turn invocations) call RunCodex
+// directly with the session id they keep in memory.
 func (a *Agent) Run(prompt string, context *Context) (string, error) {
-	stdout, err := RunCodex(a.Name, prompt, a.Timeout, a.Schema, context)
+	stdout, _, err := RunCodex(a.Name, prompt, a.Timeout, a.Schema, "", context)
 	if err != nil {
 		return "", err
 	}

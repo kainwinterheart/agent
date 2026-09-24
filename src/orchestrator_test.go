@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,6 +25,7 @@ func init() {
 
 type recordedPrompt struct {
 	agent  string
+	phase  string // driver phase: "read", "analyze", "respond", "reassess"; "" for other agents
 	prompt string
 }
 
@@ -50,6 +52,14 @@ type script struct {
 	FailFirst      map[string]int  // agent -> number of invocations that fail with a runtime error
 	EmptyFileFirst map[string]bool // agent writes an empty file on its first attempt
 
+	// Multi-turn driver scenario.
+	SkipAnalysis  int  // first N analyze calls write no analysis file (0 = off)
+	NoSessions    bool // the runtime reports no session id (fallback mode)
+	FailReadFirst int  // first N read-inputs calls fail with a runtime error
+
+	// Multi-turn loop decider scenario.
+	SkipDeciderAnalysis int // first N decider analyze calls write no file (0 = off)
+
 	driverCalls    int
 	choiceIdx      int
 	normalRawIdx   int
@@ -61,6 +71,18 @@ type script struct {
 	indexSnapshot map[string]string // agent -> artifact index contents when it ran
 
 	prompts []recordedPrompt
+
+	// Session simulation for the multi-turn invocations (driver and loop
+	// decider).
+	sessionsUsed    []string // session id received by each driver call, in order
+	driverSchemas   []bool   // whether each driver call carried an output schema
+	currentSession  string   // driver session minted by the most recent read call
+	turnCount       int
+	bootstrap       bool     // driver run state of the current turn (from the read prompt)
+	deciderSessions []string // session id received by each decider call, in order
+	deciderSchemas  []bool   // whether each decider call carried an output schema
+	deciderSession  string   // decider session minted by the most recent read call
+	deciderTurns    int
 }
 
 func newScript(t *testing.T) *script {
@@ -107,7 +129,126 @@ func assertNoArtifactPaths(t *testing.T, prompt string, st *WorkflowState) {
 	}
 }
 
-func (s *script) driverResponse(prompt string) (string, error) {
+// driverPhaseOf identifies which phase of the driver's multi-turn
+// invocation a prompt belongs to, keyed by the same markers the
+// orchestrator's prompts carry.
+func driverPhaseOf(prompt string) string {
+	switch {
+	case strings.Contains(prompt, finishReassessmentMarker):
+		return "reassess"
+	case strings.Contains(prompt, driverAnalyzeMarker):
+		return "analyze"
+	case strings.Contains(prompt, driverReadMarker):
+		return "read"
+	default:
+		return "respond"
+	}
+}
+
+// driverPhase simulates one call of the driver's multi-turn conversation:
+// the read call mints a fresh session id; every later call of the turn must
+// arrive resuming that exact session (asserted) and returns it.
+func (s *script) driverPhase(phase, prompt, sessionID string) (string, string, error) {
+	switch phase {
+	case "read":
+		if s.FailReadFirst > 0 {
+			s.FailReadFirst--
+			return "", "", fmt.Errorf("simulated read-inputs failure")
+		}
+		s.turnCount++
+		if s.NoSessions {
+			s.currentSession = ""
+		} else {
+			s.currentSession = fmt.Sprintf("mock-session-%d", s.turnCount)
+		}
+		s.bootstrap = strings.Contains(prompt, bootstrapRunStatePrefix)
+		return "Inputs read: the artifact index and the documents it lists for this turn.", s.currentSession, nil
+	case "analyze":
+		s.assertDriverSession(phase, sessionID)
+		if s.SkipAnalysis > 0 {
+			s.SkipAnalysis--
+			return "Analysis saved.", s.currentSession, nil
+		}
+		path := extractOutputPath(s.t, prompt)
+		if err := os.WriteFile(path, []byte("# Driver analysis\n\nScripted analysis: state read, procedure walked, transition forced.\n"), 0o644); err != nil {
+			s.t.Fatalf("mock: cannot write analysis %s: %v", path, err)
+		}
+		return "Analysis saved.", s.currentSession, nil
+	case "respond":
+		s.assertDriverSession(phase, sessionID)
+		out, err := s.driverResponse()
+		return out, s.currentSession, err
+	case "reassess":
+		s.assertDriverSession(phase, sessionID)
+		out, err := s.reassessResponse()
+		return out, s.currentSession, err
+	}
+	s.t.Fatalf("unknown driver phase")
+	return "", "", nil
+}
+
+// assertDriverSession pins the multi-turn design: every call after the
+// read-inputs call of a turn resumes the session that call acquired.
+func (s *script) assertDriverSession(phase, sessionID string) {
+	if s.currentSession != "" && sessionID != s.currentSession {
+		s.t.Errorf("driver %s call did not resume the acquired session: got %q, want %q", phase, sessionID, s.currentSession)
+	}
+}
+
+// deciderPhaseOf identifies which phase of the loop decider's multi-turn
+// invocation a prompt belongs to, keyed by the same markers the
+// orchestrator's prompts carry.
+func deciderPhaseOf(prompt string) string {
+	switch {
+	case strings.Contains(prompt, loopDeciderAnalyzeMarker):
+		return "analyze"
+	case strings.Contains(prompt, loopDeciderReadMarker):
+		return "read"
+	default:
+		return "respond"
+	}
+}
+
+// deciderPhase simulates one call of the loop decider's multi-turn
+// conversation: the read call mints a fresh session id; every later call of
+// the turn must arrive resuming that exact session (asserted) and returns
+// it. The decider has no reassessment phase.
+func (s *script) deciderPhase(phase, prompt, sessionID string) (string, string, error) {
+	switch phase {
+	case "read":
+		s.deciderTurns++
+		s.deciderSession = fmt.Sprintf("mock-decider-session-%d", s.deciderTurns)
+		return "Inputs read: this execution's index section and the round's documents.", s.deciderSession, nil
+	case "analyze":
+		if s.deciderSession != "" && sessionID != s.deciderSession {
+			s.t.Errorf("loop decider %s call did not resume the acquired session: got %q, want %q", phase, sessionID, s.deciderSession)
+		}
+		if s.SkipDeciderAnalysis > 0 {
+			s.SkipDeciderAnalysis--
+			return "Analysis saved.", s.deciderSession, nil
+		}
+		path := extractOutputPath(s.t, prompt)
+		if err := os.WriteFile(path, []byte("# Loop decider analysis\n\nScripted analysis: round documents studied, verdict forced.\n"), 0o644); err != nil {
+			s.t.Fatalf("mock: cannot write decider analysis %s: %v", path, err)
+		}
+		return "Analysis saved.", s.deciderSession, nil
+	case "respond":
+		if s.deciderSession != "" && sessionID != s.deciderSession {
+			s.t.Errorf("loop decider %s call did not resume the acquired session: got %q, want %q", phase, sessionID, s.deciderSession)
+		}
+		out, err := s.loopResponse()
+		return out, s.deciderSession, err
+	}
+	s.t.Fatalf("unknown loop decider phase")
+	return "", "", nil
+}
+
+// driverResponse simulates the respond phase (call 3): the JSON decision.
+// Raw scripted responses first (verbatim, for simulating protocol
+// violations), then intents rendered protocol-compliantly - a "finish"
+// intent in bootstrap becomes "spec", since a compliant driver never emits
+// finish before the run has started.
+func (s *script) driverResponse() (string, error) {
 	s.driverCalls++
 	if s.DriverFailAfter > 0 && s.driverCalls > s.DriverFailAfter {
 		return "", fmt.Errorf("simulated driver failure")
@@ -115,43 +256,6 @@ func (s *script) driverResponse(prompt string) (string, error) {
 	if s.driverCalls <= s.DriverBadFirst {
 		return `{"subworkflow":"classify","rationale":"broken","unexpected_field":true}`, nil
 	}
-	// Finish-reassessment turns carry the marker in their prompt; they
-	// consume a separate scripted queue (default: confirm the finish).
-	if strings.Contains(prompt, finishReassessmentMarker) {
-		if s.reassessRawIdx < len(s.DriverReassessRaw) {
-			raw := s.DriverReassessRaw[s.reassessRawIdx]
-			s.reassessRawIdx++
-			return raw, nil
-		}
-		choice := "finish"
-		if s.reassessIdx < len(s.DriverReassessChoices) {
-			choice = s.DriverReassessChoices[s.reassessIdx]
-			s.reassessIdx++
-		}
-		if choice == "finish" && strings.Contains(prompt, bootstrapRunStatePrefix) {
-			choice = "spec"
-		}
-		if choice == "finish" {
-			resp := map[string]any{
-				"decision":    "confirm_finish",
-				"subworkflow": "finish",
-				"rationale":   "Scripted rationale for finish",
-				"task":        "Scripted task: cover the auth domain.",
-			}
-			return prettyJSON(resp), nil
-		}
-		resp := map[string]any{
-			"decision":    "select_subworkflow",
-			"subworkflow": choice,
-			"rationale":   "Scripted rationale for " + choice,
-			"task":        "Scripted task: cover the auth domain.",
-		}
-		return prettyJSON(resp), nil
-	}
-	// Regular turns: raw scripted responses first (verbatim, for simulating
-	// protocol violations), then intents rendered protocol-compliantly - a
-	// "finish" intent in bootstrap becomes "spec", since a compliant driver
-	// never emits finish before the run has started.
 	if s.normalRawIdx < len(s.DriverNormalRaw) {
 		raw := s.DriverNormalRaw[s.normalRawIdx]
 		s.normalRawIdx++
@@ -162,10 +266,48 @@ func (s *script) driverResponse(prompt string) (string, error) {
 		choice = s.DriverChoices[s.choiceIdx]
 		s.choiceIdx++
 	}
-	if choice == "finish" && strings.Contains(prompt, bootstrapRunStatePrefix) {
+	if choice == "finish" && s.bootstrap {
 		choice = "spec"
 	}
 	resp := map[string]any{
+		"subworkflow": choice,
+		"rationale":   "Scripted rationale for " + choice,
+		"task":        "Scripted task: cover the auth domain.",
+	}
+	return prettyJSON(resp), nil
+}
+
+// reassessResponse simulates the mandatory finish reassessment (call 4): it
+// consumes the separate scripted queue (default: confirm the finish).
+func (s *script) reassessResponse() (string, error) {
+	s.driverCalls++
+	if s.DriverFailAfter > 0 && s.driverCalls > s.DriverFailAfter {
+		return "", fmt.Errorf("simulated driver failure")
+	}
+	if s.reassessRawIdx < len(s.DriverReassessRaw) {
+		raw := s.DriverReassessRaw[s.reassessRawIdx]
+		s.reassessRawIdx++
+		return raw, nil
+	}
+	choice := "finish"
+	if s.reassessIdx < len(s.DriverReassessChoices) {
+		choice = s.DriverReassessChoices[s.reassessIdx]
+		s.reassessIdx++
+	}
+	if choice == "finish" && s.bootstrap {
+		choice = "spec"
+	}
+	if choice == "finish" {
+		resp := map[string]any{
+			"decision":    "confirm_finish",
+			"subworkflow": "finish",
+			"rationale":   "Scripted rationale for finish",
+			"task":        "Scripted task: cover the auth domain.",
+		}
+		return prettyJSON(resp), nil
+	}
+	resp := map[string]any{
+		"decision":    "select_subworkflow",
 		"subworkflow": choice,
 		"rationale":   "Scripted rationale for " + choice,
 		"task":        "Scripted task: cover the auth domain.",
@@ -203,18 +345,25 @@ var reviewAgents = map[string]bool{
 	"arch_final":                        true,
 }
 
-func (s *script) codexHook(agentName, prompt, timeout string, schema map[string]any) (string, error) {
-	s.prompts = append(s.prompts, recordedPrompt{agentName, prompt})
+func (s *script) codexHook(agentName, prompt, timeout string, schema map[string]any, sessionID string) (string, string, error) {
+	phase := ""
+	switch agentName {
+	case "workflow_driver":
+		phase = driverPhaseOf(prompt)
+		s.sessionsUsed = append(s.sessionsUsed, sessionID)
+		s.driverSchemas = append(s.driverSchemas, schema != nil)
+	case "loop_decider":
+		phase = deciderPhaseOf(prompt)
+		s.deciderSessions = append(s.deciderSessions, sessionID)
+		s.deciderSchemas = append(s.deciderSchemas, schema != nil)
+	}
+	s.prompts = append(s.prompts, recordedPrompt{agentName, phase, prompt})
 
-	if schema != nil {
-		switch agentName {
-		case "workflow_driver":
-			return s.driverResponse(prompt)
-		case "loop_decider":
-			return s.loopResponse()
-		}
-		s.t.Fatalf("unexpected decision agent %q", agentName)
-		return "", nil
+	if agentName == "workflow_driver" {
+		return s.driverPhase(phase, prompt, sessionID)
+	}
+	if agentName == "loop_decider" {
+		return s.deciderPhase(phase, prompt, sessionID)
 	}
 
 	if s.indexSnapshot[agentName] == "" {
@@ -225,19 +374,19 @@ func (s *script) codexHook(agentName, prompt, timeout string, schema map[string]
 
 	if s.FailFirst[agentName] > 0 {
 		s.FailFirst[agentName]--
-		return "", fmt.Errorf("simulated runtime failure for %s", agentName)
+		return "", "", fmt.Errorf("simulated runtime failure for %s", agentName)
 	}
 
 	path := extractOutputPath(s.t, prompt)
 	if s.SkipFile[agentName] {
-		return "ack", nil
+		return "ack", "", nil
 	}
 	if s.EmptyFileFirst[agentName] {
 		s.EmptyFileFirst[agentName] = false
 		if err := os.WriteFile(path, nil, 0o644); err != nil {
 			s.t.Fatalf("mock: cannot write %s: %v", path, err)
 		}
-		return "ack", nil
+		return "ack", "", nil
 	}
 
 	var content string
@@ -264,7 +413,7 @@ Scripted %s document body.
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		s.t.Fatalf("mock: cannot write %s: %v", path, err)
 	}
-	return "ack", nil
+	return "ack", "", nil
 }
 
 // ---------------------------------------------------------------------------
@@ -325,6 +474,34 @@ func (sc *scenario) promptCount(t *testing.T, agent string) int {
 	n := 0
 	for i := range sc.script.prompts {
 		if sc.script.prompts[i].agent == agent {
+			n++
+		}
+	}
+	return n
+}
+
+// promptForPhase returns the nth prompt of one phase of the driver's
+// multi-turn invocation (read/analyze/respond/reassess).
+func (sc *scenario) promptForPhase(t *testing.T, agent, phase string, nth int) string {
+	t.Helper()
+	seen := 0
+	for i := range sc.script.prompts {
+		if sc.script.prompts[i].agent == agent && sc.script.prompts[i].phase == phase {
+			seen++
+			if seen == nth {
+				return sc.script.prompts[i].prompt
+			}
+		}
+	}
+	t.Fatalf("no %s prompt #%d recorded for agent %s", phase, nth, agent)
+	return ""
+}
+
+func (sc *scenario) promptCountPhase(t *testing.T, agent, phase string) int {
+	t.Helper()
+	n := 0
+	for i := range sc.script.prompts {
+		if sc.script.prompts[i].agent == agent && sc.script.prompts[i].phase == phase {
 			n++
 		}
 	}
@@ -440,8 +617,9 @@ func TestOrchestrator_EngineeringHappyPath(t *testing.T) {
 		t.Errorf("SUMMARY.md should carry the finish rationale")
 	}
 
-	// Driver prompt carries the full subworkflow menu and progress marker.
-	driverPrompt := sc.promptFor(t, "workflow_driver", 1)
+	// The read-inputs call (first driver prompt of the turn) carries the
+	// full state bundle: subworkflow menu and progress marker.
+	driverPrompt := sc.promptForPhase(t, "workflow_driver", "read", 1)
 	for _, id := range subworkflowIDs() {
 		if !strings.Contains(driverPrompt, "* id: "+id+"\n") {
 			t.Errorf("driver prompt missing subworkflow %q", id)
@@ -525,10 +703,10 @@ func TestOrchestrator_LoopRepeatsThenStops(t *testing.T) {
 	}
 	assertNoArtifactPaths(t, reviewR2, st)
 
-	// Both decider calls are pointed at the index; no document path is
-	// inlined.
-	dec1 := sc.promptFor(t, "loop_decider", 1)
-	dec2 := sc.promptFor(t, "loop_decider", 2)
+	// Both decider turns' read-inputs calls are pointed at the index; no
+	// document path is inlined.
+	dec1 := sc.promptForPhase(t, "loop_decider", "read", 1)
+	dec2 := sc.promptForPhase(t, "loop_decider", "read", 2)
 	for name, prompt := range map[string]string{"decider 1": dec1, "decider 2": dec2} {
 		if !strings.Contains(prompt, idxPath) {
 			t.Errorf("%s prompt missing the artifact index path", name)
@@ -620,11 +798,11 @@ func TestOrchestrator_DriverInvalidJSONRetried(t *testing.T) {
 		t.Fatalf("driver calls = %d, want 4 (1 invalid + classify + finish + reassessment-confirm)", s.driverCalls)
 	}
 
-	first := sc.promptFor(t, "workflow_driver", 1)
+	first := sc.promptForPhase(t, "workflow_driver", "respond", 1)
 	if strings.Contains(first, "<feedback>") {
-		t.Error("first driver prompt must not carry retry feedback")
+		t.Error("first respond prompt must not carry retry feedback")
 	}
-	second := sc.promptFor(t, "workflow_driver", 2)
+	second := sc.promptForPhase(t, "workflow_driver", "respond", 2)
 	if !strings.Contains(second, "<feedback>") || !strings.Contains(second, "INVALID") {
 		t.Error("second driver prompt should carry strict-validation feedback")
 	}
@@ -651,9 +829,9 @@ func TestOrchestrator_DeciderInvalidJSONRetried(t *testing.T) {
 	if s.loopCalls != 2 {
 		t.Fatalf("decider calls = %d, want 2 (1 invalid + 1 valid)", s.loopCalls)
 	}
-	second := sc.promptFor(t, "loop_decider", 2)
+	second := sc.promptForPhase(t, "loop_decider", "respond", 2)
 	if !strings.Contains(second, "<feedback>") || !strings.Contains(second, "missing required field") {
-		t.Error("second decider prompt should carry strict-validation feedback naming the problem")
+		t.Error("second decider respond prompt should carry strict-validation feedback naming the problem")
 	}
 }
 
@@ -881,10 +1059,10 @@ func TestOrchestrator_MultiReviewerSubworkflow(t *testing.T) {
 		assertNoArtifactPaths(t, prompt, st)
 	}
 
-	// Both decider calls are pointed at the index, and the final index lists
-	// all six documents of the two rounds.
-	dec1 := sc.promptFor(t, "loop_decider", 1)
-	dec2 := sc.promptFor(t, "loop_decider", 2)
+	// Both decider turns' read-inputs calls are pointed at the index, and
+	// the final index lists all six documents of the two rounds.
+	dec1 := sc.promptForPhase(t, "loop_decider", "read", 1)
+	dec2 := sc.promptForPhase(t, "loop_decider", "read", 2)
 	if !strings.Contains(dec1, idxPath) || !strings.Contains(dec2, idxPath) {
 		t.Error("decider prompts missing the artifact index path")
 	}
@@ -996,19 +1174,19 @@ func TestDriverPrompt_IndexNotRegistry(t *testing.T) {
 	sc := runScenario(t, "Ship it.", s, nil)
 	st := sc.state(t)
 
-	second := sc.promptFor(t, "workflow_driver", 2)
-	if !strings.Contains(second, indexPath(sc.subdir)) {
-		t.Error("driver prompt missing the artifact index path")
+	read2 := sc.promptForPhase(t, "workflow_driver", "read", 2)
+	if !strings.Contains(read2, indexPath(sc.subdir)) {
+		t.Error("driver read prompt missing the artifact index path")
 	}
-	if strings.Contains(second, "ARTIFACT REGISTRY") {
+	if strings.Contains(read2, "ARTIFACT REGISTRY") {
 		t.Error("driver prompt must not carry the old artifact registry")
 	}
-	assertNoArtifactPaths(t, second, st)
+	assertNoArtifactPaths(t, read2, st)
 	// Decision history still names the tasks and the artifact ids.
-	if !strings.Contains(second, "task: Scripted task: cover the auth domain.") {
+	if !strings.Contains(read2, "task: Scripted task: cover the auth domain.") {
 		t.Error("decision history missing the driver task")
 	}
-	if !strings.Contains(second, st.Artifacts[0].ID) {
+	if !strings.Contains(read2, st.Artifacts[0].ID) {
 		t.Error("decision history should still name the artifact ids")
 	}
 }
@@ -1020,9 +1198,9 @@ func TestDeciderPrompt_HasIndexPath(t *testing.T) {
 	sc := runScenario(t, "Fix the login bug.", s, nil)
 	st := sc.state(t)
 
-	dec := sc.promptFor(t, "loop_decider", 1)
+	dec := sc.promptForPhase(t, "loop_decider", "read", 1)
 	if !strings.Contains(dec, indexPath(sc.subdir)) {
-		t.Error("decider prompt missing the artifact index path")
+		t.Error("decider read prompt missing the artifact index path")
 	}
 	assertNoArtifactPaths(t, dec, st)
 }
@@ -1143,7 +1321,7 @@ func TestOrchestrator_FinishReassessmentOverridesFinish(t *testing.T) {
 	if h1.FinishDecisionPath != "" || h1.FinishConfirmed {
 		t.Errorf("history 1 must not reference a reassessment: %+v", h1)
 	}
-	retryPrompt := sc.promptFor(t, "workflow_driver", 2)
+	retryPrompt := sc.promptForPhase(t, "workflow_driver", "respond", 2)
 	if !strings.Contains(retryPrompt, "<feedback>") ||
 		!strings.Contains(retryPrompt, "finish is impossible in BOOTSTRAP") {
 		t.Error("turn-1 retry prompt missing the bootstrap rejection feedback")
@@ -1205,10 +1383,12 @@ func TestOrchestrator_FinishReassessmentOverridesFinish(t *testing.T) {
 	}
 
 	// The turn-2 reassessment prompt carried the driver's FULL finish
-	// response and the completed-execution run state.
-	reassess := sc.promptFor(t, "workflow_driver", 4)
+	// response; the turn-2 read prompt carried the completed-execution run
+	// state (in session mode the state bundle is stated once per turn, on
+	// the read-inputs call).
+	reassess := sc.promptForPhase(t, "workflow_driver", "reassess", 1)
 	if !strings.Contains(reassess, finishReassessmentMarker) {
-		t.Fatal("fourth driver prompt is not a finish reassessment")
+		t.Fatal("reassessment prompt is not a finish reassessment")
 	}
 	// (The turn-2 finish is the mock's standard scripted response; the raw
 	// response was consumed - and rejected - on turn 1.)
@@ -1216,13 +1396,14 @@ func TestOrchestrator_FinishReassessmentOverridesFinish(t *testing.T) {
 		!strings.Contains(reassess, "Scripted task: cover the auth domain.") {
 		t.Error("reassessment prompt missing the driver's full finish response")
 	}
-	if !strings.Contains(reassess, "RUN STATE: 1 completed workflow execution(s)") {
-		t.Error("reassessment prompt missing the completed-execution run state")
-	}
 	assertNoArtifactPaths(t, reassess, st)
-	// The turn-3 prompt's decision history carries the overridden-finish
-	// note and the updated run state.
-	turn3 := sc.promptFor(t, "workflow_driver", 5)
+	read2 := sc.promptForPhase(t, "workflow_driver", "read", 2)
+	if !strings.Contains(read2, "RUN STATE: 1 completed workflow execution(s)") {
+		t.Error("turn-2 read prompt missing the completed-execution run state")
+	}
+	// The turn-3 read prompt's decision history carries the overridden-
+	// finish note and the updated run state.
+	turn3 := sc.promptForPhase(t, "workflow_driver", "read", 3)
 	if !strings.Contains(turn3, "RUN STATE: 2 completed workflow execution(s)") {
 		t.Error("turn-3 driver prompt missing the completed-execution run state")
 	}
@@ -1277,17 +1458,19 @@ func TestOrchestrator_FinishReassessmentConfirms(t *testing.T) {
 		t.Errorf("confirmation decision = %v, want confirm_finish/finish", cdd)
 	}
 
-	reassess := sc.promptFor(t, "workflow_driver", 3)
+	reassess := sc.promptForPhase(t, "workflow_driver", "reassess", 1)
 	if !strings.Contains(reassess, finishReassessmentMarker) {
-		t.Fatal("third driver prompt is not a finish reassessment")
+		t.Fatal("reassessment prompt is not a finish reassessment")
 	}
 	if !strings.Contains(reassess, "Scripted rationale for finish") {
 		t.Error("reassessment prompt missing the driver's full finish response")
 	}
-	if !strings.Contains(reassess, "RUN STATE: 1 completed workflow execution(s)") {
-		t.Error("reassessment prompt missing the completed-execution run state")
-	}
 	assertNoArtifactPaths(t, reassess, st)
+	// The run state is stated on the turn's read-inputs call.
+	read2 := sc.promptForPhase(t, "workflow_driver", "read", 2)
+	if !strings.Contains(read2, "RUN STATE: 1 completed workflow execution(s)") {
+		t.Error("turn-2 read prompt missing the completed-execution run state")
+	}
 }
 
 // Pins the reported incident at its source: on a bootstrap run the driver's
@@ -1335,8 +1518,9 @@ func TestOrchestrator_BootstrapFinishRejectedAtSource(t *testing.T) {
 	}
 
 	// The rejection fed back the structural reason; the corrected response
-	// followed. (Prompt 2 is the retry carrying the feedback.)
-	retryPrompt := sc.promptFor(t, "workflow_driver", 2)
+	// followed. (The second respond-phase call is the retry carrying the
+	// feedback, in the same session.)
+	retryPrompt := sc.promptForPhase(t, "workflow_driver", "respond", 2)
 	if !strings.Contains(retryPrompt, "<feedback>") {
 		t.Fatal("second driver prompt missing retry feedback")
 	}
@@ -1356,5 +1540,364 @@ func TestOrchestrator_BootstrapFinishRejectedAtSource(t *testing.T) {
 	}
 	if !sawPM || !sawPMReview {
 		t.Errorf("spec documents missing from artifacts: %+v", st.Artifacts)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Multi-turn driver invocations
+// ---------------------------------------------------------------------------
+
+// Pins the multi-turn design end to end: call 1 of each turn starts a fresh
+// session and reads the inputs; calls 2..n of the turn resume that exact
+// session; the read/analyze calls carry no output schema while respond and
+// reassess carry one; and the session id is never persisted to disk.
+func TestDriverTurn_MultiTurnSession(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"spec", "finish"}
+
+	sc := runScenario(t, "Ship it.", s, nil)
+	st := sc.state(t)
+	if !st.Finished {
+		t.Fatal("run should be finished")
+	}
+
+	// Two turns: read, analyze, respond[, reassess].
+	wantSessions := []string{"", "mock-session-1", "mock-session-1", "", "mock-session-2", "mock-session-2", "mock-session-2"}
+	if len(s.sessionsUsed) != len(wantSessions) {
+		t.Fatalf("driver calls = %d, want %d: %v", len(s.sessionsUsed), len(wantSessions), s.sessionsUsed)
+	}
+	for i, w := range wantSessions {
+		if s.sessionsUsed[i] != w {
+			t.Errorf("driver call %d session = %q, want %q", i+1, s.sessionsUsed[i], w)
+		}
+	}
+	wantSchemas := []bool{false, false, true, false, false, true, true}
+	if len(s.driverSchemas) != len(wantSchemas) {
+		t.Fatalf("driver schema flags = %v, want %v", s.driverSchemas, wantSchemas)
+	}
+	for i, w := range wantSchemas {
+		if s.driverSchemas[i] != w {
+			t.Errorf("driver call %d hasSchema = %v, want %v", i+1, s.driverSchemas[i], w)
+		}
+	}
+
+	// The session id is kept solely in memory: no file in the session
+	// directory carries it (state, decisions, analysis, index, summary).
+	for _, id := range []string{"mock-session-1", "mock-session-2"} {
+		err := filepath.WalkDir(sc.subdir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			data, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			if strings.Contains(string(data), id) {
+				t.Errorf("session id %q persisted to disk: %s", id, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk session dir: %v", err)
+		}
+	}
+}
+
+// Pins phase 2: the driver saves its analysis and reasoning to the
+// pregenerated file, the orchestrator verifies it on disk, and the respond
+// phase is pointed at it. The analysis file is a control-plane document: it
+// is not registered in the artifact index.
+func TestDriverTurn_AnalysisSaved(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"spec", "finish"}
+
+	sc := runScenario(t, "Ship it.", s, nil)
+	st := sc.state(t)
+
+	// One driver analysis file per driver turn (two turns in this run);
+	// loop decider analysis files live alongside, under their own label.
+	files, err := filepath.Glob(filepath.Join(sc.subdir, "analysis", "*-driver.md"))
+	if err != nil {
+		t.Fatalf("glob analysis: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("driver analysis files = %d, want 2: %v", len(files), files)
+	}
+	for _, f := range files {
+		info, err := os.Stat(f)
+		if err != nil {
+			t.Fatalf("analysis file missing: %v", err)
+		}
+		if info.Size() == 0 {
+			t.Errorf("analysis file %s is empty", f)
+		}
+	}
+
+	// The respond phase of each turn references an analysis file, and no
+	// analysis file is registered as an artifact.
+	for n := 1; n <= 2; n++ {
+		respond := sc.promptForPhase(t, "workflow_driver", "respond", n)
+		found := false
+		for _, f := range files {
+			if strings.Contains(respond, f) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("respond prompt %d does not reference any analysis file: %v", n, files)
+		}
+	}
+	for i := range st.Artifacts {
+		if strings.HasPrefix(st.Artifacts[i].Path, filepath.Join(sc.subdir, "analysis")) {
+			t.Errorf("analysis file registered as an artifact: %s", st.Artifacts[i].Path)
+		}
+	}
+}
+
+// Pins the phase-2 retry: when the analysis file is missing after an
+// attempt, the orchestrator retries within the SAME session until the file
+// exists on disk.
+func TestDriverTurn_AnalysisMissingRetriedInSession(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"spec", "finish"}
+	s.SkipAnalysis = 1
+
+	sc := runScenario(t, "Ship it.", s, nil)
+	st := sc.state(t)
+	if !st.Finished {
+		t.Fatal("run should be finished despite the missing first analysis")
+	}
+
+	// Turn 1: read, analyze (no file), analyze (file), respond - the whole
+	// turn in the one session minted by the read call; call 5 is turn 2's
+	// read, which mints a fresh session.
+	want := []string{"", "mock-session-1", "mock-session-1", "mock-session-1", ""}
+	if len(s.sessionsUsed) < len(want) {
+		t.Fatalf("driver calls = %d, want at least %d: %v", len(s.sessionsUsed), len(want), s.sessionsUsed)
+	}
+	for i, w := range want {
+		if s.sessionsUsed[i] != w {
+			t.Errorf("driver call %d session = %q, want %q", i+1, s.sessionsUsed[i], w)
+		}
+	}
+	if got := sc.promptCountPhase(t, "workflow_driver", "analyze"); got != 3 {
+		t.Fatalf("analyze calls = %d, want 3 (2 for turn 1, 1 for turn 2)", got)
+	}
+	// The retry carried the validation feedback naming the missing file.
+	retry := sc.promptForPhase(t, "workflow_driver", "analyze", 2)
+	if !strings.Contains(retry, "<feedback>") || !strings.Contains(retry, "does not exist") {
+		t.Error("analyze retry prompt missing the missing-file feedback")
+	}
+}
+
+// Pins the fallback: when the runtime reports no session id, the turn
+// degrades to self-contained one-shot calls - every phase prompt carries
+// the full driver state bundle - and the run still completes.
+func TestDriverTurn_NoSessionFallback(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"spec", "finish"}
+	s.NoSessions = true
+
+	sc := runScenario(t, "Ship it.", s, nil)
+	st := sc.state(t)
+	if !st.Finished {
+		t.Fatal("run should be finished in no-session fallback mode")
+	}
+	for i, id := range s.sessionsUsed {
+		if id != "" {
+			t.Errorf("driver call %d session = %q, want empty", i+1, id)
+		}
+	}
+	// Every phase prompt after the read call carries the full driver
+	// prompt (role included), so the call is self-contained.
+	n := 0
+	for i := range s.prompts {
+		if s.prompts[i].agent != "workflow_driver" || s.prompts[i].phase == "read" {
+			continue
+		}
+		n++
+		if !strings.Contains(s.prompts[i].prompt, "You are the workflow driver") {
+			t.Errorf("%s prompt %d missing the full driver prompt in fallback mode", s.prompts[i].phase, n)
+		}
+	}
+	if n == 0 {
+		t.Fatal("no post-read driver prompts recorded")
+	}
+}
+
+// Pins the read-inputs retry: a failed read is retried in a CLEAN session,
+// and the turn's later calls resume the session the successful read minted.
+func TestDriverTurn_ReadFailureRetriedInCleanSession(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"spec", "finish"}
+	s.FailReadFirst = 1
+
+	sc := runScenario(t, "Ship it.", s, nil)
+	st := sc.state(t)
+	if !st.Finished {
+		t.Fatal("run should be finished despite the failed first read")
+	}
+	// Turn 1: read (fail), read (fresh session), analyze, respond;
+	// turn 2: read (fresh session), analyze, respond, reassess.
+	want := []string{"", "", "mock-session-1", "mock-session-1", "", "mock-session-2", "mock-session-2", "mock-session-2"}
+	if len(s.sessionsUsed) != len(want) {
+		t.Fatalf("driver calls = %d, want %d: %v", len(s.sessionsUsed), len(want), s.sessionsUsed)
+	}
+	for i, w := range want {
+		if s.sessionsUsed[i] != w {
+			t.Errorf("driver call %d session = %q, want %q", i+1, s.sessionsUsed[i], w)
+		}
+	}
+	if got := sc.promptCountPhase(t, "workflow_driver", "read"); got != 3 {
+		t.Errorf("read calls = %d, want 3 (2 for turn 1, 1 for turn 2)", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Multi-turn loop decider invocations
+// ---------------------------------------------------------------------------
+
+// Pins the loop decider's multi-turn design: call 1 of each decider turn
+// starts a fresh session and reads the inputs; calls 2..3 resume that exact
+// session; the read/analyze calls carry no output schema while respond
+// carries one; and the session id is never persisted to disk.
+func TestLoopDecider_MultiTurnSession(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"implement", "finish"}
+	s.LoopRepeat = []bool{true, false} // two rounds -> two decider turns
+
+	sc := runScenario(t, "Fix the login bug.", s, nil)
+	st := sc.state(t)
+	if !st.Finished {
+		t.Fatal("run should be finished")
+	}
+
+	wantSessions := []string{"", "mock-decider-session-1", "mock-decider-session-1", "", "mock-decider-session-2", "mock-decider-session-2"}
+	if len(s.deciderSessions) != len(wantSessions) {
+		t.Fatalf("decider calls = %d, want %d: %v", len(s.deciderSessions), len(wantSessions), s.deciderSessions)
+	}
+	for i, w := range wantSessions {
+		if s.deciderSessions[i] != w {
+			t.Errorf("decider call %d session = %q, want %q", i+1, s.deciderSessions[i], w)
+		}
+	}
+	wantSchemas := []bool{false, false, true, false, false, true}
+	if len(s.deciderSchemas) != len(wantSchemas) {
+		t.Fatalf("decider schema flags = %v, want %v", s.deciderSchemas, wantSchemas)
+	}
+	for i, w := range wantSchemas {
+		if s.deciderSchemas[i] != w {
+			t.Errorf("decider call %d hasSchema = %v, want %v", i+1, s.deciderSchemas[i], w)
+		}
+	}
+
+	// The session id is kept solely in memory: no file in the session
+	// directory carries it.
+	for _, id := range []string{"mock-decider-session-1", "mock-decider-session-2"} {
+		err := filepath.WalkDir(sc.subdir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			data, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			if strings.Contains(string(data), id) {
+				t.Errorf("session id %q persisted to disk: %s", id, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk session dir: %v", err)
+		}
+	}
+}
+
+// Pins the decider's phase 2: the decider saves its analysis and reasoning
+// to the pregenerated file, the orchestrator verifies it on disk, and the
+// respond phase is pointed at it. The analysis file is a control-plane
+// document: it is not registered in the artifact index.
+func TestLoopDecider_AnalysisSaved(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"implement", "finish"}
+	s.LoopRepeat = []bool{true, false}
+
+	sc := runScenario(t, "Fix the login bug.", s, nil)
+	st := sc.state(t)
+
+	// One decider analysis file per decider turn (two turns in this run).
+	files, err := filepath.Glob(filepath.Join(sc.subdir, "analysis", "*-loop_decider.md"))
+	if err != nil {
+		t.Fatalf("glob analysis: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("decider analysis files = %d, want 2: %v", len(files), files)
+	}
+	for _, f := range files {
+		info, err := os.Stat(f)
+		if err != nil {
+			t.Fatalf("analysis file missing: %v", err)
+		}
+		if info.Size() == 0 {
+			t.Errorf("analysis file %s is empty", f)
+		}
+	}
+
+	// The respond phase of each decider turn references an analysis file,
+	// and no analysis file is registered as an artifact.
+	for n := 1; n <= 2; n++ {
+		respond := sc.promptForPhase(t, "loop_decider", "respond", n)
+		found := false
+		for _, f := range files {
+			if strings.Contains(respond, f) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("decider respond prompt %d does not reference any analysis file: %v", n, files)
+		}
+	}
+	for i := range st.Artifacts {
+		if strings.HasPrefix(st.Artifacts[i].Path, filepath.Join(sc.subdir, "analysis")) {
+			t.Errorf("analysis file registered as an artifact: %s", st.Artifacts[i].Path)
+		}
+	}
+}
+
+// Pins the decider's phase-2 retry: when the analysis file is missing after
+// an attempt, the orchestrator retries within the SAME session until the
+// file exists on disk.
+func TestLoopDecider_AnalysisMissingRetriedInSession(t *testing.T) {
+	s := newScript(t)
+	s.DriverChoices = []string{"implement", "finish"}
+	s.LoopRepeat = []bool{true, false}
+	s.SkipDeciderAnalysis = 1
+
+	sc := runScenario(t, "Fix the login bug.", s, nil)
+	st := sc.state(t)
+	if !st.Finished {
+		t.Fatal("run should be finished despite the missing first decider analysis")
+	}
+
+	// Decider turn 1: read, analyze (no file), analyze (file), respond -
+	// the whole turn in the one session minted by the read call.
+	want := []string{"", "mock-decider-session-1", "mock-decider-session-1", "mock-decider-session-1"}
+	if len(s.deciderSessions) < len(want) {
+		t.Fatalf("decider calls = %d, want at least %d: %v", len(s.deciderSessions), len(want), s.deciderSessions)
+	}
+	for i, w := range want {
+		if s.deciderSessions[i] != w {
+			t.Errorf("decider call %d session = %q, want %q", i+1, s.deciderSessions[i], w)
+		}
+	}
+	if got := sc.promptCountPhase(t, "loop_decider", "analyze"); got != 3 {
+		t.Fatalf("decider analyze calls = %d, want 3 (2 for turn 1, 1 for turn 2)", got)
+	}
+	// The retry carried the validation feedback naming the missing file.
+	retry := sc.promptForPhase(t, "loop_decider", "analyze", 2)
+	if !strings.Contains(retry, "<feedback>") || !strings.Contains(retry, "does not exist") {
+		t.Error("decider analyze retry prompt missing the missing-file feedback")
 	}
 }
