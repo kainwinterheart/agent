@@ -40,7 +40,7 @@ func (t *agentTurn) readInputs(readBlock string) {
 			"attempt": attempt,
 			"prompt":  prompt,
 		})
-		_, sessionID, err := RunCodex(t.agent.Name, prompt, t.agent.Timeout, nil, "", t.context)
+		_, sessionID, err := RunCodex(t.agent.Name, prompt, nil, "", t.context)
 		if err == nil {
 			t.sessionID = sessionID
 			if sessionID == "" {
@@ -68,7 +68,7 @@ func (t *agentTurn) invoke(phasePrompt string, schema map[string]any) (string, e
 	if t.sessionID == "" {
 		prompt = t.stateBundle + "\n\n" + phasePrompt
 	}
-	stdout, sessionID, err := RunCodex(t.agent.Name, prompt, t.agent.Timeout, schema, t.sessionID, t.context)
+	stdout, sessionID, err := RunCodex(t.agent.Name, prompt, schema, t.sessionID, t.context)
 	if sessionID != "" {
 		t.sessionID = sessionID
 	}

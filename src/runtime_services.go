@@ -22,7 +22,7 @@ type Context struct {
 	// runCodexHook replaces the real LLM invocation in tests. sessionID
 	// non-empty resumes that conversation; the hook returns the session id
 	// the (mock) runtime reports for the call.
-	runCodexHook func(agentName, prompt, timeout string, schema map[string]any, sessionID string) (string, string, error)
+	runCodexHook func(agentName, prompt string, schema map[string]any, sessionID string) (string, string, error)
 }
 
 func NewContext() *Context {
@@ -42,18 +42,17 @@ var sessionIDRe = regexp.MustCompile(`session id:\s*(\S+)`)
 // it is returned so callers may keep it in memory and resume the
 // conversation later. This layer never persists the id: the session trace
 // records only whether the call resumed a session.
-func RunCodex(agentName, prompt, timeout string, schema map[string]any, sessionID string, context *Context) (string, string, error) {
+func RunCodex(agentName, prompt string, schema map[string]any, sessionID string, context *Context) (string, string, error) {
 	var stdout, reported string
 	var err error
 	if context.runCodexHook != nil {
-		stdout, reported, err = context.runCodexHook(agentName, prompt, timeout, schema, sessionID)
+		stdout, reported, err = context.runCodexHook(agentName, prompt, schema, sessionID)
 	} else {
-		stdout, reported, err = realRunCodex(agentName, prompt, timeout, schema, sessionID)
+		stdout, reported, err = realRunCodex(agentName, prompt, schema, sessionID)
 	}
 	context.Tracer.trace("run_codex", map[string]any{
 		"agent":     agentName,
 		"prompt":    prompt,
-		"timeout":   timeout,
 		"hasSchema": schema != nil,
 		"resumed":   sessionID != "",
 		"stdout":    stdout,
@@ -62,11 +61,8 @@ func RunCodex(agentName, prompt, timeout string, schema map[string]any, sessionI
 	return stdout, reported, err
 }
 
-func realRunCodex(agentName, prompt, timeout string, schema map[string]any, sessionID string) (string, string, error) {
+func realRunCodex(agentName, prompt string, schema map[string]any, sessionID string) (string, string, error) {
 	cmdArgs := []string{"codex", "exec"}
-	if timeout != "" {
-		cmdArgs = append([]string{"timeout", "-s", "9", timeout}, cmdArgs...)
-	}
 
 	var schemaPath string
 	if schema != nil {
@@ -128,7 +124,7 @@ func realRunCodex(agentName, prompt, timeout string, schema map[string]any, sess
 
 	output := strings.TrimSpace(stdoutBuf.String())
 	if output == "" {
-		return "", reported, fmt.Errorf("empty output from %s, likely timeout issue", agentName)
+		return "", reported, fmt.Errorf("empty output from %s", agentName)
 	}
 	return output, reported, nil
 }

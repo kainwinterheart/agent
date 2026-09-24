@@ -183,8 +183,8 @@ into the history, and the driver picks up where it left off.
 go run ./src/ static-defs [path]    # prints to stdout, or writes to path
 ```
 
-The static definitions live in `src/definitions.go`: every agent (name, role
-prompt, timeout, input document types, output document types) and every
+The static definitions live in `src/definitions.go`: every agent (name,
+role prompt, input document types, output document types) and every
 subworkflow (name, description, ordered agents). `go test` verifies the
 resulting graph: every declared input has a producer, every non-terminal
 output is consumed, and every agent is used.

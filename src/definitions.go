@@ -15,8 +15,7 @@ import (
 
 // AgentDefinition is the static definition of one agent.
 type AgentDefinition struct {
-	Name    string // unique agent name; also the artifact type it produces
-	Timeout string
+	Name string // unique agent name; also the artifact type it produces
 	// Inputs lists the document types (agent names) this role is expected to
 	// read from the artifact index. Documented, not enforced: agents receive
 	// the index path and select the documents their role and the current
@@ -56,41 +55,41 @@ type SubworkflowDefinition struct {
 
 // AgentDefinitions is the complete static roster of agents.
 var AgentDefinitions = []AgentDefinition{
-	{Name: "product_manager", Timeout: "30m", Outputs: []string{"product_manager"}},
-	{Name: "pm_review", Timeout: "30m", Inputs: []string{"product_manager"}, Outputs: []string{"pm_review"}, OutputTerminal: true},
+	{Name: "product_manager", Outputs: []string{"product_manager"}},
+	{Name: "pm_review", Inputs: []string{"product_manager"}, Outputs: []string{"pm_review"}, OutputTerminal: true},
 
-	{Name: "investigation_classifier", Timeout: "10m", Outputs: []string{"investigation_classifier"}, OutputTerminal: true},
+	{Name: "investigation_classifier", Outputs: []string{"investigation_classifier"}, OutputTerminal: true},
 
-	{Name: "system_decomposition", Timeout: "40m", Inputs: []string{"product_manager"}, Outputs: []string{"system_decomposition"}},
-	{Name: "system_decomposition_review", Timeout: "30m", Inputs: []string{"product_manager", "system_decomposition"}, Outputs: []string{"system_decomposition_review"}, OutputTerminal: true},
+	{Name: "system_decomposition", Inputs: []string{"product_manager"}, Outputs: []string{"system_decomposition"}},
+	{Name: "system_decomposition_review", Inputs: []string{"product_manager", "system_decomposition"}, Outputs: []string{"system_decomposition_review"}, OutputTerminal: true},
 
-	{Name: "arch", Timeout: "40m", Inputs: []string{"product_manager", "system_decomposition"}, Outputs: []string{"arch"}},
-	{Name: "arch_review", Timeout: "30m", Inputs: []string{"product_manager", "system_decomposition", "arch"}, Outputs: []string{"arch_review"}, OutputTerminal: true},
+	{Name: "arch", Inputs: []string{"product_manager", "system_decomposition"}, Outputs: []string{"arch"}},
+	{Name: "arch_review", Inputs: []string{"product_manager", "system_decomposition", "arch"}, Outputs: []string{"arch_review"}, OutputTerminal: true},
 
-	{Name: "plan", Timeout: "60m", Inputs: []string{"product_manager", "arch", "system_decomposition"}, Outputs: []string{"plan"}},
-	{Name: "plan_review", Timeout: "30m", Inputs: []string{"product_manager", "arch", "system_decomposition", "plan"}, Outputs: []string{"plan_review"}, OutputTerminal: true},
+	{Name: "plan", Inputs: []string{"product_manager", "arch", "system_decomposition"}, Outputs: []string{"plan"}},
+	{Name: "plan_review", Inputs: []string{"product_manager", "arch", "system_decomposition", "plan"}, Outputs: []string{"plan_review"}, OutputTerminal: true},
 
-	{Name: "coder", Timeout: "720m", Inputs: []string{"plan"}, Outputs: []string{"coder"}},
-	{Name: "code_review", Timeout: "60m", Inputs: []string{"plan", "coder"}, Outputs: []string{"code_review"}, OutputTerminal: true},
+	{Name: "coder", Inputs: []string{"plan"}, Outputs: []string{"coder"}},
+	{Name: "code_review", Inputs: []string{"plan", "coder"}, Outputs: []string{"code_review"}, OutputTerminal: true},
 
-	{Name: "tech_lead_final", Timeout: "60m", Inputs: []string{"product_manager", "system_decomposition", "arch", "plan", "coder"}, Outputs: []string{"tech_lead_final"}, OutputTerminal: true},
-	{Name: "arch_final", Timeout: "60m", Inputs: []string{"system_decomposition", "arch", "plan", "coder"}, Outputs: []string{"arch_final"}, OutputTerminal: true},
+	{Name: "tech_lead_final", Inputs: []string{"product_manager", "system_decomposition", "arch", "plan", "coder"}, Outputs: []string{"tech_lead_final"}, OutputTerminal: true},
+	{Name: "arch_final", Inputs: []string{"system_decomposition", "arch", "plan", "coder"}, Outputs: []string{"arch_final"}, OutputTerminal: true},
 
-	{Name: "investigator_planner", Timeout: "90m", Inputs: []string{"product_manager"}, Outputs: []string{"investigator_planner"}},
-	{Name: "investigation_plan_quality_review", Timeout: "30m", Inputs: []string{"product_manager", "investigator_planner"}, Outputs: []string{"investigation_plan_quality_review"}, OutputTerminal: true},
-	{Name: "structure_review", Timeout: "30m", Inputs: []string{"product_manager", "investigator_planner"}, Outputs: []string{"structure_review"}, OutputTerminal: true},
+	{Name: "investigator_planner", Inputs: []string{"product_manager"}, Outputs: []string{"investigator_planner"}},
+	{Name: "investigation_plan_quality_review", Inputs: []string{"product_manager", "investigator_planner"}, Outputs: []string{"investigation_plan_quality_review"}, OutputTerminal: true},
+	{Name: "structure_review", Inputs: []string{"product_manager", "investigator_planner"}, Outputs: []string{"structure_review"}, OutputTerminal: true},
 
-	{Name: "investigator_executor", Timeout: "180m", Inputs: []string{"investigator_planner", "investigator_executor"}, Outputs: []string{"investigator_executor"}},
-	{Name: "fact_checking_review", Timeout: "60m", Inputs: []string{"investigator_planner", "investigator_executor"}, Outputs: []string{"fact_checking_review"}, OutputTerminal: true},
-	{Name: "gap_analysis_review", Timeout: "60m", Inputs: []string{"investigator_planner", "investigator_executor"}, Outputs: []string{"gap_analysis_review"}, OutputTerminal: true},
+	{Name: "investigator_executor", Inputs: []string{"investigator_planner", "investigator_executor"}, Outputs: []string{"investigator_executor"}},
+	{Name: "fact_checking_review", Inputs: []string{"investigator_planner", "investigator_executor"}, Outputs: []string{"fact_checking_review"}, OutputTerminal: true},
+	{Name: "gap_analysis_review", Inputs: []string{"investigator_planner", "investigator_executor"}, Outputs: []string{"gap_analysis_review"}, OutputTerminal: true},
 
-	{Name: "synthesis", Timeout: "90m", Inputs: []string{"investigator_executor"}, Outputs: []string{"synthesis"}, OutputTerminal: true},
-	{Name: "synthesis_consistency_review", Timeout: "60m", Inputs: []string{"investigator_executor", "synthesis"}, Outputs: []string{"synthesis_consistency_review"}, OutputTerminal: true},
+	{Name: "synthesis", Inputs: []string{"investigator_executor"}, Outputs: []string{"synthesis"}, OutputTerminal: true},
+	{Name: "synthesis_consistency_review", Inputs: []string{"investigator_executor", "synthesis"}, Outputs: []string{"synthesis_consistency_review"}, OutputTerminal: true},
 
 	// Decision agents: no Markdown artifacts; strictly validated JSON
 	// responses consumed by the orchestrator's control flow.
-	{Name: "workflow_driver", Timeout: "10m", Outputs: []string{"driver_decision"}, OutputTerminal: true, Decision: true},
-	{Name: "loop_decider", Timeout: "10m", Outputs: []string{"loop_decision"}, OutputTerminal: true, Decision: true},
+	{Name: "workflow_driver", Outputs: []string{"driver_decision"}, OutputTerminal: true, Decision: true},
+	{Name: "loop_decider", Outputs: []string{"loop_decision"}, OutputTerminal: true, Decision: true},
 }
 
 // SubworkflowDefinitions is the complete static registry of subworkflows.
@@ -253,7 +252,6 @@ func StaticDefinitionsDocument() string {
 			b.WriteString("- role: control plane (not a subworkflow step)\n")
 		}
 		b.WriteString("- role prompt: pkg/loader/prompts/" + d.Name + ".txt\n")
-		b.WriteString("- timeout: " + d.Timeout + "\n")
 		if len(d.Inputs) > 0 {
 			b.WriteString("- expected inputs (document types this role reads from the artifact index): " + strings.Join(d.Inputs, ", ") + "\n")
 		} else {

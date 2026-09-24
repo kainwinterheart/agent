@@ -345,7 +345,7 @@ var reviewAgents = map[string]bool{
 	"arch_final":                        true,
 }
 
-func (s *script) codexHook(agentName, prompt, timeout string, schema map[string]any, sessionID string) (string, string, error) {
+func (s *script) codexHook(agentName, prompt string, schema map[string]any, sessionID string) (string, string, error) {
 	phase := ""
 	switch agentName {
 	case "workflow_driver":

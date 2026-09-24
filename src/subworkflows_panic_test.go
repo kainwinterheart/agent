@@ -41,7 +41,6 @@ func TestInitSubworkflows_UnknownDecisionAgentPanics(t *testing.T) {
 
 	AgentDefinitions = append(AgentDefinitions, AgentDefinition{
 		Name:     "fake_decision_agent",
-		Timeout:  "1m",
 		Decision: true,
 	})
 

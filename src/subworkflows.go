@@ -64,15 +64,15 @@ func initSubworkflows() {
 				// populated below. The agent is finalized after Subworkflows
 				// is set - building the schema earlier would capture an
 				// empty registry and constrain the driver to "finish".
-				a = NewAgent(def.Name, loader.GetPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID), def.Timeout)
+				a = NewAgent(def.Name, loader.GetPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID))
 			case "loop_decider":
 				schema := loopDecisionSchema()
-				a = NewAgent(def.Name, loader.RenderDecisionPrompt(loader.LOOP_DECIDER_PROMPT_ID, schema, loopDecisionExample), def.Timeout).WithSchema(schema)
+				a = NewAgent(def.Name, loader.RenderDecisionPrompt(loader.LOOP_DECIDER_PROMPT_ID, schema, loopDecisionExample)).WithSchema(schema)
 			default:
 				panic("unknown decision agent " + def.Name)
 			}
 		} else {
-			a = NewAgent(def.Name, loader.GetPrompt(loader.PromptID(def.Name)), def.Timeout)
+			a = NewAgent(def.Name, loader.GetPrompt(loader.PromptID(def.Name)))
 		}
 		a.Inputs = def.Inputs
 		a.Outputs = def.Outputs
@@ -107,7 +107,7 @@ func initSubworkflows() {
 	// that schema.
 	placeholder := agents["workflow_driver"]
 	driverSchema := driverDecisionSchema()
-	driver := NewAgent(placeholder.Name, loader.RenderDecisionPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID, driverSchema, driverDecisionExample), placeholder.Timeout).WithSchema(driverSchema)
+	driver := NewAgent(placeholder.Name, loader.RenderDecisionPrompt(loader.WORKFLOW_DRIVER_PROMPT_ID, driverSchema, driverDecisionExample)).WithSchema(driverSchema)
 	driver.Inputs = placeholder.Inputs
 	driver.Outputs = placeholder.Outputs
 	driver.OutputTerminal = placeholder.OutputTerminal

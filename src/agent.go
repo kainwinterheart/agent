@@ -19,7 +19,6 @@ import (
 type Agent struct {
 	Name       string
 	RolePrompt string
-	Timeout    string
 	Schema     map[string]any
 	// Inputs lists the document types (agent names) this role is expected to
 	// read from the artifact index to do its job (static definition).
@@ -34,11 +33,10 @@ type Agent struct {
 	OutputTerminal bool
 }
 
-func NewAgent(name string, rolePrompt string, timeout string) *Agent {
+func NewAgent(name string, rolePrompt string) *Agent {
 	return &Agent{
 		Name:       name,
 		RolePrompt: fmt.Sprintf("<role>\n\n%s\n\n</role>", rolePrompt),
-		Timeout:    timeout,
 	}
 }
 
@@ -54,7 +52,7 @@ func (a *Agent) WithSchema(schema map[string]any) *Agent {
 // conversations (the driver's multi-turn invocations) call RunCodex
 // directly with the session id they keep in memory.
 func (a *Agent) Run(prompt string, context *Context) (string, error) {
-	stdout, _, err := RunCodex(a.Name, prompt, a.Timeout, a.Schema, "", context)
+	stdout, _, err := RunCodex(a.Name, prompt, a.Schema, "", context)
 	if err != nil {
 		return "", err
 	}
