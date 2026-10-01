@@ -107,26 +107,26 @@ var SubworkflowDefinitions = []SubworkflowDefinition{
 	{
 		ID:          "classify",
 		Name:        "Classify task",
-		Description: "Classifies the task as investigation or engineering, with reasoning.",
+		Description: "Classifies the task as investigation, engineering, or mixed (with a dominant family for routing when mixed), with reasoning.",
 		Produces:    "classification document (type + reasoning)",
 		Steps: []StepDefinition{
-			{Agent: "investigation_classifier", ArtifactKind: "Classification of the task as investigation or engineering, with reasoning"},
+			{Agent: "investigation_classifier", ArtifactKind: "Classification of the task as investigation, engineering, or mixed, with reasoning and the dominant family when mixed"},
 		},
 	},
 	{
 		ID:          "decompose",
 		Name:        "Decompose system",
-		Description: "Splits the engineering task into independent domains with explicit dependencies and integration ownership, then reviews the decomposition.",
+		Description: "Splits the task into bounded architecture domains with explicit dependencies, artifact flow, and integration ownership, then reviews the decomposition.",
 		Produces:    "system decomposition document + decomposition review verdict",
 		Steps: []StepDefinition{
-			{Agent: "system_decomposition", ArtifactKind: "System decomposition into bounded domains with dependencies and integration ownership"},
+			{Agent: "system_decomposition", ArtifactKind: "System decomposition into bounded architecture domains with dependencies, artifact flow, and integration ownership"},
 			{Agent: "system_decomposition_review", ArtifactKind: "Review of the system decomposition", Reviewer: true},
 		},
 	},
 	{
 		ID:          "architect",
 		Name:        "Design architecture",
-		Description: "Designs the architecture for the scope named in the task (a domain or the whole system), then reviews it.",
+		Description: "Designs the high-level architecture (structure, components, interactions) for the scope named in the task, grounded in the existing system, then reviews it.",
 		Produces:    "architecture document + architecture review verdict",
 		Steps: []StepDefinition{
 			{Agent: "arch", ArtifactKind: "Architecture design for the scope named in the driver task"},
@@ -146,38 +146,38 @@ var SubworkflowDefinitions = []SubworkflowDefinition{
 	{
 		ID:          "implement",
 		Name:        "Implement and review code",
-		Description: "Implements the approved plan in the repository, then reviews the actual changes. Automated disk-change detection is included in the review input.",
+		Description: "Executes the task in the mode it names or implies (implement the approved plan, verify-only, or runtime-verify-and-fix), then reviews the actual changes. Automated disk-change detection is included in the review input.",
 		Produces:    "implementation report + code review verdict",
 		Steps: []StepDefinition{
-			{Agent: "coder", ArtifactKind: "Implementation report: verified changes made to the repository"},
+			{Agent: "coder", ArtifactKind: "Implementation report: changes made and/or verification evidence for the mode named in the task"},
 			{Agent: "code_review", ArtifactKind: "Review of the latest code changes against the plan and reports", Reviewer: true},
 		},
 	},
 	{
 		ID:          "tech_lead_final",
 		Name:        "Tech lead final review",
-		Description: "Final integration review of the implementation against the specification, architecture, and plan.",
+		Description: "Final integration review of the implementation against the specification, decomposition, architecture, and plan, establishing the finish-gate evidence states.",
 		Produces:    "tech lead final review document (verdict + assessment)",
 		Steps: []StepDefinition{
-			{Agent: "tech_lead_final", ArtifactKind: "Final tech lead review of the implementation against spec, architecture, and plan"},
+			{Agent: "tech_lead_final", ArtifactKind: "Final integration review of the implementation against spec, decomposition, architecture, and plan, with finish-gate evidence states"},
 		},
 	},
 	{
 		ID:          "arch_final",
 		Name:        "Architecture final review",
-		Description: "Final architecture review of the implemented system against the approved architecture.",
+		Description: "Final architecture review of the implemented system against the approved architecture and the existing system's boundaries.",
 		Produces:    "architecture final review document (verdict + assessment)",
 		Steps: []StepDefinition{
-			{Agent: "arch_final", ArtifactKind: "Final architecture review of the implemented system"},
+			{Agent: "arch_final", ArtifactKind: "Final architecture conformance review of the implemented system"},
 		},
 	},
 	{
 		ID:          "investigate_plan",
 		Name:        "Plan investigation",
-		Description: "Plans the investigation as bounded workstreams with declared sources, hypotheses, and dependencies, then reviews plan quality and structure.",
+		Description: "Plans the investigation as a DAG of bounded workstreams with declared sources, hypotheses, methods, and dependencies, then reviews plan quality and structure.",
 		Produces:    "investigation plan + quality and structural review verdicts",
 		Steps: []StepDefinition{
-			{Agent: "investigator_planner", ArtifactKind: "Investigation plan with bounded workstreams"},
+			{Agent: "investigator_planner", ArtifactKind: "Investigation plan: a DAG of bounded workstreams with declared sources, methods, and dependencies"},
 			{Agent: "investigation_plan_quality_review", ArtifactKind: "Quality review of the investigation plan", Reviewer: true},
 			{Agent: "structure_review", ArtifactKind: "Structural review of the investigation plan", Reviewer: true},
 		},

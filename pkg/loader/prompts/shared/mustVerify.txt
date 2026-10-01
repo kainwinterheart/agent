@@ -1,5 +1,6 @@
 {{- define "mustVerify" -}}Verification completion requirement:
-* If repository inspection is required and tools are available, you MUST complete the inspection and resolve the question.
-* Do NOT defer verification as a future action if it can be completed during this review.
-* Phrases like “must inspect”, “should verify”, or “needs checking” are NOT allowed when the information is accessible.
-* Every identified verification requirement must result in a concrete conclusion: either confirmed, refuted, or explicitly unavailable.{{- end -}}
+* If repository/data inspection is required and tools are available, complete the inspection during this role whenever the question is resolvable from accessible evidence.
+* Every required verification must resolve to `confirmed`, `refuted`, `limited`, or `unavailable`; never hide an unresolved check behind prose such as "should verify".
+* Negative claims (for example "no caller exists", "only path", "all files covered") require an explicitly scoped search or another direct completeness mechanism.
+* State the search/inspection scope when the claim depends on absence or exhaustiveness.
+* If the evidence cannot establish the claim, report the limitation rather than upgrading it into certainty.{{- end -}}

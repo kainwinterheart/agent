@@ -4,7 +4,7 @@ This system operates as a DIRECTED ACYCLIC GRAPH (DAG) of investigative workstre
 
 Core execution properties:
 * Workstreams execute according to explicit dependency relationships
-* Execution order follows the explicit dependency graph (one workstream at a time)
+* Execution semantics follow the explicit dependency graph; independent workstreams MAY execute concurrently when the runtime supports it
 * Dependencies must be explicit and acyclic
 * No hidden information flow is allowed
 * No undeclared coordination is allowed
@@ -56,13 +56,7 @@ All dependencies must:
 * be acyclic
 * identify meaningful artifact flow
 
-Dependencies impose execution cost by:
-* reducing parallelism
-* increasing coordination complexity
-* increasing graph fragility
-* increasing serialization pressure
-
-Therefore every dependency requires strict operational justification.
+Dependencies may reduce parallelism and increase coordination complexity, but resource cost is not itself a reason to avoid a dependency. Therefore every dependency still requires strict **semantic** justification: it must represent a real information dependency and clear artifact flow. Do not add dependencies merely for convenience or shared context.
 
 A dependency is valid ONLY if downstream execution would be impossible, undefined, or semantically invalid without the upstream artifact.
 
@@ -120,26 +114,29 @@ Validation scope must remain explicitly bounded.
 
 ### Synthesis workstream rules
 
-Synthesis workstreams should consume the MINIMAL artifact set necessary to produce their outputs.
+Synthesis workstreams should consume the **complete materially relevant** artifact set necessary to produce their outputs.
 
 Synthesis workstreams MUST NOT:
-* depend on all upstream workstreams by default
-* aggregate branches without explicit need
+* depend on unrelated upstream workstreams
+* aggregate branches merely because they exist
+* omit relevant evidence merely to reduce analysis cost
 * act as universal graph sinks
 
 ---
 
 ## Optimization priorities
 
-When tradeoffs exist, prioritize in this order:
+Resource cost and execution latency are NOT optimization criteria for this system. When tradeoffs exist, prioritize in this order:
 
 1. DAG validity
-2. Investigability
-3. Evidence sufficiency
-4. Clear artifact flow
-5. Parallelism maximization
-6. Methodological diversity
-7. Minimization of redundancy
+2. Evidence sufficiency and investigability
+3. Independent error-detection value
+4. Clear artifact flow and ownership
+5. Methodological diversity
+6. Parallelism where it preserves independence or avoids unnecessary coupling
+7. Structural simplicity without sacrificing epistemic coverage
+
+Redundancy is valuable when it provides genuinely independent validation, alternative methods, competing hypotheses, or distinct failure-mode coverage. Do not minimize redundancy merely to save time or tokens.
 
 ---
 
@@ -198,10 +195,12 @@ Synthesis workstreams are allowed.
 
 However, synthesis workstreams must:
 * consume explicitly defined upstream artifacts
+* consume **all materially relevant** upstream evidence required for faithful synthesis; do not omit relevant evidence merely to reduce processing
 * define explicit integration methods
 * produce bounded outputs
 * avoid unconstrained narrative summarization
 * avoid vague "final analysis" behavior
+* exclude only evidence that is demonstrably irrelevant to the stated synthesis objective
 
 ---
 
@@ -218,4 +217,17 @@ All critiques must:
 * identify the violated rule
 * identify offending workstreams
 * explain the failure concretely
-* propose minimal corrective action{{- end -}}
+* propose minimal corrective action
+
+## Validation independence
+
+When a graph requires independent validation, independence is a property of the evidence path, not merely the agent identity.
+
+A validation path is materially independent only when it changes at least one of:
+* the evidence-selection method;
+* the transformation/query/extraction method;
+* the corpus or source slice being examined;
+* the invariant or claim family being tested.
+
+Running the same extraction or search procedure again under a different role name is corroboration, not independent validation.
+If genuine independence is not possible, disclose the limitation instead of labeling the result independent.{{- end -}}

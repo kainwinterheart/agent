@@ -19,6 +19,9 @@ Verdict requirement:
 * A clean APPROVED verdict is terminal for the local review responsibility unless
   later evidence explicitly contradicts it or the reviewed implementation changes
   materially.
-* A reviewer MUST NOT recommend another review solely because confidence could be
-  increased. Another round requires a concrete unresolved defect or contradiction.
+* A reviewer MUST perform as much independent verification as is useful before issuing the verdict; do not defer accessible verification to a future reviewer.
+* A reviewer MUST NOT recommend another review solely because confidence could be increased. Another round requires a concrete unresolved defect or contradiction; deeper checking should be performed within the current review when practical.
+
+## Independent-validation disclosure
+A reviewer that shares the producer's evidence-selection or transformation path MUST NOT describe its result as independent corroboration. When independence is material to the gate, record the limitation explicitly.
 {{- end -}}

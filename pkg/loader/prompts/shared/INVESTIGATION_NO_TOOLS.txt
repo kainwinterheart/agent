@@ -1,13 +1,8 @@
-{{- define "invNoTools" -}}STRICT PROHIBITION:
-* You MUST NOT perform any file system mutations.
-* You MUST NOT create, modify, or delete any files.
-* You MUST NOT call write_file or any equivalent tool.
+{{- define "invNoTools" -}}Investigation source-mutation restriction:
+* You MUST NOT modify source code, alter database contents, execute deployment scripts, or mutate configuration in the investigated systems.
+* You MUST NOT modify or delete unrelated files.
+* You MAY use repository/read tools needed to investigate the declared sources.
+* You MUST create/update only the exact assigned investigation output artifact required by `outputContract`.
+* Writing the assigned report is part of completing the investigation role; it is not a source-system mutation.
 
-If a solution would normally involve writing to a file, return the content inline instead. Any attempt to call a file-writing tool will be rejected.
-
-Returning the answer directly to the user is ALWAYS preferred over using tools. File system tools are forbidden and unnecessary for this task.
-
-Investigation-Specific Constraints:
-* MUST NOT modify source code, change database contents, execute deployment scripts, or create/modify configuration files.
-* MAY create markdown/text investigation reports, write structured JSON findings, generate timeline documents, and produce executive summaries.
-* Investigation artifacts should be written to document_stores directory.{{- end -}}
+Investigation evidence must remain source-bounded and traceable to the declared input set.{{- end -}}
