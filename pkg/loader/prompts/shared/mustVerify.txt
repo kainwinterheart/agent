@@ -3,4 +3,17 @@
 * Every required verification must resolve to `confirmed`, `refuted`, `limited`, or `unavailable`; never hide an unresolved check behind prose such as "should verify".
 * Negative claims (for example "no caller exists", "only path", "all files covered") require an explicitly scoped search or another direct completeness mechanism.
 * State the search/inspection scope when the claim depends on absence or exhaustiveness.
-* If the evidence cannot establish the claim, report the limitation rather than upgrading it into certainty.{{- end -}}
+* If the evidence cannot establish the claim, report the limitation rather than upgrading it into certainty.
+
+## UNIVERSAL EPISTEMIC AND HANDOFF RULES
+- Keep four oracles separate: the stated requirements, the observed repository/source state, executed tests or other outcome evidence, and documentation/claims about the system. Agreement among these is a result to establish, not assume.
+- Mark material statements as directly observed, source-reported, inferred, assumed, or unverified when the distinction matters. Cite precise evidence locations. Do not let confidence, repetition, or a prior agent's approval substitute for evidence.
+- For material claims, seek a genuinely independent route or a falsifying test. Multiple summaries that derive from one source are not independent corroboration. Use effort proportionate to consequence; focus extra verification on high-impact invariants and surprising claims.
+- Treat every normative clause as a requirement. Re-derive coverage from the authoritative source on each review/gate; do not merely append to a prior checklist. Map requirement → owner → artifact/interface → acceptance evidence → status. Missing rows are omissions, not implicit waivers.
+- Make uncertainty and disagreement explicit. Do not silently reconcile conflicting sources, promote assumptions to facts, invent evidence, or broaden scope without authority. Record deviations with rationale, impact, authorization, owner, and verification.
+- Distinguish local artifact quality from global task completion. Hand off unresolved work to its actual owner; do not repeat a stage just because other stages remain, and do not declare the overall task done because local work is approved.
+- Optimize for a correct, auditable result rather than a persuasive narrative. State verification limits, failed checks, and negative results. A claim that something is complete requires outcome evidence appropriate to that claim.
+
+Verification quality addition: choose checks that can falsify the claim, and prefer a direct or independent route for high-impact assertions. Record the exact evidence and limits. If verification cannot be performed, state why and mark the claim unverified; never convert an intended check into a completed one.
+
+{{- end -}}
