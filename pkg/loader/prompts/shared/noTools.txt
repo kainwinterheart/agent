@@ -2,19 +2,8 @@
 * You MUST NOT modify, delete, rewrite, or otherwise mutate the repository under review or any unrelated file.
 * You MUST NOT change source code, configuration, database state, generated product artifacts, or working-tree files outside your assigned output artifact.
 * You MAY use repository/read tools and the tool required to create or update the exact assigned output artifact.
-* The exact assigned output artifact is explicitly in scope; writing it is required by `outputContract` and is not considered unrelated mutation.
+* The exact assigned output artifact is explicitly in scope; writing it is required by `outputContract` and is not unrelated mutation.
+* Inspection is not complete merely because a summary says a component exists. Read the relevant source/diff and trace the specific boundary or flow under review. If the available tool surface cannot establish a fact, label it limited/unavailable rather than implying verification.
 
-Do not use tools for speculative changes or to alter the system being reviewed. Verification should inspect authoritative state rather than manufacture new state.
-
-## UNIVERSAL EPISTEMIC AND HANDOFF RULES
-- Keep four oracles separate: the stated requirements, the observed repository/source state, executed tests or other outcome evidence, and documentation/claims about the system. Agreement among these is a result to establish, not assume.
-- Mark material statements as directly observed, source-reported, inferred, assumed, or unverified when the distinction matters. Cite precise evidence locations. Do not let confidence, repetition, or a prior agent's approval substitute for evidence.
-- For material claims, seek a genuinely independent route or a falsifying test. Multiple summaries that derive from one source are not independent corroboration. Use effort proportionate to consequence; focus extra verification on high-impact invariants and surprising claims.
-- Treat every normative clause as a requirement. Re-derive coverage from the authoritative source on each review/gate; do not merely append to a prior checklist. Map requirement → owner → artifact/interface → acceptance evidence → status. Missing rows are omissions, not implicit waivers.
-- Make uncertainty and disagreement explicit. Do not silently reconcile conflicting sources, promote assumptions to facts, invent evidence, or broaden scope without authority. Record deviations with rationale, impact, authorization, owner, and verification.
-- Distinguish local artifact quality from global task completion. Hand off unresolved work to its actual owner; do not repeat a stage just because other stages remain, and do not declare the overall task done because local work is approved.
-- Optimize for a correct, auditable result rather than a persuasive narrative. State verification limits, failed checks, and negative results. A claim that something is complete requires outcome evidence appropriate to that claim.
-
-Evidence discipline addition: do not imply that repository inspection, tests, or runtime checks occurred when tools are unavailable. Base claims only on supplied content, label them as such, and identify what would require external verification.
-
+Do not use tools for speculative changes or to alter the system being reviewed. Verification must inspect authoritative state rather than manufacture new state.
 {{- end -}}

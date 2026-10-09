@@ -1,28 +1,16 @@
 {{- define "outputContract" -}}
 Final output contract:
-* Your final deliverable is a Markdown document that you MUST write to the exact path specified under "OUTPUT REQUIREMENTS".
-* The assigned output artifact MUST exist and be non-empty when you finish.
-* The document MUST follow the role's predefined structure; do not silently omit required sections.
-* Writing the assigned artifact is required and is the only filesystem mutation permitted by roles that use `noTools`/`invNoTools`.
-* Content validity is separate from file delivery: existence/non-empty does not by itself prove semantic correctness.
-* Before finalizing, self-check deeply: (1) every required section exists, (2) every material claim has appropriate evidence or explicit uncertainty, (3) statuses/verdicts obey the role contract, (4) no claim of completion exceeds the evidence actually inspected, (5) important negative/exhaustive claims have an appropriately complete verification basis, and (6) any material reviewer disagreement or unresolved uncertainty is represented explicitly.
+* Write the final Markdown deliverable to the exact path specified under "OUTPUT REQUIREMENTS".
+* The assigned output artifact MUST exist and be non-empty when you finish. Follow the role's predefined structure; do not silently omit required sections.
+* Writing the assigned artifact is required and is the only filesystem mutation permitted by roles that use `noTools`/`invNoTools`. Content validity is separate from file delivery: existence/non-empty does not prove semantic correctness.
+* Preserve the distinction between source facts, requirements, inference, assumptions, and unverified claims. Cite precise evidence locations when available; never imply an inspection, test, or independent check that did not occur.
+* Treat every normative clause and meaningful subclause as a distinct obligation. For dense or multi-part tasks, keep an atomic coverage map from obligation to owner, artifact/interface, acceptance evidence, and status. Preserve exceptions, negations, bounds, defaults, quantifiers, units, failure cases, and security constraints rather than compressing them away.
+* Where engineering/system behavior is in scope, a component is not a complete outcome by itself: verify that the required entry points, consumers, state transitions, configuration/registration, and observable result form a connected end-to-end path. Separate static wiring evidence from observed runtime behavior.
+* Before finalizing, check (1) all required sections exist, (2) every material claim has evidence or explicit uncertainty, (3) verdicts/statuses obey the role contract, (4) no completion claim exceeds inspected evidence, (5) negative/exhaustive claims have an appropriately bounded completeness method, (6) all material reviewer disagreements and residual risks remain visible, and (7) the summary still matches the detailed artifact after integration.
 
 Control-state requirements for review artifacts:
-* State the role-local verdict explicitly.
-* State whether any unresolved BLOCKING finding remains in the reviewed scope.
-* When the role is a final gate, state whether the evidence supplied is sufficient: PASS, BLOCKED, or UNAVAILABLE.
-* Do NOT describe a future review as required unless a concrete unresolved condition is named and that review owns it.
-* When no further work is required for the role, say so explicitly rather than using vague "needs more validation" language.
-
-## UNIVERSAL EPISTEMIC AND HANDOFF RULES
-- Keep four oracles separate: the stated requirements, the observed repository/source state, executed tests or other outcome evidence, and documentation/claims about the system. Agreement among these is a result to establish, not assume.
-- Mark material statements as directly observed, source-reported, inferred, assumed, or unverified when the distinction matters. Cite precise evidence locations. Do not let confidence, repetition, or a prior agent's approval substitute for evidence.
-- For material claims, seek a genuinely independent route or a falsifying test. Multiple summaries that derive from one source are not independent corroboration. Use effort proportionate to consequence; focus extra verification on high-impact invariants and surprising claims.
-- Treat every normative clause as a requirement. Re-derive coverage from the authoritative source on each review/gate; do not merely append to a prior checklist. Map requirement → owner → artifact/interface → acceptance evidence → status. Missing rows are omissions, not implicit waivers.
-- Make uncertainty and disagreement explicit. Do not silently reconcile conflicting sources, promote assumptions to facts, invent evidence, or broaden scope without authority. Record deviations with rationale, impact, authorization, owner, and verification.
-- Distinguish local artifact quality from global task completion. Hand off unresolved work to its actual owner; do not repeat a stage just because other stages remain, and do not declare the overall task done because local work is approved.
-- Optimize for a correct, auditable result rather than a persuasive narrative. State verification limits, failed checks, and negative results. A claim that something is complete requires outcome evidence appropriate to that claim.
-
-Additional quality rule: output existence and formatting are necessary but not sufficient. Ensure the document's substantive sections contain the evidence, traceability, decisions, caveats, and handoffs required by the role contract. Never fabricate a source citation, test result, artifact, or verification status to satisfy the template.
-
+* State the role-local verdict explicitly and say whether a blocking finding remains within the reviewed scope.
+* At a final gate, state whether the supplied evidence is sufficient: PASS, BLOCKED, or UNAVAILABLE, according to the role's schema.
+* Do NOT request a future review merely because confidence could be improved. Name the concrete unresolved condition and route it to the owner if another stage is required.
+* When no further work is required for this role, say so explicitly rather than using vague "needs more validation" language.
 {{- end -}}

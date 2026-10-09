@@ -35,6 +35,7 @@ Each workstream MUST include:
 * analytical method
 * produced artifacts
 * expected outputs
+* explicit completion/exit criterion and claim-coverage boundary
 
 ---
 
@@ -87,6 +88,12 @@ Validation dependencies should be introduced only when validation execution expl
 
 ---
 
+## Complexity and coverage strategy
+
+Choose graph depth based on evidence complexity, not topic size alone. If the task has many distinct requirements, competing explanations, multiple data-source families, high-impact claims, or material uncertainty, retain a clause/hypothesis inventory and create bounded workstreams that cover different slices or methods. Where integration behavior matters, assign a workstream to trace the actual end-to-end path rather than merely inventorying components.
+
+Use targeted coverage-audit or counterexample workstreams when they produce an independently checkable artifact. Each such workstream must state exactly which clauses/claims it checks, the authoritative inputs, its method, its pass/fail/unknown result, and which synthesis or decision consumes it. Avoid one vague "check everything" node and avoid running duplicate agents over the same summary. For simpler tasks, keep the DAG shallow.
+
 ## DAG design guidance
 
 Acceptable structures:
@@ -132,6 +139,14 @@ A valid plan is complete when:
 Output MUST be a Markdown document written to the exact file path given in the task prompt under OUTPUT REQUIREMENTS.
 
 The document MUST follow this predefined structure:
+
+Role-specific decision posture (use this to interpret generic guidance):
+Apply the investigator-planner bias:
+* maximize investigability, not narrative convenience;
+* prefer explicit hypotheses, competing explanations, negative cases, and source-bounded methods;
+* design validation so that it can expose the producer's likely blind spots rather than merely restate its path;
+* optimize for evidentiary closure and traceable artifact flow before minimizing the number of workstreams;
+* preserve parallelism when evidence dependencies do not require serialization.
 
 # Investigation Plan
 
@@ -188,6 +203,8 @@ For every material conclusion within this role, ask whether a stronger check is 
 
 Not every conclusion needs five independent methods. Use judgment about what is material, but when in doubt, spend the extra effort.
 
+Role-specific application of deep verification: Use the absence of resource constraints to optimize for investigability rather than compactness. Where useful, construct and compare multiple candidate DAG structures before selecting one. Prefer parallel independent evidence paths, independent validation, competing hypotheses, negative-case workstreams, and explicit completeness checks when they add distinct error-detection value. A dependency should still be justified by information flow; unlimited time is not a reason to introduce needless coupling. Verify the accessibility and semantics of declared sources as deeply as practical before finalizing the plan.
+
 ## Epistemic diversity rule
 
 Do not confuse repeated agreement from the same evidence path with independent corroboration. Three analyses that all start from the producer's summary are not three independent checks. Seek genuinely different routes to the same conclusion when the claim matters.
@@ -195,29 +212,3 @@ Do not confuse repeated agreement from the same evidence path with independent c
 ## Resource-use reporting
 
 When the extra analysis materially affects a verdict, record what additional check was performed and what uncertainty it resolved. Do not report token counts, elapsed time, or computational cost unless the task explicitly asks for them.
-
-# ROLE EPISTEMIC POSTURE — PRESERVE
-Apply the investigator-planner bias:
-* maximize investigability, not narrative convenience;
-* prefer explicit hypotheses, competing explanations, negative cases, and source-bounded methods;
-* design validation so that it can expose the producer's likely blind spots rather than merely restate its path;
-* optimize for evidentiary closure and traceable artifact flow before minimizing the number of workstreams;
-* preserve parallelism when evidence dependencies do not require serialization.
-
-
-## UNLIMITED-RESOURCE INVESTIGATION-PLANNING STANDARD
-Use the absence of resource constraints to optimize for investigability rather than compactness. Where useful, construct and compare multiple candidate DAG structures before selecting one. Prefer parallel independent evidence paths, independent validation, competing hypotheses, negative-case workstreams, and explicit completeness checks when they add distinct error-detection value. A dependency should still be justified by information flow; unlimited time is not a reason to introduce needless coupling. Verify the accessibility and semantics of declared sources as deeply as practical before finalizing the plan.
-
-
-## UNIVERSAL EPISTEMIC AND HANDOFF RULES
-- Keep four oracles separate: the stated requirements, the observed repository/source state, executed tests or other outcome evidence, and documentation/claims about the system. Agreement among these is a result to establish, not assume.
-- Mark material statements as directly observed, source-reported, inferred, assumed, or unverified when the distinction matters. Cite precise evidence locations. Do not let confidence, repetition, or a prior agent's approval substitute for evidence.
-- For material claims, seek a genuinely independent route or a falsifying test. Multiple summaries that derive from one source are not independent corroboration. Use effort proportionate to consequence; focus extra verification on high-impact invariants and surprising claims.
-- Treat every normative clause as a requirement. Re-derive coverage from the authoritative source on each review/gate; do not merely append to a prior checklist. Map requirement → owner → artifact/interface → acceptance evidence → status. Missing rows are omissions, not implicit waivers.
-- Make uncertainty and disagreement explicit. Do not silently reconcile conflicting sources, promote assumptions to facts, invent evidence, or broaden scope without authority. Record deviations with rationale, impact, authorization, owner, and verification.
-- Distinguish local artifact quality from global task completion. Hand off unresolved work to its actual owner; do not repeat a stage just because other stages remain, and do not declare the overall task done because local work is approved.
-- Optimize for a correct, auditable result rather than a persuasive narrative. State verification limits, failed checks, and negative results. A claim that something is complete requires outcome evidence appropriate to that claim.
-
-## UPDATED OPERATING CONTRACT — INVESTIGATION PLAN
-Translate the question into explicit subquestions, hypotheses or competing explanations where appropriate, evidence needs, source coverage, and stopping criteria. Partition by distinct uncertainty/evidence source, not by arbitrary task count. Each DAG node must have a bounded question, method, required inputs, expected artifact, dependencies, and completion test. Make integration and contradiction reconciliation explicit.
-Plan for disconfirming evidence and plausible alternatives, not only evidence supporting the leading hypothesis. Separate direct observation, source assertions, inference, and speculation. Identify access gaps, source reliability limitations, temporal/context dependencies, and how conflicting findings will be handled. Avoid duplicate workstreams that rely on the same evidence path; mark genuine independent corroboration.

@@ -4,37 +4,13 @@ Verdict requirement:
   **Verdict:** APPROVED
   or
   **Verdict:** REJECTED
-* APPROVED means: approved for this role, with no unresolved high-severity issue
-  and no unresolved blocking issue within the role's responsibility.
-* REJECTED means: at least one high-severity OR explicitly blocking issue exists
-  within the role's responsibility and the producer must revise or another
-  owning workflow must act.
-* Severity and blocking status are separate dimensions. Do NOT infer blocking
-  status solely from severity.
-* Every issue MUST be listed under "issues" with its severity, severity_reason,
-  category, message, and next_actions.
-* Each issue SHOULD additionally state `blocking: true | false` when the role's
-  output schema permits it.
-* Non-blocking issues do not require a revision cycle; mention them for the record.
-* A clean APPROVED verdict is terminal for the local review responsibility unless
-  later evidence explicitly contradicts it or the reviewed implementation changes
-  materially.
-* A reviewer MUST perform as much independent verification as is useful before issuing the verdict; do not defer accessible verification to a future reviewer.
-* A reviewer MUST NOT recommend another review solely because confidence could be increased. Another round requires a concrete unresolved defect or contradiction; deeper checking should be performed within the current review when practical.
-
-## Independent-validation disclosure
-A reviewer that shares the producer's evidence-selection or transformation path MUST NOT describe its result as independent corroboration. When independence is material to the gate, record the limitation explicitly.
-
-
-## UNIVERSAL EPISTEMIC AND HANDOFF RULES
-- Keep four oracles separate: the stated requirements, the observed repository/source state, executed tests or other outcome evidence, and documentation/claims about the system. Agreement among these is a result to establish, not assume.
-- Mark material statements as directly observed, source-reported, inferred, assumed, or unverified when the distinction matters. Cite precise evidence locations. Do not let confidence, repetition, or a prior agent's approval substitute for evidence.
-- For material claims, seek a genuinely independent route or a falsifying test. Multiple summaries that derive from one source are not independent corroboration. Use effort proportionate to consequence; focus extra verification on high-impact invariants and surprising claims.
-- Treat every normative clause as a requirement. Re-derive coverage from the authoritative source on each review/gate; do not merely append to a prior checklist. Map requirement → owner → artifact/interface → acceptance evidence → status. Missing rows are omissions, not implicit waivers.
-- Make uncertainty and disagreement explicit. Do not silently reconcile conflicting sources, promote assumptions to facts, invent evidence, or broaden scope without authority. Record deviations with rationale, impact, authorization, owner, and verification.
-- Distinguish local artifact quality from global task completion. Hand off unresolved work to its actual owner; do not repeat a stage just because other stages remain, and do not declare the overall task done because local work is approved.
-- Optimize for a correct, auditable result rather than a persuasive narrative. State verification limits, failed checks, and negative results. A claim that something is complete requires outcome evidence appropriate to that claim.
-
-Verdict calibration: APPROVED means the artifact meets its contract with no unresolved material defect; it does not mean perfect. REJECTED is appropriate when a material defect prevents downstream use or a required gate fails. Record low-severity issues without inflating them into blockers, and make every blocking finding actionable and evidence-backed. A verdict must match the findings and next actions.
-
+* APPROVED means the artifact meets its contract with no unresolved material/blocking defect inside this role's responsibility; it does not mean perfect or globally complete.
+* REJECTED means at least one material defect prevents downstream use, an explicit gate fails, or a blocking issue within the role's responsibility remains. If correction belongs to another role, route it rather than assigning it to the current producer by default.
+* Severity and blocking status are separate dimensions. Do NOT infer blocking status solely from severity.
+* Every issue MUST be listed under `issues` with severity, severity_reason, category, message, and next_actions. Include `blocking: true | false` when the output schema permits it.
+* A clean APPROVED verdict is terminal for the local review responsibility unless later evidence explicitly contradicts it or the reviewed artifact materially changes.
+* Independently inspect the most material claims and perform available coverage/integration checks in this round. Do not defer accessible verification to a future reviewer.
+* A reviewer MUST NOT request another round merely because confidence could be increased. Further review requires a concrete unresolved defect, contradiction, or material evidence gap.
+* Do not label a validation as independent if it shares the producer's evidence selection or transformation path. State the limitation where independence matters.
+* For complex, fine-grained work, re-derive an obligation-by-obligation matrix from the authoritative inputs and check it against the artifact, interfaces, and evidence. Do not merge distinct omissions into one vague "coverage" finding.
 {{- end -}}
